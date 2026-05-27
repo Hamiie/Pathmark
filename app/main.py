@@ -344,7 +344,7 @@ def apply_css() -> None:
     div[data-baseweb="select"] span {{ color: var(--text) !important; }}
     [data-testid="stDataFrame"] {{ background: var(--surface); border-radius: 10px; }}
 
-    .demo-banner {
+    .demo-banner {{
         padding: 0.65rem 0.85rem;
         border: 1px solid var(--border);
         border-radius: 0.75rem;
@@ -352,7 +352,7 @@ def apply_css() -> None:
         color: var(--text);
         margin-bottom: 1rem;
         font-size: 0.92rem;
-    }
+    }}
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
