@@ -1976,23 +1976,65 @@ def unique_path(path: Path) -> Path:
     return path.with_name(f"{path.stem}_{stamp}{path.suffix}")
 
 
+def is_cloud_runtime() -> bool:
+    """Return True when running in a hosted Linux runtime such as Streamlit Community Cloud."""
+    return os.environ.get("STREAMLIT_SHARING_MODE") is not None or str(ROOT).startswith("/mount/src")
+
+
 def open_file(path: Path) -> bool:
+    """Open a file locally where supported. Hosted deployments should use download buttons instead."""
     try:
+        if is_cloud_runtime():
+            st.info("Hosted apps cannot open files on your computer directly. Use the download button instead.")
+            return False
         if sys.platform.startswith("win"):
             os.startfile(str(path))  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
             subprocess.Popen(["open", str(path)])
         else:
-            subprocess.Popen(["xdg-open", str(path)])
+            opener = shutil.which("xdg-open")
+            if not opener:
+                st.info("This environment cannot open files directly. Use the download button instead.")
+                return False
+            subprocess.Popen([opener, str(path)])
         return True
     except Exception as exc:
-        st.error(f"Could not open file: {exc}")
+        st.warning(f"Could not open file directly. Use the download button instead. Details: {exc}")
         return False
 
 
 def open_folder(path: Path) -> bool:
     folder = path if path.is_dir() else path.parent
+    if is_cloud_runtime():
+        st.info("Hosted apps cannot open server folders on your computer. Download the exported file instead.")
+        return False
     return open_file(folder)
+
+
+def file_mime(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return "application/pdf"
+    if suffix == ".ics":
+        return "text/calendar"
+    if suffix == ".csv":
+        return "text/csv"
+    if suffix in {".md", ".txt"}:
+        return "text/plain"
+    return "application/octet-stream"
+
+
+def download_export_button(label: str, path: Path, key: str | None = None) -> None:
+    if not path.exists():
+        st.warning(f"The exported file no longer exists: {path.name}")
+        return
+    st.download_button(
+        label,
+        data=path.read_bytes(),
+        file_name=path.name,
+        mime=file_mime(path),
+        key=key or f"download_{path.name}_{path.stat().st_mtime_ns}",
+    )
 
 
 def machine_date(value: Any) -> str:
@@ -2416,11 +2458,13 @@ def this_week_page() -> None:
 
     latest_path = Path(st.session_state.get("latest_weekly_pdf", "")) if st.session_state.get("latest_weekly_pdf") else None
     if latest_path and latest_path.exists():
-        c1, c2 = st.columns([0.25, 0.75])
-        if c1.button("Open PDF"):
-            open_file(latest_path)
-        if c2.button("Open folder"):
-            open_folder(latest_path)
+        download_export_button("Download tasklist PDF", latest_path, key="download_latest_tasklist_pdf")
+        if not is_cloud_runtime():
+            c1, c2 = st.columns([0.25, 0.75])
+            if c1.button("Open PDF"):
+                open_file(latest_path)
+            if c2.button("Open folder"):
+                open_folder(latest_path)
 
 
 def goals_page() -> None:
@@ -3017,11 +3061,13 @@ def calendar_export_page() -> None:
         st.success(f"Created {path.name}")
     latest_calendar = Path(st.session_state.get("latest_calendar_export", "")) if st.session_state.get("latest_calendar_export") else None
     if latest_calendar and latest_calendar.exists():
-        oc1, oc2 = st.columns([0.25, 0.75])
-        if oc1.button("Open ICS file"):
-            open_file(latest_calendar)
-        if oc2.button("Open calendar folder"):
-            open_folder(latest_calendar)
+        download_export_button("Download ICS file", latest_calendar, key="download_latest_ics")
+        if not is_cloud_runtime():
+            oc1, oc2 = st.columns([0.25, 0.75])
+            if oc1.button("Open ICS file"):
+                open_file(latest_calendar)
+            if oc2.button("Open calendar folder"):
+                open_folder(latest_calendar)
     if c2.button("Remove selected rows from export"):
         if not selected_ids:
             st.warning("Select one or more rows in the table to remove them from the export list.")
@@ -3070,11 +3116,13 @@ def google_tasks_export_page() -> None:
         st.success(f"Created {path.name}")
     latest_tasks = Path(st.session_state.get("latest_tasks_export", "")) if st.session_state.get("latest_tasks_export") else None
     if latest_tasks and latest_tasks.exists():
-        ot1, ot2 = st.columns([0.25, 0.75])
-        if ot1.button("Open tasks file"):
-            open_file(latest_tasks)
-        if ot2.button("Open tasks folder"):
-            open_folder(latest_tasks)
+        download_export_button("Download Google Tasks CSV", latest_tasks, key="download_latest_tasks_csv")
+        if not is_cloud_runtime():
+            ot1, ot2 = st.columns([0.25, 0.75])
+            if ot1.button("Open tasks file"):
+                open_file(latest_tasks)
+            if ot2.button("Open tasks folder"):
+                open_folder(latest_tasks)
     if c2.button("Remove selected rows from export"):
         if not selected_ids:
             st.warning("Select one or more rows in the table to remove them from the export list.")
@@ -3355,13 +3403,18 @@ def settings_page() -> None:
                 st.session_state["diagnostic_file"] = str(path)
                 st.success(f"Created {path.name}")
         with col_c:
-            if st.button("Open export folder", use_container_width=True):
-                open_folder(OUTPUT_DIR)
+            if not is_cloud_runtime():
+                if st.button("Open export folder", use_container_width=True):
+                    open_folder(OUTPUT_DIR)
+            else:
+                st.caption("Export folders cannot be opened from the hosted demo. Download files after creating them.")
 
         diag = st.session_state.get("diagnostic_file")
         if diag and Path(diag).exists():
-            if st.button("Open latest diagnostic file"):
-                open_file(Path(diag))
+            download_export_button("Download latest diagnostic file", Path(diag), key="download_latest_diagnostic")
+            if not is_cloud_runtime():
+                if st.button("Open latest diagnostic file"):
+                    open_file(Path(diag))
 
         st.markdown("---")
         st.subheader("Export log")
@@ -3375,11 +3428,13 @@ def settings_page() -> None:
             selected_log = st.selectbox("Open exported file", logs["File"].tolist(), key="open_export_log")
             col_a, col_b = st.columns(2)
             with col_a:
-                if st.button("Open selected exported file", use_container_width=True):
-                    open_file(Path(selected_log))
+                download_export_button("Download selected exported file", Path(selected_log), key="download_selected_export_log")
             with col_b:
-                if st.button("Open selected export folder", use_container_width=True):
-                    open_folder(Path(selected_log))
+                if not is_cloud_runtime():
+                    if st.button("Open selected export folder", use_container_width=True):
+                        open_folder(Path(selected_log))
+                else:
+                    st.caption("Folder opening is unavailable in the hosted demo.")
 
         st.markdown("---")
         st.subheader("Export compatibility")
