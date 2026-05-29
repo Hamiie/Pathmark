@@ -382,7 +382,7 @@ with new_tab:
     st.write("Use this if Pathmark has not been installed on this computer before.")
     if local_package.exists():
         st.download_button(
-            "Download Pathmark local app source",
+            "Download Pathmark for Windows",
             data=download_bytes(local_package),
             file_name=local_package.name,
             mime="application/zip",
@@ -394,8 +394,8 @@ with new_tab:
     st.markdown(
         """
 <div class="split">
-  <div class="step-card"><div class="step-number">1</div><h3>Download and extract</h3><p>Download the local app source and extract it somewhere sensible.</p></div>
-  <div class="step-card"><div class="step-number">2</div><h3>Build the launcher</h3><p>Run <code>build_launcher_exe.bat</code> before publishing a friend-facing package. Use <code>Start Pathmark.cmd</code> as the fallback.</p></div>
+  <div class="step-card"><div class="step-number">1</div><h3>Download and extract</h3><p>Download the Pathmark package and extract it somewhere sensible, such as your Documents folder.</p></div>
+  <div class="step-card"><div class="step-number">2</div><h3>Build the launcher</h3><p>Run <code>build_launcher_exe.bat</code> first to create <code>Start Pathmark.exe</code>. Use <code>Start Pathmark.cmd</code> as the fallback if needed.</p></div>
   <div class="step-card"><div class="step-number">3</div><h3>Choose a folder</h3><p>On first run, Pathmark asks where to keep the local system. The recommended default is Documents\Pathmark.</p></div>
   <div class="step-card"><div class="step-number">4</div><h3>Start using it</h3><p>The local app creates missing folders and files only. Existing files are not deleted.</p></div>
 </div>
@@ -428,7 +428,7 @@ with update_tab:
 2. Go to **Settings → Data safety and updates**.
 3. Create an update backup.
 4. Close the local app.
-5. Download the latest local app source from this page.
+5. Download the latest Pathmark package from this page.
 6. Replace only the old `local_app` folder.
 7. Start Pathmark again.
 8. Restore from backup only if something has gone wrong.
