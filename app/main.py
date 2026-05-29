@@ -45,7 +45,13 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .card p { margin-bottom: 0; color: var(--muted); }
 .notice { background: #E8F4EA; color: #255833; border: 1px solid #C7E3CC; border-radius: 1rem; padding: 1rem 1.1rem; margin: 1rem 0 1.5rem; }
 .path-box { background: #151817; color: #EEE9E0; border-radius: 1.15rem; padding: 1.05rem 1.2rem; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.65; overflow-x: auto; }
-.download-card { background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 1.3rem; padding: 1.2rem; height: 100%; box-shadow: 0 10px 28px var(--shadow); }
+.meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }
+.meta-card { background: rgba(255,255,255,.80); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.15rem; box-shadow: 0 10px 26px var(--shadow); }
+.meta-label { color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }
+.meta-value { color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; letter-spacing: -.045em; }
+.download-panel { background: rgba(255,255,255,.70); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; min-height: 8.3rem; }
+.download-panel h3 { margin: 0 0 .45rem 0; }
+.download-panel p { color: var(--muted); margin-bottom: 0; }
 .small { color: var(--muted); font-size: .95rem; }
 .safe-rule { background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }
 .stDownloadButton button, .stButton button { border-radius: .85rem !important; min-height: 3rem; font-weight: 700 !important; }
@@ -93,13 +99,27 @@ Pathmark can group related goals and routines under broad themes and more specif
 """)
 
 st.header("Download Pathmark")
-st.write(f"Latest version: **{version.get('version', 'unknown')}** · Released **{version.get('release_date', 'unknown')}**")
+st.markdown(f"""
+<div class="meta-grid">
+  <div class="meta-card">
+    <div class="meta-label">Latest version</div>
+    <div class="meta-value">{version.get('version', 'unknown')}</div>
+  </div>
+  <div class="meta-card">
+    <div class="meta-label">Release date</div>
+    <div class="meta-value">{version.get('release_date', 'unknown')}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 win_col, mac_col = st.columns(2)
 with win_col:
-    st.markdown("<div class='download-card'>", unsafe_allow_html=True)
-    st.subheader("Windows")
-    st.write("Download the Windows package, extract it, then run the launcher builder once to create `Pathmark.exe`.")
+    st.markdown("""
+    <div class="download-panel">
+      <h3>Windows</h3>
+      <p>Download the Windows package, extract it, then run the launcher builder once to create <strong>Pathmark.exe</strong>.</p>
+    </div>
+    """, unsafe_allow_html=True)
     if windows_name and (DOWNLOADS / windows_name).exists():
         st.download_button(
             "Download Pathmark for Windows",
@@ -111,13 +131,15 @@ with win_col:
         )
     else:
         st.error("The Windows package is missing from this release hub.")
-    st.caption("If the executable cannot be built, use `Start Pathmark.cmd` as the fallback launcher.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("If the executable cannot be built, use Start Pathmark.cmd as the fallback launcher.")
 
 with mac_col:
-    st.markdown("<div class='download-card'>", unsafe_allow_html=True)
-    st.subheader("Mac")
-    st.write("Download the Mac package, extract it, then open `Start Pathmark.command` from the `local_app` folder.")
+    st.markdown("""
+    <div class="download-panel">
+      <h3>Mac</h3>
+      <p>Download the Mac package, extract it, then open <strong>Start Pathmark.command</strong> from the local_app folder.</p>
+    </div>
+    """, unsafe_allow_html=True)
     if mac_name and (DOWNLOADS / mac_name).exists():
         st.download_button(
             "Download Pathmark for Mac",
@@ -129,8 +151,7 @@ with mac_col:
         )
     else:
         st.error("The Mac package is missing from this release hub.")
-    st.caption("The Mac package also includes an optional builder for creating a `Start Pathmark.app` launcher.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("The Mac package also includes an optional builder for creating a Start Pathmark.app launcher.")
 
 st.markdown("""
 <div class="notice">Pathmark runs on your computer so it can create tasklists, backups, calendar exports, Google Tasks exports, and planning files in the folder you choose.</div>
