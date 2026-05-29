@@ -1,13 +1,10 @@
-# Development System Release Hub v6
+# Clearway Release Hub
 
-This repository is the Streamlit Community Cloud release hub for Development System.
+This repository is the Streamlit Community Cloud release hub for Clearway.
 
-It does not run the real local-file app. It provides:
+It provides a polished front door and a download for the latest **local app source package**. The source package deliberately does not include a prebuilt `Start Clearway.exe`; run the builder on Windows before publishing a friend-facing app zip.
 
-- a polished landing page
-- a download for the latest local Windows app package
-- separate flows for new users and existing users updating the app
-- clear safety wording that the app folder is replaceable, but the Development folder is not
+## Deploy
 
 Deploy with Streamlit Community Cloud using:
 
@@ -15,8 +12,28 @@ Deploy with Streamlit Community Cloud using:
 app/main.py
 ```
 
-## Updating the local package
+## Updating the download
 
-Replace the zip inside `downloads/` and update `latest_version.json`.
+1. Build or update the local app source package.
+2. Put the zip in `downloads/`.
+3. Update `latest_version.json`.
+4. Commit to GitHub and reboot the Streamlit app.
 
-The local app package should not include user data, backups, Markdown folders, exports, tasklists, or a live database.
+## Safety rule
+
+The app folder is replaceable. The Clearway folder is not.
+
+Persistent user data belongs in:
+
+```text
+Clearway/00_System
+Clearway/01_Body_And_Stability
+Clearway/02_Home_And_Garden
+...
+```
+
+Application files belong in:
+
+```text
+Clearway/local_app
+```
