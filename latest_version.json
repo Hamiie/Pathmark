@@ -1,0 +1,16 @@
+{
+  "latest_version": "v0.5.26 Pathmark local app source",
+  "release_date": "2026-05-30",
+  "package_name": "Pathmark_Local_App_Source_v0_5_25_BUILD_FIRST.zip",
+  "notes": [
+    "Renames the product from Clearway to Pathmark.",
+    "Updates the release hub homepage with more user-facing language about routines, prompts, goals, and grouped work.",
+    "Keeps the build-first local app package so a stale EXE is not accidentally shipped.",
+    "Uses Pathmark as the default root folder name for new users while allowing existing folders to be selected."
+  ],
+  "app_name": "Pathmark",
+  "version": "v0.5.26",
+  "download_file": "Pathmark_Local_App_Source_v0_5_26_BUILD_FIRST.zip",
+  "download_label": "Download Pathmark for Windows",
+  "streamlit_subdomain": "pathmark"
+}
