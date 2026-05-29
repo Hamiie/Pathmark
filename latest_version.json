@@ -1,11 +1,11 @@
 {
-  "latest_version": "v0.5.16 local share",
+  "latest_version": "v0.5.17 local share",
   "release_date": "2026-05-30",
   "notes": [
-    "Exports now use output/Tasklists, output/Google Calendar Exports, output/Google Tasks Exports, and output/Backups.",
-    "Latest export buttons remain available after export.",
-    "Google Tasks exports are comma-delimited CSV files again.",
-    "The app includes update backup controls before installing future releases.",
-    "The launcher source includes a Check for updates button; rebuild the EXE on Windows to include the launcher UI change."
+    "Hides the Streamlit Deploy control in the local app for a more finished local-only experience.",
+    "Fixes duplicate Streamlit button IDs in Settings by assigning explicit keys.",
+    "Keeps the v0.5.16 export folder structure: output/Tasklists, output/Google Calendar Exports, output/Google Tasks Exports, and output/Backups.",
+    "Google Tasks exports remain comma-delimited CSV files.",
+    "Update backup controls remain available before installing future releases."
   ]
 }

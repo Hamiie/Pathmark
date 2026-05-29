@@ -9,7 +9,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 DOWNLOADS = ROOT / "downloads"
 VERSION_FILE = ROOT / "latest_version.json"
-LOCAL_PACKAGE = DOWNLOADS / "Development_System_Local_App_v0_5_16.zip"
+LOCAL_PACKAGE = DOWNLOADS / "Development_System_Local_App_v0_5_17.zip"
 
 st.set_page_config(
     page_title="Development System",
