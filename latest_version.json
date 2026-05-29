@@ -1,14 +1,12 @@
 {
-  "latest_version": "v0.5.19 local app update",
+  "latest_version": "v0.5.20 local app update",
   "release_date": "2026-05-30",
-  "package_name": "Development_System_Local_App_v0_5_19.zip",
+  "package_name": "Development_System_Local_App_v0_5_20.zip",
   "notes": [
-    "Exports and backups now live under 00_System rather than local_app/output.",
-    "Tasklists write to 00_System/Tasklists.",
-    "Google Calendar ICS files write to 00_System/Google Calendar Exports.",
-    "Google Tasks CSV files write to 00_System/Google Tasks Exports.",
-    "Backups write to 00_System/Backups.",
-    "Existing older local_app/output settings are migrated to persistent 00_System folders.",
-    "The export pages have been simplified to reduce duplicate open-file/open-folder controls."
+    "Google Calendar and Google Tasks export folders remain under 00_System.",
+    "Calendar and Tasks export pages now show a stable export-folder button before staged rows are loaded.",
+    "Opening the export folder no longer depends on the currently staged table, so the page should not refresh and lose rows on the first click.",
+    "Duplicate open-file/open-folder controls were removed from the Calendar and Tasks export pages.",
+    "Tasklists, Google Calendar exports, Google Tasks exports, and backups remain outside local_app so updates can replace local_app safely."
   ]
 }
