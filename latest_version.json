@@ -1,13 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.36",
+  "version": "v0.5.39",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_36_BUILD_FIRST.zip",
-  "mac_package": "Pathmark_Local_App_Mac_v0_5_36.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_39.zip",
   "notes": [
-    "Pathmark now detects existing numbered area folders such as 01_Body_And_Stability and imports them as selectable areas.",
-    "The local app keeps the Pathmark browser logo and release-hub/launcher visual identity.",
-    "Older visible prototype names such as Development System continue to migrate to Pathmark.",
-    "The app folder remains Pathmark_app so it is clear what can be replaced during updates."
+    "This release keeps the original release-hub repository structure while making the local package Windows-only for now.",
+    "The launcher now includes Backup local data and Backup and check updates again.",
+    "The launcher starts Streamlit in headless mode and reuses the existing local port to avoid opening two app windows.",
+    "User data and exports now default to Documents\\Pathmark\\00_System rather than the Downloads folder.",
+    "Export folders are grouped as Tasklists, Google Calendar Exports, Google Tasks Exports, and Backups.",
+    "Pathmark detects existing top-level folders in the selected Pathmark folder and uses them as Areas."
   ]
 }
