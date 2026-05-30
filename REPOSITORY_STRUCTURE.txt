@@ -1,4 +1,4 @@
-Pathmark release hub v0.5.49
+Pathmark release hub v0.5.60
 
 .gitignore
 README.md
@@ -10,6 +10,6 @@ app/
   assets/
     pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_49.zip
+  Pathmark_Local_App_Windows_v0_5_60.zip
 .streamlit/
   config.toml

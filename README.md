@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_58.zip
+  Pathmark_Local_App_Windows_v0_5_60.zip
 latest_version.json
 requirements.txt
 .streamlit/config.toml
@@ -36,6 +36,6 @@ The launcher creates or points to the workspace folder on first launch. The work
 
 Mac support has been removed for now.
 
-## v0.5.58 focus
+## v0.5.60 focus
 
-This release removes the accidental Area-folder helper text that Streamlit was rendering at the top of the local app page. It also keeps the homepage focused on Pathmark's main workflow: calendar blocks, Google Tasks prompts, Areas, and the Workspace.
+This release simplifies the launcher, sidebar workflow, Areas page, Specific area handling, and suggested starter routines while keeping the release hub focused on downloading and updating Pathmark.

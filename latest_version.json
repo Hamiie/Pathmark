@@ -1,12 +1,15 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.58",
+  "version": "v0.5.60",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_58.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_60.zip",
   "mac_package": "",
   "notes": [
-    "Fixed the local app issue where the Area folder helper text was appearing repeatedly at the top of the page.",
-    "Kept Area detection strict: only folders with prefixes like 01_, 02_, or 03_ become Areas; 00_System is reserved and ignored.",
-    "Kept the hosted page as a download/update homepage and refreshed the homepage wording around calendar blocks and Google Tasks prompts."
+    "Simplified the launcher so setup focuses on choosing the Workspace and checking for updates.",
+    "Theme choice now happens inside the app rather than in the launcher.",
+    "Reordered the app sidebar to support the workflow: Home, Review Queue, Areas, Routines, Goals, Tasklist, exports, and Settings.",
+    "Simplified Areas and Specific area handling so Pathmark quietly maintains Workspace folders and Markdown files when goals and routines are saved.",
+    "Reframed standard routines as optional suggested starter routines for system support and wellbeing.",
+    "Tightened Review Queue filtering so unnumbered and system folders are ignored."
   ]
 }

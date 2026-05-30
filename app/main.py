@@ -98,10 +98,10 @@ if ICON_PATH.exists():
 
 st.markdown("""
 <div class="hero">
-  <div class="eyebrow">Calendar blocks and task prompts</div>
+  <div class="eyebrow">Routines. Prompts. Progress.</div>
   <h1>Pathmark</h1>
-  <p class="lead">Make space for goals and routines in your calendar, then export Google Tasks prompts that stay linked to what each action supports.</p>
-  <p class="sublead">Use Pathmark to plan recurring work, group related projects into Areas, and prepare calendar and task files from one Workspace.</p>
+  <p class="lead">Make space for goals and routines in your calendar, then export Google Tasks prompts that make the next action easier to start.</p>
+  <p class="sublead">Use Pathmark to plan recurring work as calendar blocks, keep related projects grouped in Areas, and generate task prompts that still point back to the goal, routine, or Area they support.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -109,15 +109,15 @@ st.markdown("""
 <div class="grid-3">
   <div class="card">
     <h3>Make time visible</h3>
-    <p>Turn goals, routines, and project work into calendar blocks that can be exported as ICS files.</p>
+    <p>Prepare calendar blocks for routines, goals, and project work, then export them as ICS files for Google Calendar.</p>
   </div>
   <div class="card">
-    <h3>Prompt the next action</h3>
-    <p>Generate Google Tasks prompts alongside calendar exports, so tasks remain connected to the goal or routine they belong to.</p>
+    <h3>Prompt the action</h3>
+    <p>Generate Google Tasks prompts alongside calendar exports, so each prompt is easier to understand and edit later.</p>
   </div>
   <div class="card">
     <h3>Keep work grouped</h3>
-    <p>Use broad Areas to keep related goals, routines, tasklists, exports, and project files together in the Workspace.</p>
+    <p>Organise goals, routines, tasklists, exports, and project files under broad Areas in your Workspace.</p>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -139,7 +139,7 @@ st.markdown(f"""
 st.markdown("""
 <div class="download-panel">
   <h3>Windows local app</h3>
-  <p>Download the package, extract it, move the extracted <strong>Pathmark</strong> app folder into <strong>Documents</strong>, then run <strong>build_launcher_exe.bat</strong> once. The launcher lets you review the Workspace and theme before opening the app.</p>
+  <p>Download the package, extract it, move the extracted <strong>Pathmark</strong> app folder into <strong>Documents</strong>, then run <strong>build_launcher_exe.bat</strong> once. The launcher lets you set the Workspace before opening the app.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -177,14 +177,14 @@ st.markdown("""
 2. Extract the zip file.
 3. Move the extracted `Pathmark` app folder into your Documents folder.
 4. Open the `Pathmark` app folder and run `build_launcher_exe.bat` once to create `Pathmark.exe`.
-5. Open `Pathmark.exe`, review the Workspace field, choose the default theme, then open Pathmark.
+5. Open `Pathmark.exe`, review or change the Workspace field, then open Pathmark.
 
 The default Workspace is `Documents\\Workspace`. Pathmark will create it if needed, or you can choose an existing folder before opening the app.
 """)
 
 st.header("Update")
 st.markdown("""
-<div class="safe-rule"><strong>Replace the app folder only.</strong><br>Open <strong>Pathmark.exe</strong> and choose <strong>Update</strong>. Then replace only <code>Documents\\Pathmark</code>. Do not replace <code>Documents\\Workspace</code> or whichever Workspace folder you selected.</div>
+<div class="safe-rule"><strong>Replace the app folder only.</strong><br>Open <strong>Pathmark.exe</strong> and choose <strong>Check for updates</strong>. Then replace only <code>Documents\\Pathmark</code>. Do not replace <code>Documents\\Workspace</code> or whichever Workspace folder you selected.</div>
 """, unsafe_allow_html=True)
 
 st.header("Release notes")
