@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.61",
+  "version": "v0.5.62",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_61.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_62.zip",
   "mac_package": "",
   "notes": [
-    "Added an On-the-go tab to the hosted release hub for capturing pending goal, routine, task prompt, and calendar block updates.",
-    "Added a local On-the-go Updates page for connecting to a user-owned Google Sheet and reviewing pending updates before importing them into the Workspace.",
-    "Added user-owned Google Sheet sync settings stored inside the Workspace system folder.",
-    "On-the-go imports can create captured goals, active routines, staged Google Tasks prompts, or staged calendar blocks after user review.",
-    "Added CSV fallback for on-the-go updates when direct hosted Google Sheet writing is not configured yet."
+    "Made CSV import the default on-the-go workflow until hosted Google Sheet credentials are configured.",
+    "Hid direct hosted Google Sheet saving unless service-account credentials are available.",
+    "Added CSV upload/import to the local On-the-go Updates page.",
+    "Reworded private Google Sheet errors so HTTP 401 messages no longer appear as confusing technical errors.",
+    "Kept user-owned Google Sheet connection as an optional later step."
   ]
 }
