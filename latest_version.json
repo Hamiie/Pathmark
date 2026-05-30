@@ -1,12 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.56",
+  "version": "v0.5.57",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_56.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_57.zip",
   "mac_package": "",
   "notes": [
-    "Restored the hosted release hub homepage so the public page downloads the local Windows app rather than running the local launcher/app.",
-    "Kept the PyYAML dependency fix needed by the local app.",
-    "Kept workspace path handling inside the local launcher/app rather than showing path-related setup errors at the top of the hosted download page."
+    "Corrected documentation so the replaceable app folder is Documents\\Pathmark and the default Workspace is Documents\\Workspace.",
+    "Kept the public Streamlit page as a download homepage only, with no local app or launcher code rendered on the page.",
+    "Improved imported Area colour assignment so active numbered Areas are spread across Google Calendar colours where possible.",
+    "Removed top-of-page setup/debug text from the public release hub and checked the hosted page contains no local workspace code snippets."
   ]
 }

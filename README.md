@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_51.zip
+  Pathmark_Local_App_Windows_v0_5_57.zip
 latest_version.json
 requirements.txt
 .streamlit/config.toml
@@ -22,7 +22,7 @@ requirements.txt
 Pathmark separates the replaceable app files from the user's workspace:
 
 ```text
-Documents\Workspace_app       ← app files; replace on update
+Documents\Pathmark            ← app files; replace on update
 Documents\Workspace          ← default workspace; keep user projects and exports here
 ```
 
@@ -36,6 +36,6 @@ The launcher creates or points to the workspace folder on first launch. The work
 
 Mac support has been removed for now.
 
-## v0.5.51 focus
+## v0.5.57 focus
 
-This release stabilises the Windows setup workflow: Pathmark.exe defaults to Documents\Workspace but lets the user choose an existing workspace before first launch; the app files live directly in Documents\Workspace_app; the homepage instructions no longer show raw HTML or redundant suggested-organisation text.
+This release keeps the hosted Streamlit page as a download/update homepage, confirms the replaceable app folder is `Documents\Pathmark`, keeps `Documents\Workspace` as the default user Workspace, and improves imported Area colour assignment.
