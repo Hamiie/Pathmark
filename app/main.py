@@ -98,26 +98,26 @@ if ICON_PATH.exists():
 
 st.markdown("""
 <div class="hero">
-  <div class="eyebrow">Windows local app</div>
+  <div class="eyebrow">Calendar blocks and task prompts</div>
   <h1>Pathmark</h1>
-  <p class="lead">Plan recurring work, organise projects into Areas, and export calendar blocks and task prompts from one local Workspace.</p>
-  <p class="sublead">Pathmark is designed for goals that need repeated attention: routines, weekly resets, study plans, creative projects, admin cycles, and other work that benefits from a clear starting point.</p>
+  <p class="lead">Make space for goals and routines in your calendar, then export Google Tasks prompts that stay linked to what each action supports.</p>
+  <p class="sublead">Use Pathmark to plan recurring work, group related projects into Areas, and prepare calendar and task files from one Workspace.</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="grid-3">
   <div class="card">
-    <h3>Organise by Area</h3>
-    <p>Create numbered Area folders such as <strong>01_Body_And_Stability</strong> or <strong>03_Making_And_Craft</strong>. Pathmark uses these folders to keep app records and project files aligned.</p>
+    <h3>Make time visible</h3>
+    <p>Turn goals, routines, and project work into calendar blocks that can be exported as ICS files.</p>
   </div>
   <div class="card">
-    <h3>Build routines and actions</h3>
-    <p>Turn broad goals into routines, tasklists, next actions, and review prompts so the next step is easier to start.</p>
+    <h3>Prompt the next action</h3>
+    <p>Generate Google Tasks prompts alongside calendar exports, so tasks remain connected to the goal or routine they belong to.</p>
   </div>
   <div class="card">
-    <h3>Export when ready</h3>
-    <p>Prepare calendar blocks, Google Tasks exports, tasklists, backups, and local files inside the Workspace rather than scattering them through Downloads.</p>
+    <h3>Keep work grouped</h3>
+    <p>Use broad Areas to keep related goals, routines, tasklists, exports, and project files together in the Workspace.</p>
   </div>
 </div>
 """, unsafe_allow_html=True)

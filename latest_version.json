@@ -1,13 +1,12 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.57",
+  "version": "v0.5.58",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_57.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_58.zip",
   "mac_package": "",
   "notes": [
-    "Corrected documentation so the replaceable app folder is Documents\\Pathmark and the default Workspace is Documents\\Workspace.",
-    "Kept the public Streamlit page as a download homepage only, with no local app or launcher code rendered on the page.",
-    "Improved imported Area colour assignment so active numbered Areas are spread across Google Calendar colours where possible.",
-    "Removed top-of-page setup/debug text from the public release hub and checked the hosted page contains no local workspace code snippets."
+    "Fixed the local app issue where the Area folder helper text was appearing repeatedly at the top of the page.",
+    "Kept Area detection strict: only folders with prefixes like 01_, 02_, or 03_ become Areas; 00_System is reserved and ignored.",
+    "Kept the hosted page as a download/update homepage and refreshed the homepage wording around calendar blocks and Google Tasks prompts."
   ]
 }
