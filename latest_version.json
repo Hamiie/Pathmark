@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.62",
+  "version": "v0.5.66",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_62.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_66.zip",
   "mac_package": "",
   "notes": [
-    "Made CSV import the default on-the-go workflow until hosted Google Sheet credentials are configured.",
-    "Hid direct hosted Google Sheet saving unless service-account credentials are available.",
-    "Added CSV upload/import to the local On-the-go Updates page.",
-    "Reworded private Google Sheet errors so HTTP 401 messages no longer appear as confusing technical errors.",
-    "Kept user-owned Google Sheet connection as an optional later step."
+    "Moved developer bootstrap emails out of public source code and into Streamlit secrets.",
+    "Protected beta and developer features now require a verified email claim from login.",
+    "Made app-created Pathmark sync sheets the primary Google Sheets OAuth workflow.",
+    "Moved existing sync sheet entry into an advanced section for testing only.",
+    "Clarified that the role store contains access records only, not user planning data."
   ]
 }

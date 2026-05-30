@@ -5,8 +5,12 @@ import io
 import json
 import re
 import uuid
+import secrets
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -75,12 +79,266 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .meta-value { color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; letter-spacing: -.045em; }
 .download-panel { background: rgba(255,255,255,.70); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; }
 .safe-rule { background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }
+.profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: rgba(255,255,255,.78); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
+.beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
 .stDownloadButton button, .stButton button { border-radius: .85rem !important; min-height: 3rem; font-weight: 700 !important; }
 [data-testid="stHeader"] { background: transparent; }
 @media (max-width: 860px) { .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; } }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+
+ROLE_VALUES = ["standard", "beta_tester", "developer"]
+STATUS_VALUES = ["active", "disabled"]
+ROLE_COLUMNS = ["email", "role", "status", "last_login", "updated_at"]
+
+
+def _secret_section(name: str):
+    try:
+        return st.secrets.get(name, {})
+    except Exception:
+        return {}
+
+
+def login_configured() -> bool:
+    """Return True when Streamlit OIDC/login appears to be configured."""
+    try:
+        return bool(st.secrets.get("auth", None))
+    except Exception:
+        return False
+
+
+def _user_claim(user: Any, key: str, default: Any = "") -> Any:
+    """Read a claim from Streamlit's OIDC user object defensively."""
+    try:
+        value = getattr(user, key)
+        if value is not None:
+            return value
+    except Exception:
+        pass
+    try:
+        return user.get(key, default)
+    except Exception:
+        return default
+
+
+def current_user() -> dict[str, Any]:
+    """Read the Streamlit user object if login is configured and completed."""
+    try:
+        user = getattr(st, "user", None)
+    except Exception:
+        user = None
+    if not user:
+        return {"email": "", "name": "", "email_verified": False}
+    try:
+        is_logged_in = bool(getattr(user, "is_logged_in", False))
+    except Exception:
+        is_logged_in = False
+    if not is_logged_in:
+        return {"email": "", "name": "", "email_verified": False}
+    email = str(_user_claim(user, "email", "") or "").strip().lower()
+    name = str(_user_claim(user, "name", "") or "").strip()
+    raw_verified = _user_claim(user, "email_verified", False)
+    if isinstance(raw_verified, str):
+        email_verified = raw_verified.strip().lower() in {"true", "1", "yes"}
+    else:
+        email_verified = bool(raw_verified)
+    return {"email": email, "name": name, "email_verified": email_verified}
+
+def configured_developer_emails() -> set[str]:
+    access = _secret_section("pathmark_access")
+    values: list[str] = []
+    raw = access.get("developer_emails", []) if access else []
+    if isinstance(raw, str):
+        values = [item.strip() for item in raw.split(",")]
+    elif isinstance(raw, list):
+        values = [str(item).strip() for item in raw]
+    return {item.lower() for item in values if item}
+
+
+def role_store_config() -> dict[str, Any] | None:
+    """Return optional app-owned role store settings.
+
+    This store is separate from user planning data. If configured, it stores
+    only access records: email, role, status, and login/update times.
+    """
+    access = _secret_section("pathmark_access")
+    if not access:
+        return None
+    sheet_id = str(access.get("role_store_sheet_id", "")).strip()
+    sa_json = access.get("service_account_json", "")
+    if not sheet_id or not sa_json:
+        return None
+    return {"sheet_id": sheet_id, "service_account_json": sa_json}
+
+
+def role_store_client():
+    cfg = role_store_config()
+    if not cfg:
+        return None
+    try:
+        import gspread  # type: ignore
+        raw = cfg["service_account_json"]
+        info = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        return gspread.service_account_from_dict(info)
+    except Exception as exc:
+        st.warning(f"Developer role store is not available: {exc}")
+        return None
+
+
+def read_role_records() -> list[dict[str, str]]:
+    client = role_store_client()
+    cfg = role_store_config()
+    if client is None or cfg is None:
+        return []
+    try:
+        sh = client.open_by_key(cfg["sheet_id"])
+        try:
+            ws = sh.worksheet("users")
+        except Exception:
+            ws = sh.add_worksheet(title="users", rows=100, cols=len(ROLE_COLUMNS))
+            ws.append_row(ROLE_COLUMNS)
+        records = ws.get_all_records()
+        out: list[dict[str, str]] = []
+        for rec in records:
+            email = str(rec.get("email", "")).strip().lower()
+            if not email:
+                continue
+            role = str(rec.get("role", "standard")).strip()
+            status = str(rec.get("status", "active")).strip()
+            out.append({
+                "email": email,
+                "role": role if role in ROLE_VALUES else "standard",
+                "status": status if status in STATUS_VALUES else "active",
+                "last_login": str(rec.get("last_login", "")).strip(),
+                "updated_at": str(rec.get("updated_at", "")).strip(),
+            })
+        return out
+    except Exception as exc:
+        st.warning(f"Could not read developer role store: {exc}")
+        return []
+
+
+def upsert_role_record(email: str, role: str, status: str = "active", update_login: bool = False) -> tuple[bool, str]:
+    email = (email or "").strip().lower()
+    role = role if role in ROLE_VALUES else "standard"
+    status = status if status in STATUS_VALUES else "active"
+    if not email or "@" not in email:
+        return False, "Enter a valid email address."
+    if email in configured_developer_emails() and role != "developer":
+        return False, "A developer account listed in Streamlit secrets cannot be downgraded from the hosted UI."
+    client = role_store_client()
+    cfg = role_store_config()
+    if client is None or cfg is None:
+        return False, "Persistent role management is not configured yet. Add a private role-store Google Sheet in Streamlit secrets."
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        sh = client.open_by_key(cfg["sheet_id"])
+        try:
+            ws = sh.worksheet("users")
+        except Exception:
+            ws = sh.add_worksheet(title="users", rows=100, cols=len(ROLE_COLUMNS))
+            ws.append_row(ROLE_COLUMNS)
+        values = ws.get_all_values()
+        if not values:
+            ws.append_row(ROLE_COLUMNS)
+            values = [ROLE_COLUMNS]
+        if values[0][:len(ROLE_COLUMNS)] != ROLE_COLUMNS:
+            ws.update("A1:E1", [ROLE_COLUMNS])
+            values[0] = ROLE_COLUMNS
+        target_row = None
+        for idx, row in enumerate(values[1:], start=2):
+            if row and row[0].strip().lower() == email:
+                target_row = idx
+                break
+        existing_last_login = ""
+        if target_row:
+            current = values[target_row - 1]
+            if len(current) >= 4:
+                existing_last_login = current[3]
+        last_login = now if update_login else existing_last_login
+        row_values = [email, role, status, last_login, now]
+        if target_row:
+            ws.update(f"A{target_row}:E{target_row}", [row_values])
+        else:
+            ws.append_row(row_values)
+        return True, "Role saved."
+    except Exception as exc:
+        return False, f"Could not update role store: {exc}"
+
+
+def resolve_role(email: str, email_verified: bool = False) -> tuple[str, str]:
+    """Return (role, status), defaulting unknown logged-in users to standard.
+
+    Developer and beta access require a verified email claim from the identity
+    provider. This prevents unverified identities from being granted protected
+    hosted features.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return "public", "active"
+    if not email_verified:
+        return "standard", "active"
+    if email in configured_developer_emails():
+        return "developer", "active"
+    for record in read_role_records():
+        if record["email"] == email:
+            return record["role"], record["status"]
+    return "standard", "active"
+
+def maybe_record_login(email: str, role: str, status: str) -> None:
+    if not email or status != "active":
+        return
+    key = f"login_recorded_{email}"
+    if st.session_state.get(key):
+        return
+    if role_store_config() is not None:
+        upsert_role_record(email, role, status, update_login=True)
+    st.session_state[key] = True
+
+
+def render_account_bar(role: str, user: dict[str, str]) -> None:
+    cols = st.columns([1, 1, 4])
+    with cols[0]:
+        if login_configured() and not user.get("email"):
+            if st.button("Log in", use_container_width=True):
+                try:
+                    st.login()
+                except Exception as exc:
+                    st.warning(f"Login is not configured correctly yet: {exc}")
+        elif user.get("email"):
+            if st.button("Log out", use_container_width=True):
+                try:
+                    st.logout()
+                except Exception as exc:
+                    st.warning(f"Could not log out: {exc}")
+    with cols[1]:
+        if user.get("email"):
+            st.markdown(f"<span class='profile-pill'>{role}</span>", unsafe_allow_html=True)
+    with cols[2]:
+        if user.get("email"):
+            verified_note = "verified" if user.get("email_verified") else "email not verified"
+            st.caption(f"Signed in as {user.get('email')} ({verified_note})")
+        elif login_configured():
+            st.caption("Log in to access beta or developer features. Public visitors can download Pathmark without signing in.")
+        else:
+            st.caption("Login is not configured on this deployment yet. Public download mode is available.")
+
+
+def role_can_use_on_the_go(role: str, status: str) -> bool:
+    return status == "active" and role in {"beta_tester", "developer"}
+
+
+def role_can_develop(role: str, status: str) -> bool:
+    return status == "active" and role == "developer"
+
+
+def row_to_csv_bytes(row: dict[str, str]) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=SYNC_COLUMNS, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerow({col: row.get(col, "") for col in SYNC_COLUMNS})
+    return buffer.getvalue().encode("utf-8")
 
 
 def load_version() -> dict:
@@ -118,47 +376,229 @@ def blank_sync_row() -> dict[str, str]:
     }
 
 
-def row_to_csv_bytes(row: dict[str, str]) -> bytes:
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=SYNC_COLUMNS)
-    writer.writeheader()
-    writer.writerow({key: row.get(key, "") for key in SYNC_COLUMNS})
-    return output.getvalue().encode("utf-8")
 
 
-def append_to_private_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool, str]:
-    """Append a row to pending_changes using a Streamlit service account secret.
+GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
-    The user must share their sync sheet with the service-account email configured
-    in Streamlit secrets. If credentials are not configured, the page falls back to
-    a downloadable CSV row that can be imported from the desktop app later.
+
+def google_oauth_config() -> dict[str, Any] | None:
+    """Return a Google OAuth web-client config from Streamlit secrets when configured.
+
+    Expected secrets format:
+
+    [google_oauth]
+    client_id = "..."
+    client_secret = "..."
+    redirect_uri = "https://your-app.streamlit.app"
     """
+    try:
+        cfg = st.secrets.get("google_oauth", None)
+    except Exception:
+        cfg = None
+    if not cfg:
+        return None
+    client_id = str(cfg.get("client_id", "")).strip()
+    client_secret = str(cfg.get("client_secret", "")).strip()
+    redirect_uri = str(cfg.get("redirect_uri", "")).strip()
+    if not (client_id and client_secret and redirect_uri):
+        return None
+    return {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "client_config": {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [redirect_uri],
+            }
+        },
+    }
+
+
+def web_oauth_available() -> bool:
+    return google_oauth_config() is not None
+
+
+def google_credentials_from_session():
+    """Return short-lived Google credentials stored only in Streamlit session state.
+
+    The hosted page deliberately avoids requesting offline access. If the access
+    token expires, the user reconnects rather than Pathmark storing a refresh
+    token on the hosted app.
+    """
+    raw = st.session_state.get("google_sheets_credentials")
+    if not raw:
+        return None
+    try:
+        from google.oauth2.credentials import Credentials  # type: ignore
+        credentials = Credentials.from_authorized_user_info(json.loads(raw), GOOGLE_SHEETS_SCOPES)
+        if credentials.expired:
+            st.session_state.pop("google_sheets_credentials", None)
+            return None
+        return credentials if credentials and credentials.valid else None
+    except Exception:
+        st.session_state.pop("google_sheets_credentials", None)
+        return None
+
+
+def revoke_google_session_token() -> None:
+    raw = st.session_state.get("google_sheets_credentials")
+    token = ""
+    try:
+        if raw:
+            token = json.loads(raw).get("token", "")
+    except Exception:
+        token = ""
+    if token:
+        try:
+            data = urllib.parse.urlencode({"token": token}).encode("utf-8")
+            urllib.request.urlopen("https://oauth2.googleapis.com/revoke", data=data, timeout=5)
+        except Exception:
+            pass
+    st.session_state.pop("google_sheets_credentials", None)
+    st.session_state.pop("sync_sheet_id", None)
+    st.session_state.pop("google_oauth_state", None)
+
+def handle_google_oauth_redirect() -> None:
+    """Complete OAuth callback only when the returned state matches exactly."""
+    cfg = google_oauth_config()
+    if not cfg:
+        return
+    params = st.query_params
+    code = params.get("code")
+    state = params.get("state")
+    error = params.get("error")
+    if isinstance(code, list):
+        code = code[0] if code else None
+    if isinstance(state, list):
+        state = state[0] if state else None
+    if isinstance(error, list):
+        error = error[0] if error else None
+    if error:
+        st.warning(f"Google authorisation was not completed: {error}")
+        st.query_params.clear()
+        return
+    if not code:
+        return
+    expected_state = st.session_state.get("google_oauth_state")
+    # The hosted page may also use Streamlit's own login/OIDC flow. Only handle
+    # callbacks that were started by Pathmark's Google Sheets connector.
+    if not expected_state:
+        return
+    if not state or not secrets.compare_digest(str(expected_state), str(state)):
+        st.session_state.pop("google_oauth_state", None)
+        st.query_params.clear()
+        st.error("Google authorisation could not be verified. Please reconnect from the On the go tab.")
+        return
+    try:
+        from google_auth_oauthlib.flow import Flow  # type: ignore
+        flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
+        flow.fetch_token(code=code)
+        # Do not keep a refresh token in the hosted app session.
+        cred_info = json.loads(flow.credentials.to_json())
+        cred_info.pop("refresh_token", None)
+        st.session_state["google_sheets_credentials"] = json.dumps(cred_info)
+        st.session_state.pop("google_oauth_state", None)
+        st.query_params.clear()
+        st.success("Google Sheets is connected for this session.")
+    except Exception as exc:
+        st.session_state.pop("google_oauth_state", None)
+        st.query_params.clear()
+        st.warning(f"Could not complete Google authorisation: {exc}")
+
+def google_auth_url() -> str | None:
+    cfg = google_oauth_config()
+    if not cfg:
+        return None
+    try:
+        from google_auth_oauthlib.flow import Flow  # type: ignore
+        flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
+        state_seed = secrets.token_urlsafe(32)
+        auth_url, state = flow.authorization_url(
+            access_type="online",
+            include_granted_scopes="true",
+            prompt="select_account",
+            state=state_seed,
+        )
+        st.session_state["google_oauth_state"] = state
+        return auth_url
+    except Exception as exc:
+        st.warning(f"Could not prepare Google authorisation: {exc}")
+        return None
+
+def sheets_service():
+    credentials = google_credentials_from_session()
+    if not credentials:
+        return None
+    try:
+        from googleapiclient.discovery import build  # type: ignore
+        return build("sheets", "v4", credentials=credentials, cache_discovery=False)
+    except Exception as exc:
+        st.warning(f"Could not connect to Google Sheets: {exc}")
+        return None
+
+
+def ensure_pending_changes_sheet(service: Any, sheet_id: str) -> None:
+    metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    sheet_titles = [sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])]
+    if "pending_changes" not in sheet_titles:
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": "pending_changes"}}}]},
+        ).execute()
+    values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range="pending_changes!1:1").execute().get("values", [])
+    if not values or values[0] != SYNC_COLUMNS:
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=f"pending_changes!A1:{chr(64 + len(SYNC_COLUMNS))}1",
+            valueInputOption="RAW",
+            body={"values": [SYNC_COLUMNS]},
+        ).execute()
+
+
+def create_user_sync_sheet() -> tuple[bool, str, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "", "Connect Google Sheets first."
+    try:
+        spreadsheet = service.spreadsheets().create(
+            body={
+                "properties": {"title": "Pathmark Sync"},
+                "sheets": [{"properties": {"title": "pending_changes"}}],
+            },
+            fields="spreadsheetId,spreadsheetUrl",
+        ).execute()
+        sheet_id = spreadsheet.get("spreadsheetId", "")
+        ensure_pending_changes_sheet(service, sheet_id)
+        st.session_state["sync_sheet_id"] = sheet_id
+        return True, sheet_id, spreadsheet.get("spreadsheetUrl", "")
+    except Exception as exc:
+        return False, "", f"Could not create a Pathmark sync sheet: {exc}"
+
+
+def append_to_user_oauth_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool, str]:
     sheet_id = extract_google_sheet_id(sheet_id)
     if not sheet_id:
         return False, "No Google Sheet ID was provided."
+    service = sheets_service()
+    if service is None:
+        return False, "Connect Google Sheets before saving to a sync sheet."
     try:
-        service_info = st.secrets.get("gcp_service_account", None)
-    except Exception:
-        service_info = None
-    if not service_info:
-        return False, "No service-account credentials are configured for this hosted app yet."
-    try:
-        import gspread  # type: ignore
-        from google.oauth2.service_account import Credentials  # type: ignore
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        credentials = Credentials.from_service_account_info(dict(service_info), scopes=scopes)
-        client = gspread.authorize(credentials)
-        spreadsheet = client.open_by_key(sheet_id)
-        try:
-            worksheet = spreadsheet.worksheet("pending_changes")
-        except Exception:
-            worksheet = spreadsheet.add_worksheet(title="pending_changes", rows=1000, cols=len(SYNC_COLUMNS))
-            worksheet.append_row(SYNC_COLUMNS)
-        worksheet.append_row([row.get(col, "") for col in SYNC_COLUMNS], value_input_option="USER_ENTERED")
-        return True, "Saved to your Pathmark sync sheet."
+        ensure_pending_changes_sheet(service, sheet_id)
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range="pending_changes!A:O",
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [[row.get(col, "") for col in SYNC_COLUMNS]]},
+        ).execute()
+        st.session_state["sync_sheet_id"] = sheet_id
+        return True, "Saved to your Google Sheet."
     except Exception as exc:
         return False, f"Could not write to the sync sheet: {exc}"
-
 
 def download_tab() -> None:
     version = load_version()
@@ -224,19 +664,59 @@ def download_tab() -> None:
         st.write(f"- {note}")
 
 
+
 def on_the_go_tab() -> None:
-    st.header("On the go")
-    st.write("Capture a goal idea, routine change, task prompt, or calendar block idea while away from your main Workspace. The desktop app can review and import these updates later.")
-    st.info("For the first sync version, the hosted page writes only pending updates. Your desktop Workspace remains the place where changes are reviewed and applied.")
-    with st.expander("How to connect a user-owned Google Sheet", expanded=False):
+    handle_google_oauth_redirect()
+    st.header("On the go beta")
+    st.markdown("<div class='beta-note'><strong>Beta feature.</strong> Capture goal ideas, routine changes, task prompts, or calendar block ideas while away from your main Workspace. The desktop app can review and import these updates later. Do not use this for sensitive information during testing.</div>", unsafe_allow_html=True)
+
+    with st.expander("How on-the-go updates work", expanded=False):
         st.markdown("""
-        1. Create a Google Sheet for Pathmark sync.
-        2. Add a tab named `pending_changes` with the columns used below.
-        3. Share the sheet with the Pathmark service-account email configured for this hosted app, or use the CSV fallback until credentials are configured.
-        4. In the desktop app, open **On-the-go Updates** and use the same Sheet URL or ID.
+        **CSV mode** keeps everything offline until you import the file into desktop Pathmark.
+
+        **Google Sheets mode** uses your own Google account and the narrow Google `drive.file` permission. For the safest workflow, create the Pathmark sync sheet from this page and use that sheet for on-the-go captures. Pathmark does not ask for access to all of your Google Sheets and it does not store your entries in this hosted app.
         """)
-        st.code(", ".join(SYNC_COLUMNS), language="text")
-    sheet_url = st.text_input("Google Sheet URL or ID", help="Use your own Pathmark sync sheet. Private sheet writing requires service-account credentials configured in the hosted app.")
+
+    st.subheader("1. Choose where to save this capture")
+    auth_ready = web_oauth_available()
+    credentials = google_credentials_from_session()
+    if not auth_ready:
+        st.info("Google Sheets OAuth is not configured on this hosted deployment yet. Use the CSV download workflow below.")
+    else:
+        if credentials:
+            st.success("Google Sheets is connected for this session.")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                if st.button("Create Pathmark sync sheet", use_container_width=True):
+                    ok, sheet_id, message = create_user_sync_sheet()
+                    if ok:
+                        st.success("Created Pathmark Sync sheet.")
+                        st.link_button("Open sync sheet", message, use_container_width=True)
+                    else:
+                        st.warning(message)
+            with c2:
+                current_sheet = st.session_state.get("sync_sheet_id", "")
+                if current_sheet:
+                    st.link_button("Open current sync sheet", f"https://docs.google.com/spreadsheets/d/{current_sheet}", use_container_width=True)
+            with c3:
+                if st.button("Disconnect", use_container_width=True):
+                    revoke_google_session_token()
+                    st.rerun()
+            if not st.session_state.get("sync_sheet_id"):
+                st.info("Create a Pathmark sync sheet above before saving captures to Google Sheets, or use the CSV download below.")
+        else:
+            auth_url = google_auth_url()
+            if auth_url:
+                st.link_button("Connect Google Sheets", auth_url, use_container_width=True)
+            st.caption("You will be asked by Google to allow Pathmark to create and update the specific Google Drive files used by this app. Access is kept for this browser session only.")
+
+    with st.expander("Advanced: use an existing Pathmark sync sheet", expanded=False):
+        sheet_url_input = st.text_input("Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you have explicitly opened with the app.")
+        if sheet_url_input:
+            st.session_state["sync_sheet_id"] = extract_google_sheet_id(sheet_url_input)
+    sheet_url = st.session_state.get("sync_sheet_id", "")
+
+    st.subheader("2. Capture the update")
     c1, c2 = st.columns(2)
     with c1:
         record_type = st.selectbox("Update type", ["new_goal", "new_routine", "new_task_prompt", "new_calendar_block", "update_note"])
@@ -259,26 +739,100 @@ def on_the_go_tab() -> None:
         "calendar_end": calendar_end.strip(),
         "recurrence": recurrence.strip(),
     })
+
+    st.subheader("3. Save for desktop review")
     save_col, dl_col = st.columns(2)
     with save_col:
-        if st.button("Save to sync sheet", use_container_width=True):
+        disabled = not bool(credentials and st.session_state.get("sync_sheet_id"))
+        if st.button("Save to my Pathmark sync sheet", use_container_width=True, disabled=disabled):
             if not title.strip():
                 st.error("Add a title before saving.")
             else:
-                ok, message = append_to_private_sheet(sheet_url, row)
+                ok, message = append_to_user_oauth_sheet(sheet_url, row)
                 if ok:
                     st.success(message)
                 else:
                     st.warning(message)
-                    st.caption("Use the CSV fallback below, or configure the hosted service-account access before using direct sheet writes.")
+        if disabled:
+            st.caption("Connect Google Sheets and create/select a Pathmark sync sheet first, or use the CSV download.")
     with dl_col:
         st.download_button("Download pending update CSV", data=row_to_csv_bytes(row), file_name="pathmark_on_the_go_update.csv", mime="text/csv", use_container_width=True)
 
+def developer_tab() -> None:
+    st.header("Developer settings")
+    st.write("Manage hosted access roles for beta features. Unknown signed-in users default to standard access.")
+    st.markdown("""
+    Roles:
+    - **standard**: download homepage only.
+    - **beta_tester**: On-the-go beta access.
+    - **developer**: beta access plus this developer panel.
+    """)
+    if role_store_config() is None:
+        st.info("Persistent role management is not configured yet. Developer access must be bootstrapped from Streamlit secrets, and role assignments cannot be saved until a private role-store Google Sheet is configured.")
+        with st.expander("Role store setup", expanded=False):
+            st.markdown("""
+            Configure a private app-owned role store in Streamlit secrets. This stores access records only: email address, role, status, last login, and update timestamps. It does not contain Pathmark goals, routines, tasks, Workspace files, or on-the-go planning entries.
 
-tab_download, tab_go = st.tabs(["Download Pathmark", "On the go"])
-with tab_download:
-    download_tab()
-with tab_go:
-    on_the_go_tab()
+            ```toml
+            [pathmark_access]
+            developer_emails = ["you@example.com"]
+            role_store_sheet_id = "YOUR_PRIVATE_ROLE_SHEET_ID"
+            service_account_json = '''{"type":"service_account", "client_email":"...", "private_key":"..."}'''
+            ```
 
-st.caption("Pathmark release hub. User files stay in the user's chosen Workspace; on-the-go updates are only saved to a user-owned sync sheet when configured.")
+            The role sheet should be private and shared only with the service-account email. Pathmark will create or update a `users` worksheet with columns: `email`, `role`, `status`, `last_login`, `updated_at`.
+            """)
+    records = read_role_records()
+    if records:
+        st.subheader("Current role records")
+        st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+    else:
+        st.caption("No role records found. Initial developer emails are still treated as developer accounts.")
+
+    st.subheader("Assign or update a user role")
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        email = st.text_input("User email").strip().lower()
+    with c2:
+        role = st.selectbox("Role", ROLE_VALUES, index=0)
+    with c3:
+        status = st.selectbox("Status", STATUS_VALUES, index=0)
+    if st.button("Save user access", use_container_width=True):
+        ok, msg = upsert_role_record(email, role, status)
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.warning(msg)
+
+
+def render_app() -> None:
+    user = current_user()
+    role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
+    maybe_record_login(user.get("email", ""), role, status)
+    render_account_bar(role, user)
+    if status == "disabled":
+        st.error("This account has been disabled for the hosted Pathmark page.")
+        return
+
+    tabs = ["Download Pathmark"]
+    if role_can_use_on_the_go(role, status):
+        tabs.append("On the go beta")
+    if role_can_develop(role, status):
+        tabs.append("Developer")
+    created_tabs = st.tabs(tabs)
+    with created_tabs[0]:
+        download_tab()
+    idx = 1
+    if role_can_use_on_the_go(role, status):
+        with created_tabs[idx]:
+            on_the_go_tab()
+        idx += 1
+    if role_can_develop(role, status):
+        with created_tabs[idx]:
+            developer_tab()
+
+
+render_app()
+
+st.caption("Pathmark release hub. Public visitors can download Pathmark. Beta and developer tools are visible only to signed-in accounts with a verified email and the appropriate role. User files stay in the chosen Workspace; on-the-go entries are saved only to a downloaded CSV or to the Pathmark sync sheet authorised by the user with the drive.file scope.")
