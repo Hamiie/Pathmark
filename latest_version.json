@@ -1,12 +1,12 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.54",
+  "version": "v0.5.56",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_54.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_56.zip",
   "mac_package": "",
   "notes": [
-    "Fixed the hosted Streamlit dependency error by adding PyYAML to requirements.txt.",
-    "Aligned the release hub requirements with the local app imports: Streamlit, pandas, PyYAML, reportlab, and Pillow.",
-    "No feature workflow changes from v0.5.53; this is a dependency fix release."
+    "Restored the hosted release hub homepage so the public page downloads the local Windows app rather than running the local launcher/app.",
+    "Kept the PyYAML dependency fix needed by the local app.",
+    "Kept workspace path handling inside the local launcher/app rather than showing path-related setup errors at the top of the hosted download page."
   ]
 }
