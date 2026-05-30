@@ -31,8 +31,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-APP_TITLE = "Pathmark Local App v0.5.47"
-APP_VERSION = "v0.5.53-local"
+APP_TITLE = "Pathmark Local App v0.5.54"
+APP_VERSION = "v0.5.54-local"
 ROOT = Path(__file__).resolve().parents[1]
 OLD_DATA_DIR = ROOT / "data"
 OLD_DB_PATH = OLD_DATA_DIR / "development_system.db"

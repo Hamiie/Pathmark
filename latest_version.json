@@ -1,13 +1,12 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.53",
+  "version": "v0.5.54",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_53.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_54.zip",
   "mac_package": "",
   "notes": [
-    "Theme changes made inside Pathmark now apply immediately instead of being overwritten by the launcher on each rerun.",
-    "Theme palettes now check text contrast against backgrounds, buttons, tags, inputs, dropdowns, and placeholder text.",
-    "Imported numbered Area folders are assigned unused Google Calendar colours where possible before colours are reused.",
-    "Area import continues to require numbered folders such as 01_Area_Name; 00_System remains reserved."
+    "Fixed the hosted Streamlit dependency error by adding PyYAML to requirements.txt.",
+    "Aligned the release hub requirements with the local app imports: Streamlit, pandas, PyYAML, reportlab, and Pillow.",
+    "No feature workflow changes from v0.5.53; this is a dependency fix release."
   ]
 }
