@@ -1,10 +1,11 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.66",
-  "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_66.zip",
+  "version": "v0.5.67",
+  "release_date": "2026-05-31",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_67.zip",
   "mac_package": "",
   "notes": [
+    "Made hosted Google login controls visible at the top of the homepage and added clearer messaging when Streamlit [auth] secrets are not configured.",
     "Moved developer bootstrap emails out of public source code and into Streamlit secrets.",
     "Protected beta and developer features now require a verified email claim from login.",
     "Made app-created Pathmark sync sheets the primary Google Sheets OAuth workflow.",
