@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_42.zip
+  Pathmark_Local_App_Windows_v0_5_43.zip
 latest_version.json
 requirements.txt
 .streamlit/config.toml
@@ -23,10 +23,10 @@ Pathmark separates the replaceable app files from the user's workspace:
 
 ```text
 Documents\Pathmark App\Pathmark_app   ← app files; replace on update
-Documents\Pathmark                    ← workspace; keep user projects and exports here
+Documents\Pathmark                    ← suggested workspace; keep user projects and exports here
 ```
 
-The launcher creates or points to the workspace folder. The workspace is used for area folders, exports, tasklists, backups, and the local database.
+The launcher creates or points to the workspace folder on first launch. The workspace is used for area folders, exports, tasklists, backups, and the local database. Users can choose an existing folder if they already have one.
 
 ## Updating a release
 
@@ -36,6 +36,6 @@ The launcher creates or points to the workspace folder. The workspace is used fo
 
 Mac support has been removed for now.
 
-## v0.5.42 focus
+## v0.5.43 focus
 
-This release keeps the Windows-only structure but improves the local update workflow, workspace instructions, Area folder detection, and visual continuity between the release hub, launcher, and local app.
+This release stabilises the Windows setup workflow: Pathmark.exe prompts for the workspace before first launch, theme preferences can be set at setup, launcher backups include local settings, and the app respects the selected workspace when exporting.
