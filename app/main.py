@@ -181,7 +181,7 @@ st.markdown("""
 
 st.header("Updating safely")
 st.markdown("""
-<div class="safe-rule"><strong>The app folder is replaceable. Your Pathmark workspace is not.</strong><br>Before updating, open the launcher and choose <strong>Backup and open update hub</strong>. Then replace only the <code>Pathmark_app</code> folder in your app location. Do not replace <code>Documents\\Pathmark</code> or the workspace folder you selected.</div>
+<div class="safe-rule"><strong>The app folder is replaceable. Your Workspace folder is not.</strong><br>Before updating, open the launcher and choose <strong>Update</strong>. Then replace only the <code>Pathmark_app</code> folder in your app location. Do not replace <code>Documents\\Pathmark</code> or the workspace folder you selected.</div>
 """, unsafe_allow_html=True)
 
 st.header("Suggested organisation")

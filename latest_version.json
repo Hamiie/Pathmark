@@ -1,8 +1,8 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.43",
+  "version": "v0.5.44",
   "release_date": "2026-05-30",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_43.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_44.zip",
   "notes": [
     "Pathmark.exe now prompts for the workspace folder on first launch before starting the app.",
     "The launcher lets the user choose Documents\\Pathmark or an existing folder, and explains this is where projects, area folders, exports, tasklists, backups, and the local database are kept.",
@@ -11,5 +11,6 @@
     "The app now respects the workspace passed from Pathmark.exe so exports do not silently create a separate Documents\\Pathmark folder after a different workspace has been chosen.",
     "The in-app Setup and folders page no longer offers a Downloads shortcut; the root folder field is the single place to change the workspace inside the app.",
     "The launcher, default app theme, and release hub continue the same Pathmark visual style."
-  ]
+  ],
+  "mac_package": ""
 }
