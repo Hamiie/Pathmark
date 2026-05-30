@@ -1,0 +1,14 @@
+{
+  "app_name": "Pathmark",
+  "version": "v0.5.42",
+  "release_date": "2026-05-30",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_42.zip",
+  "notes": [
+    "Launcher actions are now visible in the main launcher window, including Backup local data and Backup and open update hub.",
+    "Default local app theme now matches the Pathmark download page and launcher.",
+    "00_System is no longer imported as an Area.",
+    "Imported Areas now receive valid Google Calendar colours instead of falling back to Graphite.",
+    "Pathmark creates a README in the selected workspace explaining numbered Area folders and the update-safe folder model.",
+    "Export confirmation messages now point users to the visible Open exports folder button."
+  ]
+}

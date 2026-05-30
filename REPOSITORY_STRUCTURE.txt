@@ -1,0 +1,15 @@
+Pathmark release hub v0.5.41
+
+.gitignore
+README.md
+requirements.txt
+latest_version.json
+REPOSITORY_STRUCTURE.txt
+app/
+  main.py
+  assets/
+    pathmark.png
+downloads/
+  Pathmark_Local_App_Windows_v0_5_42.zip
+.streamlit/
+  config.toml
