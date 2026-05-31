@@ -616,7 +616,7 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
         elif configured:
             auth_url = login_auth_url()
             if auth_url:
-                same_tab_link_button("Log in with Google", auth_url)
+                st.link_button("Log in with Google", auth_url, use_container_width=True)
             else:
                 st.button("Log in unavailable", use_container_width=True, disabled=True)
         else:
@@ -1067,7 +1067,7 @@ def on_the_go_tab() -> None:
         else:
             auth_url = google_auth_url()
             if auth_url:
-                same_tab_link_button("Connect Google Sheets", auth_url)
+                st.link_button("Connect Google Sheets", auth_url, use_container_width=True)
             st.caption("You will be asked by Google to allow Pathmark to create and update the specific Google Drive files used by this app. Access is kept for this browser session only. If Google shows only a request-details error page, open the diagnostics above and check the exact redirect URI, test-user, and drive.file scope settings in Google Cloud.")
 
     with st.expander("Advanced: use an existing Pathmark sync sheet", expanded=False):

@@ -1,8 +1,8 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.5.76",
+  "version": "0.5.77",
   "release_date": "2026-05-31",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_76.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_77.zip",
   "mac_package": "",
   "notes": [
     "Fixed the hosted Google Sheets OAuth return flow so it can return to the On-the-go beta tab instead of dropping back to the public homepage.",
