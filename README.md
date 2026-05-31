@@ -163,7 +163,7 @@ This release adds a versioned Supabase migration structure for the hosted access
 
 ## Google Sheets On-the-go OAuth checks
 
-Pathmark v0.5.77 adds a safe diagnostics panel in the hosted On-the-go beta tab. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
+Pathmark v0.5.78 keeps the safe diagnostics panel in the hosted On-the-go beta tab. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
 
 For Google Sheets sync, configure the same Google Cloud project used by Streamlit secrets:
 

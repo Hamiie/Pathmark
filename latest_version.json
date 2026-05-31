@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.77",
+  "version": "0.5.78",
   "release_date": "2026-05-31",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_77.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_78.zip",
   "mac_package": "",
   "notes": [
-    "Fixed the hosted Google Sheets OAuth return flow so it can return to the On-the-go beta tab instead of dropping back to the public homepage.",
-    "Preserved the signed-state OAuth protection while adding short-lived callback routing context for Google Sheets connections.",
-    "Changed Google login and Google Sheets connection buttons to same-tab links to avoid opening extra browser tabs.",
+    "Fixed Google Sheets On-the-go OAuth token exchange by removing PKCE from the confidential hosted web-client flow, avoiding missing code_verifier errors after Streamlit session changes.",
+    "Kept signed OAuth state verification and On-the-go return context handling from v0.5.76.",
+    "Kept Streamlit native OAuth launch buttons for reliable Google redirects.",
     "Kept the Supabase migration and Secret API key access model from v0.5.74."
   ]
 }

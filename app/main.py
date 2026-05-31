@@ -809,6 +809,53 @@ def revoke_google_session_token() -> None:
     st.session_state.pop("sync_sheet_id", None)
     st.session_state.pop("google_oauth_state", None)
 
+def exchange_google_code_for_credentials(cfg: dict[str, Any], code: str) -> dict[str, Any]:
+    """Exchange a Google OAuth code for short-lived credentials.
+
+    The hosted On-the-go flow intentionally does not use PKCE. In Streamlit Cloud,
+    Google often returns to a fresh browser/session after the OAuth round trip.
+    A PKCE code verifier stored only in st.session_state can then be lost, causing
+    Google to reject the token exchange with "Missing code verifier".
+
+    This is a confidential web-client flow: the client secret stays server-side in
+    Streamlit secrets, the OAuth state is signed by Pathmark, and only short-lived
+    access credentials are kept in the hosted session. No refresh token is stored.
+    """
+    token_payload = {
+        "code": code,
+        "client_id": cfg["client_id"],
+        "client_secret": cfg["client_secret"],
+        "redirect_uri": cfg["redirect_uri"],
+        "grant_type": "authorization_code",
+    }
+    request = urllib.request.Request(
+        "https://oauth2.googleapis.com/token",
+        data=urllib.parse.urlencode(token_payload).encode("utf-8"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        token_data = json.loads(response.read().decode("utf-8"))
+
+    expires_at = None
+    if token_data.get("expires_in"):
+        try:
+            expires_at = int(datetime.now(timezone.utc).timestamp()) + int(token_data["expires_in"])
+        except Exception:
+            expires_at = None
+
+    cred_info = {
+        "token": token_data.get("access_token"),
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": cfg["client_id"],
+        "client_secret": cfg["client_secret"],
+        "scopes": token_data.get("scope", " ".join(GOOGLE_SHEETS_SCOPES)).split(),
+    }
+    if expires_at:
+        cred_info["expiry"] = datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z")
+    return cred_info
+
+
 def handle_google_oauth_redirect() -> None:
     """Complete Google Sheets OAuth callbacks before the gated tabs render."""
     cfg = google_oauth_config()
@@ -845,12 +892,9 @@ def handle_google_oauth_redirect() -> None:
     if restored_email and not current_user().get("email"):
         st.session_state["pathmark_user"] = {"email": restored_email, "name": "", "email_verified": True}
     try:
-        from google_auth_oauthlib.flow import Flow  # type: ignore
-        flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
-        flow.fetch_token(code=code)
-        # Do not keep a refresh token in the hosted app session.
-        cred_info = json.loads(flow.credentials.to_json())
-        cred_info.pop("refresh_token", None)
+        cred_info = exchange_google_code_for_credentials(cfg, str(code))
+        if not cred_info.get("token"):
+            raise RuntimeError("Google did not return an access token.")
         st.session_state["google_sheets_credentials"] = json.dumps(cred_info)
         st.session_state["on_the_go_connected_notice"] = "Google Sheets is connected for this session."
         st.session_state.pop("google_oauth_state", None)
@@ -867,20 +911,22 @@ def google_auth_url() -> str | None:
     if not cfg:
         return None
     try:
-        from google_auth_oauthlib.flow import Flow  # type: ignore
-        flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
         user = current_user()
         user_email = str(user.get("email", "") or "").strip().lower()
         context = f"return=on_the_go&email={urllib.parse.quote(user_email, safe='')}" if user_email else "return=on_the_go"
-        state_seed = make_signed_oauth_state("sheets", context=context)
-        auth_url, state = flow.authorization_url(
-            access_type="online",
-            include_granted_scopes="true",
-            prompt="select_account",
-            state=state_seed,
-        )
+        state = make_signed_oauth_state("sheets", context=context)
+        params = {
+            "client_id": cfg["client_id"],
+            "redirect_uri": cfg["redirect_uri"],
+            "response_type": "code",
+            "scope": " ".join(GOOGLE_SHEETS_SCOPES),
+            "state": state,
+            "access_type": "online",
+            "include_granted_scopes": "true",
+            "prompt": "select_account",
+        }
         st.session_state["google_oauth_state"] = state
-        return auth_url
+        return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     except Exception as exc:
         st.warning(f"Could not prepare Google authorisation: {exc}")
         return None
