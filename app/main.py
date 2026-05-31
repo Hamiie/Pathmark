@@ -9,6 +9,7 @@ import uuid
 import secrets
 import hmac
 import hashlib
+import html
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -85,6 +86,8 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: rgba(255,255,255,.78); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
 .beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
 .stDownloadButton button, .stButton button { border-radius: .85rem !important; min-height: 3rem; font-weight: 700 !important; }
+.pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem; padding: .55rem .85rem; border-radius: .85rem; background: var(--accent); color: #FFFFFF !important; text-decoration: none !important; font-weight: 760; border: 1px solid rgba(31,34,33,.18); box-shadow: 0 8px 22px var(--shadow); }
+.pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; }
 [data-testid="stHeader"] { background: transparent; }
 @media (max-width: 860px) { .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; } }
 </style>
@@ -178,30 +181,63 @@ def oauth_state_secret() -> str:
     return secret or "pathmark-development-only-state-secret"
 
 
-def make_signed_oauth_state(kind: str) -> str:
+def make_signed_oauth_state(kind: str, context: str = "") -> str:
+    """Create a short-lived signed OAuth state value.
+
+    The optional context is URL-safe encoded into the signed payload. This lets
+    Pathmark recover enough non-secret routing context after a round trip to
+    Google, even when Streamlit starts a fresh session.
+    """
     ts = str(int(datetime.now(timezone.utc).timestamp()))
     nonce = secrets.token_urlsafe(24)
-    payload = f"{kind}:{ts}:{nonce}"
+    context_part = urllib.parse.quote(context or "", safe="")
+    payload = f"{kind}:{ts}:{nonce}:{context_part}"
     sig = hmac.new(oauth_state_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{payload}:{sig}"
 
 
-def verify_signed_oauth_state(state: str | None, kind: str, max_age_seconds: int = 900) -> bool:
+def parse_signed_oauth_state(state: str | None, kind: str, max_age_seconds: int = 900) -> dict[str, str] | None:
     if not state:
-        return False
+        return None
     parts = str(state).split(":")
-    if len(parts) != 4 or parts[0] != kind:
-        return False
-    payload = ":".join(parts[:3])
+    if len(parts) == 4:
+        state_kind, ts, nonce, sig = parts
+        context_part = ""
+        payload = ":".join(parts[:3])
+    elif len(parts) == 5:
+        state_kind, ts, nonce, context_part, sig = parts
+        payload = ":".join(parts[:4])
+    else:
+        return None
+    if state_kind != kind:
+        return None
     expected = hmac.new(oauth_state_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, parts[3]):
-        return False
+    if not secrets.compare_digest(expected, sig):
+        return None
     try:
-        age = int(datetime.now(timezone.utc).timestamp()) - int(parts[1])
+        age = int(datetime.now(timezone.utc).timestamp()) - int(ts)
     except Exception:
-        return False
-    return 0 <= age <= max_age_seconds
+        return None
+    if not (0 <= age <= max_age_seconds):
+        return None
+    return {"kind": state_kind, "timestamp": ts, "nonce": nonce, "context": urllib.parse.unquote(context_part or "")}
 
+
+def verify_signed_oauth_state(state: str | None, kind: str, max_age_seconds: int = 900) -> bool:
+    return parse_signed_oauth_state(state, kind, max_age_seconds=max_age_seconds) is not None
+
+
+def signed_state_context(state: str | None, kind: str, max_age_seconds: int = 900) -> str:
+    parsed = parse_signed_oauth_state(state, kind, max_age_seconds=max_age_seconds)
+    return parsed.get("context", "") if parsed else ""
+
+
+def same_tab_link_button(label: str, url: str, help_text: str | None = None) -> None:
+    """Render a full-width link styled like a Streamlit button that stays in this tab."""
+    safe_label = html.escape(label)
+    safe_url = html.escape(url, quote=True)
+    title = f' title="{html.escape(help_text, quote=True)}"' if help_text else ""
+    st.markdown(f'<a class="pathmark-link-button" href="{safe_url}" target="_self" rel="noopener noreferrer"{title}>{safe_label}</a>', unsafe_allow_html=True)
 
 def login_auth_url() -> str | None:
     cfg = login_config()
@@ -580,7 +616,7 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
         elif configured:
             auth_url = login_auth_url()
             if auth_url:
-                st.link_button("Log in with Google", auth_url, use_container_width=True)
+                same_tab_link_button("Log in with Google", auth_url)
             else:
                 st.button("Log in unavailable", use_container_width=True, disabled=True)
         else:
@@ -774,7 +810,7 @@ def revoke_google_session_token() -> None:
     st.session_state.pop("google_oauth_state", None)
 
 def handle_google_oauth_redirect() -> None:
-    """Complete OAuth callback only when the returned state matches exactly."""
+    """Complete Google Sheets OAuth callbacks before the gated tabs render."""
     cfg = google_oauth_config()
     if not cfg:
         return
@@ -795,7 +831,6 @@ def handle_google_oauth_redirect() -> None:
     if not code:
         return
     expected_state = st.session_state.get("google_oauth_state")
-    # Only handle callbacks that were started by Pathmark's Google Sheets connector.
     if not (state and str(state).startswith("sheets:")):
         return
     session_match = bool(expected_state and secrets.compare_digest(str(expected_state), str(state)))
@@ -805,6 +840,10 @@ def handle_google_oauth_redirect() -> None:
         st.query_params.clear()
         st.error("Google authorisation could not be verified. Please reconnect from the On the go tab.")
         return
+    context_values = urllib.parse.parse_qs(signed_state_context(str(state), "sheets"))
+    restored_email = (context_values.get("email", [""])[0] or "").strip().lower()
+    if restored_email and not current_user().get("email"):
+        st.session_state["pathmark_user"] = {"email": restored_email, "name": "", "email_verified": True}
     try:
         from google_auth_oauthlib.flow import Flow  # type: ignore
         flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
@@ -813,13 +852,15 @@ def handle_google_oauth_redirect() -> None:
         cred_info = json.loads(flow.credentials.to_json())
         cred_info.pop("refresh_token", None)
         st.session_state["google_sheets_credentials"] = json.dumps(cred_info)
+        st.session_state["on_the_go_connected_notice"] = "Google Sheets is connected for this session."
         st.session_state.pop("google_oauth_state", None)
         st.query_params.clear()
-        st.success("Google Sheets is connected for this session.")
+        st.rerun()
     except Exception as exc:
         st.session_state.pop("google_oauth_state", None)
         st.query_params.clear()
         st.warning(f"Could not complete Google authorisation: {exc}")
+
 
 def google_auth_url() -> str | None:
     cfg = google_oauth_config()
@@ -828,7 +869,10 @@ def google_auth_url() -> str | None:
     try:
         from google_auth_oauthlib.flow import Flow  # type: ignore
         flow = Flow.from_client_config(cfg["client_config"], scopes=GOOGLE_SHEETS_SCOPES, redirect_uri=cfg["redirect_uri"])
-        state_seed = make_signed_oauth_state("sheets")
+        user = current_user()
+        user_email = str(user.get("email", "") or "").strip().lower()
+        context = f"return=on_the_go&email={urllib.parse.quote(user_email, safe='')}" if user_email else "return=on_the_go"
+        state_seed = make_signed_oauth_state("sheets", context=context)
         auth_url, state = flow.authorization_url(
             access_type="online",
             include_granted_scopes="true",
@@ -980,6 +1024,9 @@ def download_tab() -> None:
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
     st.header("On the go beta")
+    notice = st.session_state.pop("on_the_go_connected_notice", "")
+    if notice:
+        st.success(notice)
     st.markdown("<div class='beta-note'><strong>Beta feature.</strong> Capture goal ideas, routine changes, task prompts, or calendar block ideas while away from your main Workspace. The desktop app can review and import these updates later. Do not use this for sensitive information during testing.</div>", unsafe_allow_html=True)
 
     with st.expander("How on-the-go updates work", expanded=False):
@@ -1020,7 +1067,7 @@ def on_the_go_tab() -> None:
         else:
             auth_url = google_auth_url()
             if auth_url:
-                st.link_button("Connect Google Sheets", auth_url, use_container_width=True)
+                same_tab_link_button("Connect Google Sheets", auth_url)
             st.caption("You will be asked by Google to allow Pathmark to create and update the specific Google Drive files used by this app. Access is kept for this browser session only. If Google shows only a request-details error page, open the diagnostics above and check the exact redirect URI, test-user, and drive.file scope settings in Google Cloud.")
 
     with st.expander("Advanced: use an existing Pathmark sync sheet", expanded=False):
@@ -1195,8 +1242,16 @@ def developer_tab() -> None:
 
 
 def render_app() -> None:
-    # Complete Google login before Google Sheets OAuth handles its own callback.
+    # Complete Google login first. Handle Google Sheets OAuth immediately after,
+    # before gated tabs are created, so a callback cannot fall back to the public
+    # homepage if Streamlit starts a fresh session after Google's redirect.
     handle_login_redirect()
+    params = st.query_params
+    callback_state = params.get("state")
+    if isinstance(callback_state, list):
+        callback_state = callback_state[0] if callback_state else None
+    if callback_state and str(callback_state).startswith("sheets:"):
+        handle_google_oauth_redirect()
     user = current_user()
     role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
     maybe_record_login(user.get("email", ""), role, status)
