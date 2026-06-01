@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.80",
+  "version": "0.5.81",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_80.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_81.zip",
   "mac_package": "",
   "notes": [
-    "Polished the hosted signed-in header so it shows the email and access level once, with a clear Log out control.",
-    "Simplified the Web companion beta page by moving diagnostics and advanced sheet selection behind an expander.",
-    "Only shows Create Pathmark sync sheet when a sheet is missing; otherwise the main action is Open sync sheet or Disconnect Google Sheets.",
-    "Updated wording to position the hosted tool as the beginning of a Google-Sheet-backed Pathmark Web Companion while the desktop app remains the local Workspace publisher."
+    "Unified the hosted Google login and Google Sheets/Drive access flow for Pathmark Online.",
+    "Google login now requests the narrow drive.file scope so the Web Companion can prepare a user-owned Pathmark sync sheet without a separate Connect Google Sheets step.",
+    "The Web Companion now attempts to find an existing app-visible Pathmark Sync sheet before creating a new one.",
+    "Reconnect and diagnostics remain available for recovery, while Supabase continues to store roles and access data only."
   ]
 }

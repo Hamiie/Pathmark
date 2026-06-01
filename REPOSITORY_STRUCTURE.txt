@@ -1,4 +1,4 @@
-Pathmark release hub v0.5.80
+Pathmark release hub v0.5.81
 
 .gitignore
 README.md
@@ -12,7 +12,7 @@ app/
   assets/
     pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_80.zip
+  Pathmark_Local_App_Windows_v0_5_81.zip
 supabase/
   README.md
   migrations/

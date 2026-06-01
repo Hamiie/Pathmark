@@ -34,6 +34,11 @@ SYNC_COLUMNS = [
     "imported_at", "source",
 ]
 
+GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+LOGIN_SCOPES = ["openid", "email", "profile"] + GOOGLE_SHEETS_SCOPES
+SYNC_SHEET_TITLE = "Pathmark Sync"
+
+
 
 def page_icon():
     if Image is not None and ICON_PATH.exists():
@@ -257,11 +262,52 @@ def login_auth_url() -> str | None:
         "client_id": cfg["client_id"],
         "redirect_uri": cfg["redirect_uri"],
         "response_type": "code",
-        "scope": "openid email profile",
+        "scope": " ".join(LOGIN_SCOPES),
         "state": state,
+        "access_type": "online",
+        "include_granted_scopes": "true",
         "prompt": "select_account",
     }
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+
+
+def store_google_credentials_from_token_info(token_info: dict[str, Any], client_id: str) -> None:
+    """Store short-lived Google API credentials from the unified login flow.
+
+    The hosted app now requests Google identity and the narrow drive.file scope in
+    one consent flow. This keeps the web companion login simple while avoiding a
+    separate Google Sheets connection step. No refresh token is requested or
+    stored on the hosted app.
+    """
+    access_token = str(token_info.get("access_token", "") or "").strip()
+    if not access_token:
+        return
+    scope_text = str(token_info.get("scope", "") or "").strip()
+    scopes = scope_text.split() if scope_text else LOGIN_SCOPES
+    if GOOGLE_SHEETS_SCOPES[0] not in scopes:
+        # The identity login can still succeed, but Sheets-backed features need
+        # the user to sign in again after Google Cloud consent is corrected.
+        return
+    expires_at = None
+    if token_info.get("expires_in"):
+        try:
+            expires_at = int(datetime.now(timezone.utc).timestamp()) + int(token_info["expires_in"])
+        except Exception:
+            expires_at = None
+    cred_info: dict[str, Any] = {
+        "token": access_token,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": client_id,
+        "scopes": scopes,
+        "source": "unified_login",
+    }
+    if expires_at:
+        cred_info["expires_at"] = expires_at
+        cred_info["expiry"] = datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z")
+    st.session_state["google_sheets_credentials"] = json.dumps(cred_info)
+    st.session_state["auto_create_sync_sheet_after_connect"] = True
+    st.session_state["sync_sheet_ready_attempted"] = False
+    st.session_state["on_the_go_connected_notice"] = "Google Sheets access is ready for this session."
 
 
 def handle_login_redirect() -> bool:
@@ -318,6 +364,7 @@ def handle_login_redirect() -> bool:
         )
         with urllib.request.urlopen(request, timeout=20) as response:
             token_info = json.loads(response.read().decode("utf-8"))
+        store_google_credentials_from_token_info(token_info, cfg["client_id"])
         raw_id_token = token_info.get("id_token")
         if not raw_id_token:
             raise ValueError("Google did not return an ID token.")
@@ -617,6 +664,7 @@ def clear_hosted_login_session() -> None:
         "google_oauth_state",
         "on_the_go_connected_notice",
         "auto_create_sync_sheet_after_connect",
+        "sync_sheet_ready_attempted",
     ]:
         st.session_state.pop(key, None)
 
@@ -711,28 +759,29 @@ def blank_sync_row() -> dict[str, str]:
 
 
 
-GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-
 
 def google_oauth_config() -> dict[str, Any] | None:
-    """Return a Google OAuth web-client config from Streamlit secrets when configured.
+    """Return a Google OAuth web-client config for Sheets/Drive features.
 
-    Expected secrets format:
-
-    [google_oauth]
-    client_id = "..."
-    client_secret = "..."
-    redirect_uri = "https://your-app.streamlit.app"
+    v0.5.81 uses the main Google login consent to request the narrow
+    drive.file scope. The older [google_oauth] section is still supported for
+    reconnect/fallback flows, but [auth] can now provide the same web client.
     """
     try:
         cfg = st.secrets.get("google_oauth", None)
     except Exception:
         cfg = None
-    if not cfg:
-        return None
-    client_id = str(cfg.get("client_id", "")).strip()
-    client_secret = str(cfg.get("client_secret", "")).strip()
-    redirect_uri = str(cfg.get("redirect_uri", "")).strip()
+    if cfg:
+        client_id = str(cfg.get("client_id", "")).strip()
+        client_secret = str(cfg.get("client_secret", "")).strip()
+        redirect_uri = str(cfg.get("redirect_uri", "")).strip()
+    else:
+        auth_cfg = login_config()
+        if not auth_cfg:
+            return None
+        client_id = auth_cfg["client_id"]
+        client_secret = auth_cfg["client_secret"]
+        redirect_uri = auth_cfg["redirect_uri"]
     if not (client_id and client_secret and redirect_uri):
         return None
     return {
@@ -763,6 +812,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
             "client_id_prefix": "",
             "redirect_uri": "",
             "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
+            "login_scope": " ".join(LOGIN_SCOPES),
             "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
         }
     client_id = cfg.get("client_id", "")
@@ -772,6 +822,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
         "client_id_prefix": prefix,
         "redirect_uri": cfg.get("redirect_uri", ""),
         "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
+        "login_scope": " ".join(LOGIN_SCOPES),
         "auth_uri": cfg.get("client_config", {}).get("web", {}).get("auth_uri", "https://accounts.google.com/o/oauth2/v2/auth"),
     }
 
@@ -788,7 +839,8 @@ def render_google_sheets_oauth_diagnostics() -> None:
             "Configured: {configured}\n"
             "OAuth client ID: {client_id_prefix}\n"
             "Redirect URI: {redirect_uri}\n"
-            "Requested scope: {scope}\n"
+            "Login scope: {login_scope}\n"
+            "Sheets scope: {scope}\n"
             "Google auth endpoint: {auth_uri}".format(**diag),
             language="text",
         )
@@ -801,7 +853,7 @@ def render_google_sheets_oauth_diagnostics() -> None:
         4. **Google Auth Platform → Data Access**: include the requested scope `https://www.googleapis.com/auth/drive.file`.
         5. **APIs & Services → Library**: enable both **Google Sheets API** and **Google Drive API** for the same project.
 
-        Pathmark uses `drive.file` so the hosted app can create and update Pathmark sync files authorised by the user, rather than requesting access to all spreadsheets.
+        Pathmark now requests `drive.file` during Google login so signed-in users can enter the Web Companion with a Pathmark sync sheet already available. The scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
         """)
 
 
@@ -1000,6 +1052,73 @@ def sheets_service():
         return None
 
 
+def drive_service():
+    credentials = google_credentials_from_session()
+    if not credentials:
+        return None
+    try:
+        from googleapiclient.discovery import build  # type: ignore
+        return build("drive", "v3", credentials=credentials, cache_discovery=False)
+    except Exception as exc:
+        st.warning(f"Could not connect to Google Drive: {exc}")
+        return None
+
+
+def find_existing_sync_sheet() -> tuple[bool, str, str]:
+    """Find the newest Pathmark Sync sheet visible to the app.
+
+    With the narrow drive.file scope, Google will only return files this app
+    created or files the user explicitly authorised for this app. That is the
+    intended privacy boundary for Pathmark Online.
+    """
+    service = drive_service()
+    if service is None:
+        return False, "", "Google Drive is not available for this session."
+    try:
+        safe_title = SYNC_SHEET_TITLE.replace("'", "\\'")
+        result = service.files().list(
+            q=f"name='{safe_title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+            spaces="drive",
+            fields="files(id,name,modifiedTime,webViewLink)",
+            orderBy="modifiedTime desc",
+            pageSize=1,
+        ).execute()
+        files = result.get("files", [])
+        if not files:
+            return False, "", "No existing Pathmark sync sheet was found for this app."
+        file = files[0]
+        sheet_id = file.get("id", "")
+        if sheet_id:
+            st.session_state["sync_sheet_id"] = sheet_id
+            return True, sheet_id, file.get("webViewLink", f"https://docs.google.com/spreadsheets/d/{sheet_id}")
+        return False, "", "The existing Pathmark sync sheet did not return a file ID."
+    except Exception as exc:
+        return False, "", f"Could not look for an existing Pathmark sync sheet: {exc}"
+
+
+def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
+    """Find or create the user's Pathmark sync sheet for the current session."""
+    existing = st.session_state.get("sync_sheet_id", "")
+    if existing:
+        service = sheets_service()
+        if service is None:
+            return False, "", "Google Sheets is not available for this session."
+        try:
+            ensure_pending_changes_sheet(service, existing)
+            return True, existing, f"https://docs.google.com/spreadsheets/d/{existing}"
+        except Exception as exc:
+            return False, "", f"Could not verify the selected Pathmark sync sheet: {exc}"
+
+    found, sheet_id, link_or_message = find_existing_sync_sheet()
+    if found and sheet_id:
+        service = sheets_service()
+        if service is not None:
+            ensure_pending_changes_sheet(service, sheet_id)
+        return True, sheet_id, link_or_message
+
+    return create_user_sync_sheet()
+
+
 def ensure_pending_changes_sheet(service: Any, sheet_id: str) -> None:
     metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
     sheet_titles = [sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])]
@@ -1025,7 +1144,7 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
     try:
         spreadsheet = service.spreadsheets().create(
             body={
-                "properties": {"title": "Pathmark Sync"},
+                "properties": {"title": SYNC_SHEET_TITLE},
                 "sheets": [{"properties": {"title": "pending_changes"}}],
             },
             fields="spreadsheetId,spreadsheetUrl",
@@ -1128,23 +1247,23 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
     """Show the Google Sheets connection state without exposing OAuth plumbing."""
     if not auth_ready:
         st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google Sheets is not configured on this deployment.</span><br>Use the CSV download workflow for now.</div>",
+            "<div class='connection-card'><span class='connection-warn'>Google Sheets access is not configured on this deployment.</span><br>Use the CSV download workflow for now.</div>",
             unsafe_allow_html=True,
         )
         return
     if credentials and sheet_id:
         st.markdown(
-            "<div class='connection-card'><span class='connection-ok'>Connected to your Pathmark sync sheet.</span><br>Captures will be saved to your own Google Sheet for later desktop review.</div>",
+            "<div class='connection-card'><span class='connection-ok'>Pathmark Online is connected to your sync sheet.</span><br>Your web companion data is saved to a Google Sheet owned by you.</div>",
             unsafe_allow_html=True,
         )
     elif credentials:
         st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google Sheets is connected, but no sync sheet is selected yet.</span><br>Create a Pathmark sync sheet below, or choose an existing one under Advanced.</div>",
+            "<div class='connection-card'><span class='connection-warn'>Google access is available, but the Pathmark sync sheet is not ready yet.</span><br>Pathmark will try to find or create it automatically. You can also choose an existing sheet under Advanced.</div>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google Sheets is not connected.</span><br>Connect your Google Sheet to save captures online, or download a CSV instead.</div>",
+            "<div class='connection-card'><span class='connection-warn'>Google Sheets access is not available in this session.</span><br>Log in again to grant Pathmark the narrow Google drive.file permission, or use the CSV download.</div>",
             unsafe_allow_html=True,
         )
 
@@ -1163,10 +1282,12 @@ def on_the_go_tab() -> None:
 
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
-    if credentials and not st.session_state.get("sync_sheet_id") and st.session_state.pop("auto_create_sync_sheet_after_connect", False):
-        ok, sheet_id, message = create_user_sync_sheet()
+    should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
+    if should_prepare_sheet and (st.session_state.pop("auto_create_sync_sheet_after_connect", False) or not st.session_state.get("sync_sheet_ready_attempted")):
+        st.session_state["sync_sheet_ready_attempted"] = True
+        ok, sheet_id, message = ensure_pathmark_sync_sheet_ready()
         if ok:
-            st.success("Created your Pathmark sync sheet for on-the-go captures.")
+            st.success("Your Pathmark sync sheet is ready.")
         else:
             st.warning(message)
 
@@ -1180,10 +1301,10 @@ def on_the_go_tab() -> None:
             if sheet_url:
                 st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_url}", use_container_width=True)
             else:
-                if st.button("Create Pathmark sync sheet", use_container_width=True):
-                    ok, sheet_id, message = create_user_sync_sheet()
+                if st.button("Find or create Pathmark sync sheet", use_container_width=True):
+                    ok, sheet_id, message = ensure_pathmark_sync_sheet_ready()
                     if ok:
-                        st.success("Created Pathmark sync sheet.")
+                        st.success("Pathmark sync sheet is ready.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
                         st.warning(message)
@@ -1192,18 +1313,18 @@ def on_the_go_tab() -> None:
                 revoke_google_session_token()
                 st.rerun()
     elif auth_ready:
-        auth_url = google_auth_url()
+        auth_url = login_auth_url()
         if auth_url:
-            st.link_button("Connect my Google Sheet", auth_url, use_container_width=True)
-        st.caption("Pathmark uses the narrow Google drive.file permission so it can create and update the specific Pathmark sync files you authorise, rather than asking for access to all spreadsheets.")
+            st.link_button("Reconnect Google access", auth_url, use_container_width=True)
+        st.caption("Pathmark now requests the narrow Google drive.file permission during sign-in, so the web companion can create and update your Pathmark sync sheet without asking for access to all spreadsheets.")
 
     with st.expander("How the web companion works", expanded=False):
         st.markdown("""
-        The web companion saves structured Pathmark updates to a Google Sheet owned by you. The desktop app remains the full Workspace publisher: it can review these updates, create local folders and Markdown files, generate backups, and export calendar/task files.
+        Pathmark Online is moving towards the same routine and goal management model as the desktop app, but with a different storage layer. The online version stores structured records in a Google Sheet owned by you. The desktop version remains responsible for the local Workspace, Markdown generation, backups, and heavier publishing workflows.
 
         This is the intended long-term direction:
-        - **Online Pathmark:** routine and goal management backed by your Google Sheet.
-        - **Desktop Pathmark:** local Workspace, Markdown generation, backups, review/import, and heavier publishing/export workflows.
+        - **Online Pathmark:** Areas, goals, routines, task prompts, calendar blocks, tasklists, and exports backed by your Google Sheet.
+        - **Desktop Pathmark:** the same planning model plus local folders, Markdown files, backups, review/import, and local publishing/export workflows.
         """)
 
     with st.expander("Advanced settings and diagnostics", expanded=False):
@@ -1417,4 +1538,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Beta and developer tools are visible only to signed-in accounts with a verified email and the appropriate role. Web companion entries are saved only to a downloaded CSV or to the user-owned Pathmark sync sheet authorised with the Google drive.file scope.")
+st.caption("Pathmark release hub. Beta and developer tools are visible only to signed-in accounts with a verified email and the appropriate role. Pathmark Online uses the narrow Google drive.file scope to save web companion records to a user-owned Pathmark sync sheet.")

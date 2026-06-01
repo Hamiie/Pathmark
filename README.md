@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_74.zip
+  Pathmark_Local_App_Windows_v0_5_81.zip
 supabase/
   migrations/
     20260531000000_create_pathmark_access_tables.sql
@@ -60,6 +60,8 @@ The Google Cloud OAuth client should be a **Web application**. Add this authoris
 ```text
 https://pathmark.streamlit.app
 ```
+
+From v0.5.81, Google login also requests the narrow `https://www.googleapis.com/auth/drive.file` scope so logged-in beta/developer users can enter Pathmark Online with a user-owned Pathmark sync sheet ready. This replaces the normal separate “Connect Google Sheets” step. Enable both Google Sheets API and Google Drive API in the same Google Cloud project, and add the drive.file scope to the OAuth consent screen.
 
 Developer access should be bootstrapped through Streamlit secrets, not hard-coded into the public repository.
 
@@ -141,23 +143,39 @@ on conflict (key) do nothing;
 
 Keep `[pathmark_access].developer_emails` in Streamlit secrets as an emergency bootstrap route even after Supabase is configured.
 
-## On-the-go OAuth setup
+## Pathmark Online Google Sheet setup
 
-The hosted **On the go** tab can work in two modes:
+From v0.5.81, the hosted login flow is also the Google Sheets/Drive authorisation flow. Users no longer need to complete a separate Google Sheets connection step in the normal path.
 
-1. CSV download/import, which requires no credentials.
-2. User-authorised Google Sheets OAuth, which requires Streamlit secrets for a Google OAuth web client.
+The main hosted login uses:
 
-Expected Streamlit secrets for Google Sheets sync:
-
-```toml
-[google_oauth]
-client_id = "YOUR_GOOGLE_WEB_CLIENT_ID"
-client_secret = "YOUR_GOOGLE_WEB_CLIENT_SECRET"
-redirect_uri = "https://pathmark.streamlit.app"
+```text
+openid email profile https://www.googleapis.com/auth/drive.file
 ```
 
-The requested scope is the narrower Google `drive.file` permission. Private on-the-go entries are written to the Pathmark sync sheet authorised by the signed-in user, not to this public repository.
+The `drive.file` scope is deliberately narrow. It lets Pathmark create and update Pathmark sync files the user authorises, rather than requesting access to every spreadsheet in the user’s Google Drive. Private planning data remains in the user-owned Google Sheet, not in Supabase and not in this public repository.
+
+Expected Streamlit secrets for the main Google login:
+
+```toml
+[auth]
+client_id = "YOUR_GOOGLE_WEB_CLIENT_ID"
+client_secret = "YOUR_GOOGLE_WEB_CLIENT_SECRET"
+login_redirect_uri = "https://pathmark.streamlit.app"
+cookie_secret = "A_LONG_RANDOM_SECRET_USED_TO_SIGN_OAUTH_STATE"
+```
+
+The older `[google_oauth]` section is still supported as a fallback/reconnect configuration, but new deployments should be able to use the same `[auth]` web client for both identity and Pathmark sync-sheet access.
+
+Google Cloud checklist:
+
+1. Use a **Web application** OAuth client.
+2. Add the exact authorised redirect URI `https://pathmark.streamlit.app`.
+3. If the OAuth app is in Testing, add the signed-in user as a test user.
+4. Add the scope `https://www.googleapis.com/auth/drive.file` under Data Access.
+5. Enable both **Google Sheets API** and **Google Drive API** for the same project.
+
+When a beta/developer user opens the Web Companion, Pathmark attempts to find an existing app-visible `Pathmark Sync` spreadsheet. If it cannot find one, it creates a new user-owned sync sheet and prepares the `pending_changes` tab.
 
 ## Updating a release
 
@@ -167,43 +185,8 @@ The requested scope is the narrower Google `drive.file` permission. Private on-t
 
 Mac support has been removed for now.
 
-## v0.5.74 focus
+## v0.5.81 focus
 
-This release adds a versioned Supabase migration structure for the hosted access-control database. The migration creates only the access tables, enables RLS, inserts the default feature flags, and deliberately excludes personal developer rows and secrets. This makes the GitHub-linked Supabase setup safer and easier to reproduce while keeping private data out of the repository.
+This release starts the Pathmark Online foundation by unifying Google login and Google Sheets/Drive access. Google login now requests identity plus the narrow `drive.file` scope, stores only a short-lived access token in the hosted Streamlit session, and automatically finds or creates the user-owned Pathmark sync sheet for beta/developer users.
 
-## Google Sheets On-the-go OAuth checks
-
-Pathmark v0.5.80 keeps the safe diagnostics panel in the hosted On-the-go beta tab and improves session handling after Google Sheets connection. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
-
-For Google Sheets sync, configure the same Google Cloud project used by Streamlit secrets:
-
-```toml
-[google_oauth]
-client_id = "YOUR_GOOGLE_WEB_CLIENT_ID"
-client_secret = "YOUR_GOOGLE_WEB_CLIENT_SECRET"
-redirect_uri = "https://pathmark.streamlit.app"
-```
-
-Google Cloud checklist:
-
-1. Use an OAuth 2.0 **Web application** client.
-2. Add the exact authorised redirect URI: `https://pathmark.streamlit.app`.
-3. If the Google Auth Platform app is in Testing, add the developer/beta Google accounts as test users.
-4. Add the scope `https://www.googleapis.com/auth/drive.file` under Data Access.
-5. Enable both **Google Sheets API** and **Google Drive API** for the same project.
-
-The hosted app requests `drive.file` only. It should create and update user-authorised Pathmark sync files, not read all of a user’s Google Sheets.
-
-
-## v0.5.77
-
-- Fixed the hosted Google Sheets OAuth callback so it is handled before role-gated tabs are rendered.
-- Added signed callback routing context for the On-the-go Google Sheets flow so the app can recover after a Streamlit session reset.
-- Replaced Google OAuth `st.link_button` controls with same-tab links to reduce extra browser tabs during login and connection.
-
-
-## v0.5.80 On-the-go Google Sheets session fix
-
-This release keeps the short-lived Google Sheets session model, but reconstructs Google credentials directly from the access token returned by Google rather than from an authorised-user payload. This avoids a confusing state where the hosted page shows a connection notice but then returns to the Connect button after a Streamlit rerun.
-
-After Google Sheets is connected, Pathmark also tries to create the user's Pathmark sync sheet automatically. If creation is interrupted, the manual create button remains available.
+The normal Web Companion path no longer requires a separate “Connect Google Sheets” step. Reconnect and diagnostics remain available for recovery and setup troubleshooting.
