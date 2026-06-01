@@ -12,7 +12,7 @@ import hashlib
 import html
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,9 +36,10 @@ SYNC_COLUMNS = [
 
 ONLINE_TABLES = {
     "settings": ["key", "value", "updated_at", "source"],
-    "areas": ["area_id", "area_name", "description", "colour", "status", "created_at", "updated_at", "source"],
-    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "created_at", "updated_at", "source"],
-    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "created_at", "updated_at", "source"],
+    "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source"],
+    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source"],
+    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "created_at", "updated_at", "source"],
+    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "notes", "created_at", "updated_at", "source"],
     "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source"],
     "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "linked_record_id", "status", "created_at", "updated_at", "source"],
     "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source"],
@@ -1202,57 +1203,129 @@ def sheet_col_letter(index: int) -> str:
     return letters or "A"
 
 
-def ensure_sheet_with_header(service: Any, sheet_id: str, title: str, columns: list[str]) -> None:
-    metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-    sheet_titles = [sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])]
-    if title not in sheet_titles:
+def _online_cache_key(sheet_id: str) -> str:
+    return f"online_tables::{sheet_id}"
+
+
+def clear_online_cache(sheet_id: str | None = None) -> None:
+    if sheet_id:
+        st.session_state.pop(_online_cache_key(sheet_id), None)
+    else:
+        for key in list(st.session_state.keys()):
+            if str(key).startswith("online_tables::"):
+                st.session_state.pop(key, None)
+
+
+def ensure_sheet_with_header(service: Any, sheet_id: str, title: str, columns: list[str], existing_titles: set[str] | None = None) -> None:
+    """Create a sheet tab and header without destroying older user rows.
+
+    Earlier beta builds used narrower headers. From v0.5.84 onwards we append
+    missing columns rather than replacing the whole header, so existing data in
+    the user's Google Sheet remains aligned.
+    """
+    if existing_titles is None:
+        metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        existing_titles = {sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])}
+    if title not in existing_titles:
         service.spreadsheets().batchUpdate(
             spreadsheetId=sheet_id,
             body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
         ).execute()
-    end_col = sheet_col_letter(len(columns))
+        existing_titles.add(title)
+    end_col = sheet_col_letter(max(len(columns), 1))
     values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{title}!A1:{end_col}1").execute().get("values", [])
-    if not values or values[0] != columns:
+    current = list(values[0]) if values else []
+    if not current:
+        final = columns
+    else:
+        final = current + [col for col in columns if col not in current]
+    if final != current:
+        end_col = sheet_col_letter(len(final))
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id,
             range=f"{title}!A1:{end_col}1",
             valueInputOption="RAW",
-            body={"values": [columns]},
+            body={"values": [final]},
         ).execute()
 
 
 def ensure_pathmark_online_schema(service: Any, sheet_id: str) -> None:
-    """Prepare the user-owned Google Sheet for Pathmark Online records."""
+    """Prepare the user-owned Google Sheet for Pathmark Online records.
+
+    This is deliberately guarded by session state because repeated Streamlit
+    reruns can otherwise spend most of the user's Sheets read quota checking the
+    same headers again and again.
+    """
+    ready_key = f"online_schema_ready::{sheet_id}"
+    if st.session_state.get(ready_key):
+        return
     ensure_pending_changes_sheet(service, sheet_id)
+    metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    sheet_titles = {sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])}
     for title, columns in ONLINE_TABLES.items():
-        ensure_sheet_with_header(service, sheet_id, title, columns)
+        ensure_sheet_with_header(service, sheet_id, title, columns, sheet_titles)
+    st.session_state[ready_key] = True
+
+
+def _values_to_dataframe(values: list[list[str]], expected_columns: list[str]) -> pd.DataFrame:
+    if not values:
+        return pd.DataFrame(columns=expected_columns)
+    header = list(values[0]) if values and values[0] else list(expected_columns)
+    rows = values[1:]
+    normalised = []
+    for row in rows:
+        padded = list(row) + [""] * (len(header) - len(row))
+        normalised.append(padded[:len(header)])
+    df = pd.DataFrame(normalised, columns=header)
+    for col in expected_columns:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[expected_columns]
+    if "status" in df.columns:
+        df = df[df["status"].fillna("").str.lower().ne("archived")]
+    return df.reset_index(drop=True)
+
+
+def load_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataFrame]:
+    """Read all Pathmark Online tables with a single batch request.
+
+    This avoids hitting the Google Sheets per-user read limit when Streamlit
+    reruns and several tabs ask for Areas, Goals, Routines, Actions and exports.
+    """
+    cache_key = _online_cache_key(sheet_id)
+    if not force and cache_key in st.session_state:
+        return st.session_state[cache_key]
+    service = sheets_service()
+    if service is None:
+        tables = {name: pd.DataFrame(columns=cols) for name, cols in ONLINE_TABLES.items()}
+        st.session_state[cache_key] = tables
+        return tables
+    ensure_pathmark_online_schema(service, sheet_id)
+    ranges = [f"{name}!A1:{sheet_col_letter(len(cols))}" for name, cols in ONLINE_TABLES.items()]
+    try:
+        result = service.spreadsheets().values().batchGet(spreadsheetId=sheet_id, ranges=ranges).execute()
+        value_ranges = result.get("valueRanges", [])
+        tables: dict[str, pd.DataFrame] = {}
+        for (name, columns), vr in zip(ONLINE_TABLES.items(), value_ranges):
+            tables[name] = _values_to_dataframe(vr.get("values", []), columns)
+        for name, columns in ONLINE_TABLES.items():
+            tables.setdefault(name, pd.DataFrame(columns=columns))
+        st.session_state[cache_key] = tables
+        return tables
+    except Exception as exc:
+        st.warning(f"Could not read your Pathmark Online records from Google Sheets: {exc}")
+        tables = {name: pd.DataFrame(columns=cols) for name, cols in ONLINE_TABLES.items()}
+        st.session_state[cache_key] = tables
+        return tables
 
 
 def read_online_table(sheet_id: str, table: str) -> pd.DataFrame:
     columns = ONLINE_TABLES.get(table)
     if not columns:
         return pd.DataFrame()
-    service = sheets_service()
-    if service is None:
+    if not sheet_id:
         return pd.DataFrame(columns=columns)
-    try:
-        ensure_sheet_with_header(service, sheet_id, table, columns)
-        end_col = sheet_col_letter(len(columns))
-        values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{table}!A1:{end_col}").execute().get("values", [])
-        if not values:
-            return pd.DataFrame(columns=columns)
-        rows = values[1:]
-        normalised = []
-        for row in rows:
-            padded = list(row) + [""] * (len(columns) - len(row))
-            normalised.append(padded[:len(columns)])
-        df = pd.DataFrame(normalised, columns=columns)
-        if "status" in df.columns:
-            df = df[df["status"].fillna("").str.lower().ne("archived")]
-        return df.reset_index(drop=True)
-    except Exception as exc:
-        st.warning(f"Could not read {table.replace('_', ' ')} from your Pathmark sync sheet: {exc}")
-        return pd.DataFrame(columns=columns)
+    return load_online_tables(sheet_id).get(table, pd.DataFrame(columns=columns)).copy()
 
 
 def append_online_record(sheet_id: str, table: str, record: dict[str, Any]) -> tuple[bool, str]:
@@ -1263,7 +1336,7 @@ def append_online_record(sheet_id: str, table: str, record: dict[str, Any]) -> t
     if service is None:
         return False, "Google Sheets access is not available for this session."
     try:
-        ensure_sheet_with_header(service, sheet_id, table, columns)
+        ensure_pathmark_online_schema(service, sheet_id)
         now = utc_now_text()
         row = {col: str(record.get(col, "") or "") for col in columns}
         if "created_at" in columns and not row.get("created_at"):
@@ -1281,6 +1354,7 @@ def append_online_record(sheet_id: str, table: str, record: dict[str, Any]) -> t
             insertDataOption="INSERT_ROWS",
             body={"values": [[row.get(col, "") for col in columns]]},
         ).execute()
+        clear_online_cache(sheet_id)
         return True, "Saved to your Pathmark sync sheet."
     except Exception as exc:
         return False, f"Could not save to your Pathmark sync sheet: {exc}"
@@ -1303,6 +1377,28 @@ def find_area_id(sheet_id: str, area_name: str) -> str:
     return ""
 
 
+def area_defaults(sheet_id: str, area_name: str) -> dict[str, str]:
+    df = read_online_table(sheet_id, "areas") if sheet_id else pd.DataFrame()
+    if df.empty:
+        return {}
+    for _, row in df.iterrows():
+        if str(row.get("area_name", "")).strip().lower() == area_name.strip().lower():
+            return {k: str(row.get(k, "") or "") for k in df.columns}
+    return {}
+
+
+def record_title_map(df: pd.DataFrame, id_col: str) -> dict[str, str]:
+    if df.empty or id_col not in df.columns:
+        return {}
+    out = {}
+    for _, row in df.iterrows():
+        rid = str(row.get(id_col, "") or "").strip()
+        title = str(row.get("title", "") or "Untitled").strip() or "Untitled"
+        if rid:
+            out[rid] = title
+    return out
+
+
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
         st.info("No records yet.")
@@ -1311,16 +1407,227 @@ def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
         st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
 
 
+def truthy_flag(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on", "checked"}
+
+
+def parse_online_date(value: Any) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except Exception:
+            pass
+    try:
+        return pd.to_datetime(text).date()
+    except Exception:
+        return None
+
+
+def parse_online_time(value: Any, default: str = "09:00") -> time:
+    text = str(value or default).strip().lower().replace(".", ":")
+    for suffix in ["am", "pm"]:
+        if text.endswith(suffix):
+            raw = text[:-2].strip()
+            try:
+                hour, minute = (raw.split(":") + ["0"])[:2]
+                h = int(hour); m = int(minute)
+                if suffix == "pm" and h != 12:
+                    h += 12
+                if suffix == "am" and h == 12:
+                    h = 0
+                return time(h, m)
+            except Exception:
+                break
+    try:
+        hour, minute = (text.split(":") + ["0"])[:2]
+        return time(int(hour), int(minute))
+    except Exception:
+        h, m = default.split(":")[:2]
+        return time(int(h), int(m))
+
+
+def online_event_bounds(date_text: Any, start_text: Any, end_text: Any) -> tuple[str, str]:
+    d = parse_online_date(date_text) or (date.today() + timedelta(days=1))
+    start_t = parse_online_time(start_text, "09:00")
+    end_t = parse_online_time(end_text, "10:00")
+    start_dt = datetime.combine(d, start_t)
+    end_dt = datetime.combine(d, end_t)
+    raw_end = str(end_text or "").strip().lower()
+    if end_dt <= start_dt and ("am" not in raw_end and "pm" not in raw_end) and 1 <= end_t.hour <= 7:
+        end_dt = datetime.combine(d, time(end_t.hour + 12, end_t.minute))
+    if end_dt <= start_dt:
+        end_dt = start_dt + timedelta(hours=1)
+    return start_dt.strftime("%Y-%m-%d %H:%M"), end_dt.strftime("%Y-%m-%d %H:%M")
+
+
+def simple_rrule(frequency: str | None, activity_days: str | None = "") -> str:
+    freq = str(frequency or "").strip()
+    days = str(activity_days or "").strip()
+    day_map = {"monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU"}
+    bydays = []
+    day_source = days or freq
+    for name, code in day_map.items():
+        if name in day_source.lower():
+            bydays.append(code)
+    if freq.lower() == "daily":
+        return "RRULE:FREQ=DAILY"
+    if freq.lower() == "weekdays":
+        return "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+    if "week" in freq.lower() or bydays:
+        return "RRULE:FREQ=WEEKLY" + (f";BYDAY={','.join(bydays)}" if bydays else "")
+    if "month" in freq.lower():
+        return "RRULE:FREQ=MONTHLY"
+    return ""
+
+
+def parent_lookup(sheet_id: str) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    goals = read_online_table(sheet_id, "goals")
+    routines = read_online_table(sheet_id, "routines")
+    goal_lookup = {str(r.get("goal_id", "")): {k: str(r.get(k, "") or "") for k in goals.columns} for _, r in goals.iterrows()}
+    routine_lookup = {str(r.get("routine_id", "")): {k: str(r.get(k, "") or "") for k in routines.columns} for _, r in routines.iterrows()}
+    return goal_lookup, routine_lookup
+
+
+def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty:
+        return pd.DataFrame(columns=["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status"])
+    goals, routines = parent_lookup(sheet_id)
+    rows = []
+    for _, action in actions.iterrows():
+        if not truthy_flag(action.get("calendar_block")):
+            continue
+        if str(action.get("status", "")).lower() in {"done", "paused"}:
+            continue
+        aid = str(action.get("action_id", "") or uuid.uuid4().hex)
+        goal_id = str(action.get("goal_id", "") or "")
+        routine_id = str(action.get("routine_id", "") or "")
+        routine = routines.get(routine_id, {})
+        base_date = action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or ""
+        start, end = online_event_bounds(base_date, action.get("calendar_start_time") or routine.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or routine.get("calendar_end_time") or "10:00")
+        recurrence = simple_rrule(routine.get("frequency"), action.get("activity_days")) if routine_id else ""
+        parent = routines.get(routine_id, {}).get("title") or goals.get(goal_id, {}).get("title") or ""
+        desc_parts = [f"Routine: {parent}" if routine_id and parent else f"Goal: {parent}" if goal_id and parent else "", str(action.get("notes") or action.get("description") or "")]
+        rows.append({
+            "block_id": f"block-{aid}",
+            "area_name": action.get("area_name", "") or routine.get("area_name", "") or goals.get(goal_id, {}).get("area_name", ""),
+            "title": action.get("title", "") or "Pathmark block",
+            "description": "\n\n".join([p for p in desc_parts if p]),
+            "start": start,
+            "end": end,
+            "recurrence": recurrence,
+            "linked_record_id": aid,
+            "status": "Staged",
+            "created_at": action.get("created_at", ""),
+            "updated_at": action.get("updated_at", ""),
+            "source": "derived_from_action",
+        })
+    return pd.DataFrame(rows)
+
+
+def linked_calendar_summary_for_action(row: pd.Series, blocks: pd.DataFrame) -> str:
+    aid = str(row.get("action_id", "") or "")
+    if blocks.empty or not aid:
+        return ""
+    matches = blocks[blocks["linked_record_id"].fillna("") == aid]
+    if matches.empty:
+        return ""
+    block = matches.iloc[0]
+    return f"Related Google Calendar item: {block.get('title','Calendar time')} ({block.get('start','')})"
+
+
+def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty:
+        return pd.DataFrame(columns=["id", "title", "area_name", "due_date", "reminder_time", "task_list", "notes", "repeat_pattern", "linked_calendar_summary"])
+    goals, routines = parent_lookup(sheet_id)
+    blocks = staged_calendar_blocks(sheet_id)
+    rows = []
+    for _, action in actions.iterrows():
+        if not truthy_flag(action.get("reminder")):
+            continue
+        if str(action.get("status", "")).lower() in {"done", "paused"}:
+            continue
+        aid = str(action.get("action_id", "") or uuid.uuid4().hex)
+        goal_id = str(action.get("goal_id", "") or "")
+        routine_id = str(action.get("routine_id", "") or "")
+        routine = routines.get(routine_id, {})
+        goal = goals.get(goal_id, {})
+        area_name = action.get("area_name", "") or routine.get("area_name", "") or goal.get("area_name", "")
+        defaults = area_defaults(sheet_id, str(area_name))
+        first = str(action.get("first_step", "") or "").strip() or str(action.get("title", "") or "Pathmark task").strip()
+        parent = routine.get("title") or goal.get("title") or ""
+        base_note = str(action.get("notes") or action.get("description") or "")
+        repeat = routine.get("frequency", "") if routine_id else ""
+        linked = linked_calendar_summary_for_action(action, blocks)
+        note_parts = [f"Routine: {parent}" if routine_id and parent else f"Goal: {parent}" if goal_id and parent else "", base_note, f"Repeat pattern: {repeat}." if repeat else "", linked]
+        rows.append({
+            "id": aid,
+            "title": first,
+            "area_name": area_name,
+            "parent": parent,
+            "due_date": action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or "",
+            "reminder_time": action.get("task_reminder_time") or action.get("calendar_start_time") or routine.get("task_reminder_time") or "09:00",
+            "task_list": defaults.get("default_task_list") or area_name or "Pathmark",
+            "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
+            "repeat_pattern": repeat,
+            "linked_calendar_summary": linked,
+            "status": "needsAction",
+        })
+    return pd.DataFrame(rows)
+
+
+def staged_tasklist(sheet_id: str) -> pd.DataFrame:
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty:
+        return pd.DataFrame(columns=["source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+    goals, routines = parent_lookup(sheet_id)
+    rows = []
+    for _, action in actions.iterrows():
+        if not truthy_flag(action.get("include_tasklist", "1")):
+            continue
+        status = str(action.get("status", "") or "").strip()
+        if status.lower() in {"done", "paused"}:
+            continue
+        goal_id = str(action.get("goal_id", "") or "")
+        routine_id = str(action.get("routine_id", "") or "")
+        parent = routines.get(routine_id, {}).get("title") or goals.get(goal_id, {}).get("title") or ""
+        rows.append({
+            "source_type": "Routine activity" if routine_id else "Goal action",
+            "title": action.get("title", ""),
+            "area_name": action.get("area_name", "") or routines.get(routine_id, {}).get("area_name", "") or goals.get(goal_id, {}).get("area_name", ""),
+            "parent": parent,
+            "status": status or ("Included" if routine_id else "Planned"),
+            "scheduled_date": action.get("scheduled_date", ""),
+            "due_date": action.get("due_date", ""),
+            "first_step": action.get("first_step", ""),
+            "estimated_minutes": action.get("estimated_minutes", ""),
+            "priority": action.get("priority", ""),
+        })
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df["sort_status"] = df["status"].map({"Next": 1, "Scheduled": 2, "Planned": 3, "Included": 4}).fillna(5)
+        df = df.sort_values(["source_type", "sort_status", "scheduled_date", "due_date", "title"], na_position="last").drop(columns=["sort_status"])
+    return df.reset_index(drop=True)
+
+
 def render_area_manager(sheet_id: str) -> None:
     st.subheader("Areas")
-    st.write("Use Areas to group related goals, routines, projects, prompts, and calendar blocks.")
+    st.write("Areas group related goals, routines, actions, calendar blocks, task prompts and exports.")
     df = read_online_table(sheet_id, "areas")
-    dataframe_preview(df, ["area_name", "description", "colour", "status", "updated_at"])
+    dataframe_preview(df, ["area_name", "description", "colour", "default_calendar", "default_task_list", "status", "updated_at"])
     with st.form("online_add_area", clear_on_submit=True):
         st.markdown("**Add an Area**")
         name = st.text_input("Area name")
         description = st.text_area("Description", height=90)
         colour = st.text_input("Colour", placeholder="For example, blue, sage, #334E68")
+        c1, c2 = st.columns(2)
+        default_calendar = c1.text_input("Default Google Calendar", placeholder="Usually the Area name")
+        default_task_list = c2.text_input("Default Google Tasks list", placeholder="Usually Pathmark or the Area name")
+        notes = st.text_area("Notes", height=70)
         submitted = st.form_submit_button("Save Area", use_container_width=True)
         if submitted:
             if not name.strip():
@@ -1331,6 +1638,73 @@ def render_area_manager(sheet_id: str) -> None:
                     "area_name": name.strip(),
                     "description": description.strip(),
                     "colour": colour.strip(),
+                    "default_calendar": default_calendar.strip() or name.strip(),
+                    "default_task_list": default_task_list.strip() or "Pathmark",
+                    "notes": notes.strip(),
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", default_area: str = "", form_key: str = "action") -> None:
+    """Add an action block using the same core fields as the desktop app."""
+    area_id = find_area_id(sheet_id, default_area) if default_area else ""
+    is_routine_activity = bool(routine_id)
+    with st.form(f"online_add_{form_key}", clear_on_submit=True):
+        st.markdown("**Add an action block**" if not is_routine_activity else "**Add a routine activity**")
+        title = st.text_input("Action title" if not is_routine_activity else "Activity title")
+        description = st.text_area("Notes / description", height=90)
+        c1, c2, c3 = st.columns(3)
+        status_options = ["Next", "Scheduled", "Planned", "Waiting", "Done"] if not is_routine_activity else ["Included", "Paused", "Done"]
+        status = c1.selectbox("Status", status_options, index=0)
+        priority = c2.selectbox("Priority", ["High", "Medium", "Low"], index=1)
+        minutes = c3.number_input("Estimated minutes", min_value=0, step=5, value=30)
+        c4, c5 = st.columns(2)
+        scheduled = c4.text_input("Scheduled date", placeholder="YYYY-MM-DD")
+        due = c5.text_input("Due date", placeholder="YYYY-MM-DD")
+        activity_days = ""
+        if is_routine_activity:
+            activity_days = st.text_input("Activity days", placeholder="Optional, for example Monday, Wednesday")
+        st.markdown("**Tasklist and exports**")
+        c6, c7, c8 = st.columns(3)
+        include_tasklist = c6.checkbox("Include on tasklist", value=True)
+        calendar_block = c7.checkbox("Create Google Calendar block", value=True)
+        reminder = c8.checkbox("Create Google Tasks first-action prompt", value=True)
+        first_step = st.text_input("First action prompt for Google Tasks", placeholder="For example, Open the document and write the first sentence")
+        c9, c10, c11 = st.columns(3)
+        start_time = c9.text_input("Calendar start time", value="09:00")
+        end_time = c10.text_input("Calendar end time", value="10:00")
+        prompt_time = c11.text_input("Prompt reference time", value=start_time or "09:00")
+        location = st.text_input("Calendar location", placeholder="Optional")
+        submitted = st.form_submit_button("Save action block", use_container_width=True)
+        if submitted:
+            if not title.strip():
+                st.error("Add an action title before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "actions", {
+                    "action_id": f"action-{uuid.uuid4().hex}",
+                    "goal_id": goal_id,
+                    "routine_id": routine_id,
+                    "area_id": area_id,
+                    "area_name": default_area,
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "status": status,
+                    "priority": priority,
+                    "due_date": due.strip(),
+                    "scheduled_date": scheduled.strip(),
+                    "activity_days": activity_days.strip(),
+                    "estimated_minutes": str(int(minutes or 0)) if minutes else "",
+                    "calendar_block": "1" if calendar_block else "0",
+                    "reminder": "1" if reminder else "0",
+                    "include_tasklist": "1" if include_tasklist else "0",
+                    "first_step": first_step.strip(),
+                    "task_reminder_time": prompt_time.strip(),
+                    "calendar_start_time": start_time.strip(),
+                    "calendar_end_time": end_time.strip(),
+                    "calendar_location": location.strip(),
+                    "notes": description.strip(),
                 })
                 st.success(message) if ok else st.warning(message)
                 if ok:
@@ -1339,161 +1713,205 @@ def render_area_manager(sheet_id: str) -> None:
 
 def render_goal_manager(sheet_id: str) -> None:
     st.subheader("Goals and Projects")
-    st.write("Create structured goal records online. The desktop app can later publish these into Workspace files and Markdown.")
-    df = read_online_table(sheet_id, "goals")
-    dataframe_preview(df, ["title", "area_name", "specific_area", "status", "target_date", "updated_at"])
+    st.write("Goals work like the desktop version: the goal holds the outcome, and action blocks hold the work that can appear on the tasklist, calendar export and Google Tasks export.")
+    goals = read_online_table(sheet_id, "goals")
+    actions = read_online_table(sheet_id, "actions")
+    dataframe_preview(goals, ["title", "area_name", "specific_area", "status", "target_date", "desired_outcome", "updated_at"])
     areas = area_options(sheet_id)
-    with st.form("online_add_goal", clear_on_submit=True):
-        st.markdown("**Add a goal or project**")
-        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
-        title = st.text_input("Title")
-        specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
-        target_date = st.text_input("Target date", placeholder="Optional, for example 2026-09-30")
-        description = st.text_area("Description / next outcome", height=120)
-        status = st.selectbox("Status", ["active", "paused", "completed"])
-        submitted = st.form_submit_button("Save goal", use_container_width=True)
-        if submitted:
-            if not title.strip():
-                st.error("Add a title before saving.")
-            else:
-                ok, message = append_online_record(sheet_id, "goals", {
-                    "goal_id": f"goal-{uuid.uuid4().hex}",
-                    "area_id": find_area_id(sheet_id, str(area)),
-                    "area_name": str(area).strip(),
-                    "title": title.strip(),
-                    "description": description.strip(),
-                    "specific_area": specific.strip(),
-                    "status": status,
-                    "target_date": target_date.strip(),
-                })
-                st.success(message) if ok else st.warning(message)
-                if ok:
-                    st.rerun()
+    with st.expander("Add a goal or project", expanded=goals.empty):
+        with st.form("online_add_goal", clear_on_submit=True):
+            area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
+            title = st.text_input("Title")
+            specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
+            status = st.selectbox("Status", ["Captured", "Active", "On hold", "Closed", "Abandoned"], index=1)
+            target_date = st.text_input("Target date", placeholder="Optional, for example 2026-09-30")
+            purpose = st.text_area("Purpose", height=75)
+            desired = st.text_area("Desired outcome", height=75)
+            closure = st.text_area("Closure criteria", height=75)
+            notes = st.text_area("Notes", height=80)
+            submitted = st.form_submit_button("Save goal", use_container_width=True)
+            if submitted:
+                if not title.strip():
+                    st.error("Add a title before saving.")
+                else:
+                    ok, message = append_online_record(sheet_id, "goals", {
+                        "goal_id": f"goal-{uuid.uuid4().hex}",
+                        "area_id": find_area_id(sheet_id, str(area)),
+                        "area_name": str(area).strip(),
+                        "title": title.strip(),
+                        "description": desired.strip() or purpose.strip(),
+                        "specific_area": specific.strip(),
+                        "status": status,
+                        "target_date": target_date.strip(),
+                        "purpose": purpose.strip(),
+                        "desired_outcome": desired.strip(),
+                        "closure_criteria": closure.strip(),
+                        "notes": notes.strip(),
+                    })
+                    st.success(message) if ok else st.warning(message)
+                    if ok:
+                        st.rerun()
+    if not goals.empty:
+        st.markdown("### Action blocks")
+        goal_map = record_title_map(goals, "goal_id")
+        selected_goal_id = st.selectbox("Choose a goal to view or add action blocks", options=list(goal_map.keys()), format_func=lambda x: goal_map.get(x, x))
+        selected_goal = goals[goals["goal_id"] == selected_goal_id].iloc[0].to_dict()
+        linked = actions[actions["goal_id"].fillna("") == selected_goal_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
+        dataframe_preview(linked, ["title", "status", "priority", "scheduled_date", "due_date", "first_step", "calendar_block", "reminder", "include_tasklist"])
+        _action_form(sheet_id, goal_id=selected_goal_id, default_area=str(selected_goal.get("area_name", "") or ""), form_key=f"goal_{selected_goal_id}")
 
 
 def render_routine_manager(sheet_id: str) -> None:
     st.subheader("Routines")
-    st.write("Manage repeating routines that can later become calendar blocks and task prompts.")
-    df = read_online_table(sheet_id, "routines")
-    dataframe_preview(df, ["title", "area_name", "frequency", "preferred_days", "duration_minutes", "status", "updated_at"])
+    st.write("Routines work like the desktop version: the parent routine defines the rhythm, and routine activities define the individual tasklist, calendar and Google Tasks rows.")
+    routines = read_online_table(sheet_id, "routines")
+    actions = read_online_table(sheet_id, "actions")
+    dataframe_preview(routines, ["title", "area_name", "frequency", "preferred_days", "next_due", "status", "updated_at"])
     areas = area_options(sheet_id)
-    with st.form("online_add_routine", clear_on_submit=True):
-        st.markdown("**Add a routine**")
-        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="routine_area") if areas else st.text_input("Area", key="routine_area_text")
-        title = st.text_input("Routine title")
-        frequency = st.text_input("Frequency", placeholder="Daily, weekly, weekdays, 3x per week")
-        preferred_days = st.text_input("Preferred days", placeholder="Optional, for example Mon/Wed/Fri")
-        duration = st.text_input("Duration in minutes", placeholder="Optional")
-        description = st.text_area("Routine notes", height=120)
-        status = st.selectbox("Status", ["active", "paused"])
-        submitted = st.form_submit_button("Save routine", use_container_width=True)
-        if submitted:
-            if not title.strip():
-                st.error("Add a routine title before saving.")
-            else:
-                ok, message = append_online_record(sheet_id, "routines", {
-                    "routine_id": f"routine-{uuid.uuid4().hex}",
-                    "area_id": find_area_id(sheet_id, str(area)),
-                    "area_name": str(area).strip(),
-                    "title": title.strip(),
-                    "description": description.strip(),
-                    "frequency": frequency.strip(),
-                    "preferred_days": preferred_days.strip(),
-                    "duration_minutes": duration.strip(),
-                    "status": status,
-                })
-                st.success(message) if ok else st.warning(message)
-                if ok:
-                    st.rerun()
+    with st.expander("Add a routine", expanded=routines.empty):
+        with st.form("online_add_routine", clear_on_submit=True):
+            area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="routine_area") if areas else st.text_input("Area", key="routine_area_text")
+            title = st.text_input("Routine title")
+            frequency = st.text_input("Frequency", placeholder="Daily, Weekdays, Weekly on Monday, Every 2 weeks on Monday")
+            preferred_days = st.text_input("Preferred days", placeholder="Optional, for example Monday, Wednesday")
+            next_due = st.text_input("Next due", placeholder="YYYY-MM-DD")
+            purpose = st.text_area("Purpose", height=75)
+            checklist = st.text_area("Checklist", placeholder="One activity per line. You can add detailed activities after saving.", height=100)
+            c1, c2, c3 = st.columns(3)
+            cal = c1.checkbox("Default calendar block", value=False)
+            rem = c2.checkbox("Default Google Tasks prompt", value=False)
+            duration = c3.text_input("Default duration minutes", placeholder="Optional")
+            c4, c5, c6 = st.columns(3)
+            start = c4.text_input("Default start time", value="09:00")
+            end = c5.text_input("Default end time", value="10:00")
+            prompt_time = c6.text_input("Default prompt time", value="09:00")
+            starting_prompt = st.text_input("Default first action prompt", placeholder="Optional")
+            notes = st.text_area("Notes", height=80)
+            status = st.selectbox("Status", ["Active", "Paused", "Retired"], index=0)
+            submitted = st.form_submit_button("Save routine", use_container_width=True)
+            if submitted:
+                if not title.strip():
+                    st.error("Add a routine title before saving.")
+                else:
+                    ok, message = append_online_record(sheet_id, "routines", {
+                        "routine_id": f"routine-{uuid.uuid4().hex}",
+                        "area_id": find_area_id(sheet_id, str(area)),
+                        "area_name": str(area).strip(),
+                        "title": title.strip(),
+                        "description": purpose.strip() or notes.strip(),
+                        "frequency": frequency.strip() or "Weekly",
+                        "preferred_days": preferred_days.strip(),
+                        "duration_minutes": duration.strip(),
+                        "status": status,
+                        "purpose": purpose.strip(),
+                        "next_due": next_due.strip(),
+                        "checklist": checklist.strip(),
+                        "calendar_block": "1" if cal else "0",
+                        "reminder": "1" if rem else "0",
+                        "starting_prompt": starting_prompt.strip(),
+                        "task_reminder_time": prompt_time.strip(),
+                        "calendar_start_time": start.strip(),
+                        "calendar_end_time": end.strip(),
+                        "notes": notes.strip(),
+                    })
+                    st.success(message) if ok else st.warning(message)
+                    if ok:
+                        st.rerun()
+    if not routines.empty:
+        st.markdown("### Routine activities")
+        routine_map = record_title_map(routines, "routine_id")
+        selected_routine_id = st.selectbox("Choose a routine to view or add activities", options=list(routine_map.keys()), format_func=lambda x: routine_map.get(x, x))
+        selected_routine = routines[routines["routine_id"] == selected_routine_id].iloc[0].to_dict()
+        linked = actions[actions["routine_id"].fillna("") == selected_routine_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
+        dataframe_preview(linked, ["title", "status", "activity_days", "scheduled_date", "first_step", "calendar_start_time", "calendar_end_time", "calendar_block", "reminder"])
+        _action_form(sheet_id, routine_id=selected_routine_id, default_area=str(selected_routine.get("area_name", "") or ""), form_key=f"routine_{selected_routine_id}")
 
 
 def render_calendar_block_manager(sheet_id: str) -> None:
     st.subheader("Calendar Blocks")
-    st.write("Create blocks of time for routines, goals, and project work. Online exports can turn these into an .ics file.")
-    df = read_online_table(sheet_id, "calendar_blocks")
-    dataframe_preview(df, ["title", "area_name", "start", "end", "recurrence", "status", "updated_at"])
+    st.write("Pathmark Online now stages most calendar blocks from goal action blocks and routine activities. You can still add an ad hoc calendar block here.")
+    ad_hoc = read_online_table(sheet_id, "calendar_blocks")
+    staged = staged_calendar_blocks(sheet_id)
+    st.markdown("**Staged from action blocks and routine activities**")
+    dataframe_preview(staged, ["title", "area_name", "start", "end", "recurrence", "linked_record_id"])
+    st.markdown("**Ad hoc calendar blocks**")
+    dataframe_preview(ad_hoc, ["title", "area_name", "start", "end", "recurrence", "status", "updated_at"])
     areas = area_options(sheet_id)
-    with st.form("online_add_calendar_block", clear_on_submit=True):
-        st.markdown("**Add a calendar block**")
-        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="calendar_area") if areas else st.text_input("Area", key="calendar_area_text")
-        title = st.text_input("Block title")
-        start = st.text_input("Start", placeholder="2026-06-01 09:00")
-        end = st.text_input("End", placeholder="2026-06-01 10:00")
-        recurrence = st.text_input("Recurrence", placeholder="Optional, for example weekly or RRULE:FREQ=WEEKLY")
-        description = st.text_area("Notes", height=100)
-        submitted = st.form_submit_button("Save calendar block", use_container_width=True)
-        if submitted:
-            if not title.strip():
-                st.error("Add a title before saving.")
-            else:
-                ok, message = append_online_record(sheet_id, "calendar_blocks", {
-                    "block_id": f"block-{uuid.uuid4().hex}",
-                    "area_name": str(area).strip(),
-                    "title": title.strip(),
-                    "description": description.strip(),
-                    "start": start.strip(),
-                    "end": end.strip(),
-                    "recurrence": recurrence.strip(),
-                    "status": "active",
-                })
-                st.success(message) if ok else st.warning(message)
-                if ok:
-                    st.rerun()
+    with st.expander("Add an ad hoc calendar block", expanded=False):
+        with st.form("online_add_calendar_block", clear_on_submit=True):
+            area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="calendar_area") if areas else st.text_input("Area", key="calendar_area_text")
+            title = st.text_input("Block title")
+            start = st.text_input("Start", placeholder="2026-06-01 09:00")
+            end = st.text_input("End", placeholder="2026-06-01 10:00")
+            recurrence = st.text_input("Recurrence", placeholder="Optional, for example RRULE:FREQ=WEEKLY")
+            description = st.text_area("Notes", height=100)
+            submitted = st.form_submit_button("Save calendar block", use_container_width=True)
+            if submitted:
+                if not title.strip():
+                    st.error("Add a title before saving.")
+                else:
+                    ok, message = append_online_record(sheet_id, "calendar_blocks", {
+                        "block_id": f"block-{uuid.uuid4().hex}",
+                        "area_name": str(area).strip(),
+                        "title": title.strip(),
+                        "description": description.strip(),
+                        "start": start.strip(),
+                        "end": end.strip(),
+                        "recurrence": recurrence.strip(),
+                        "status": "active",
+                    })
+                    st.success(message) if ok else st.warning(message)
+                    if ok:
+                        st.rerun()
 
 
 def render_task_prompt_manager(sheet_id: str) -> None:
-    st.subheader("Task Prompts")
-    st.write("Task prompts describe the action to take when a calendar block arrives.")
-    df = read_online_table(sheet_id, "task_prompts")
-    dataframe_preview(df, ["title", "area_name", "prompt_text", "status", "updated_at"])
+    st.subheader("Google Tasks prompts")
+    st.write("Pathmark stages first-action prompts from goal action blocks and routine activities marked for Google Tasks. You can still add ad hoc prompts here.")
+    staged = staged_task_prompts(sheet_id)
+    ad_hoc = read_online_table(sheet_id, "task_prompts")
+    st.markdown("**Staged from action blocks and routine activities**")
+    dataframe_preview(staged, ["title", "area_name", "due_date", "reminder_time", "task_list", "linked_calendar_summary"])
+    st.markdown("**Ad hoc prompts**")
+    dataframe_preview(ad_hoc, ["title", "area_name", "prompt_text", "status", "updated_at"])
     areas = area_options(sheet_id)
-    with st.form("online_add_task_prompt", clear_on_submit=True):
-        st.markdown("**Add a task prompt**")
-        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="prompt_area") if areas else st.text_input("Area", key="prompt_area_text")
-        title = st.text_input("Prompt title")
-        prompt_text = st.text_area("Prompt / checklist text", height=130)
-        submitted = st.form_submit_button("Save task prompt", use_container_width=True)
-        if submitted:
-            if not title.strip():
-                st.error("Add a prompt title before saving.")
-            else:
-                ok, message = append_online_record(sheet_id, "task_prompts", {
-                    "prompt_id": f"prompt-{uuid.uuid4().hex}",
-                    "area_name": str(area).strip(),
-                    "title": title.strip(),
-                    "prompt_text": prompt_text.strip(),
-                    "status": "active",
-                })
-                st.success(message) if ok else st.warning(message)
-                if ok:
-                    st.rerun()
+    with st.expander("Add an ad hoc task prompt", expanded=False):
+        with st.form("online_add_task_prompt", clear_on_submit=True):
+            area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="prompt_area") if areas else st.text_input("Area", key="prompt_area_text")
+            title = st.text_input("Prompt title")
+            prompt_text = st.text_area("Prompt / checklist text", height=130)
+            submitted = st.form_submit_button("Save task prompt", use_container_width=True)
+            if submitted:
+                if not title.strip():
+                    st.error("Add a prompt title before saving.")
+                else:
+                    ok, message = append_online_record(sheet_id, "task_prompts", {
+                        "prompt_id": f"prompt-{uuid.uuid4().hex}",
+                        "area_name": str(area).strip(),
+                        "title": title.strip(),
+                        "prompt_text": prompt_text.strip(),
+                        "status": "active",
+                    })
+                    st.success(message) if ok else st.warning(message)
+                    if ok:
+                        st.rerun()
 
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Build a simple printable tasklist from the web companion.")
-    df = read_online_table(sheet_id, "tasklists")
-    dataframe_preview(df, ["date", "title", "items", "status", "updated_at"])
-    with st.form("online_add_tasklist", clear_on_submit=True):
-        st.markdown("**Add a tasklist**")
-        date = st.text_input("Date", placeholder="Optional, for example 2026-06-01")
-        title = st.text_input("Tasklist title")
-        items = st.text_area("Items", placeholder="One item per line", height=160)
-        submitted = st.form_submit_button("Save tasklist", use_container_width=True)
-        if submitted:
-            if not title.strip() and not items.strip():
-                st.error("Add a title or at least one item before saving.")
-            else:
-                ok, message = append_online_record(sheet_id, "tasklists", {
-                    "tasklist_id": f"tasklist-{uuid.uuid4().hex}",
-                    "date": date.strip(),
-                    "title": title.strip() or "Tasklist",
-                    "items": items.strip(),
-                    "status": "active",
-                })
-                st.success(message) if ok else st.warning(message)
-                if ok:
-                    st.rerun()
+    st.write("This mirrors the desktop tasklist more closely: goal actions and routine activities marked for the tasklist are pulled together from the structured records.")
+    tasklist = staged_tasklist(sheet_id)
+    if tasklist.empty:
+        st.info("No tasklist rows yet. Add goal action blocks or routine activities and tick 'Include on tasklist'.")
+    else:
+        source = st.selectbox("Show", ["All", "Goal actions", "Routine activities"], index=0)
+        view = tasklist.copy()
+        if source == "Goal actions":
+            view = view[view["source_type"] == "Goal action"]
+        elif source == "Routine activities":
+            view = view[view["source_type"] == "Routine activity"]
+        dataframe_preview(view, ["source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+        st.download_button("Download printable tasklist", data=build_printable_tasklist_from_rows(view), file_name="pathmark_tasklist.txt", mime="text/plain", use_container_width=True)
 
 
 def parse_dt_for_ics(value: str) -> str:
@@ -1537,64 +1955,124 @@ def dataframe_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode("utf-8")
 
 
-def build_printable_tasklist(tasklists: pd.DataFrame, prompts: pd.DataFrame) -> bytes:
-    lines = ["Pathmark printable tasklist", ""]
-    if not tasklists.empty:
-        for _, row in tasklists.iterrows():
-            lines.append(str(row.get("title", "Tasklist") or "Tasklist"))
-            if str(row.get("date", "") or "").strip():
-                lines.append(f"Date: {row.get('date')}")
-            for item in str(row.get("items", "") or "").splitlines():
-                if item.strip():
-                    lines.append(f"[ ] {item.strip()}")
-            lines.append("")
-    if not prompts.empty:
-        lines.append("Task prompts")
-        for _, row in prompts.iterrows():
-            title = str(row.get("title", "") or "Untitled prompt").strip()
-            lines.append(f"[ ] {title}")
-            prompt = str(row.get("prompt_text", "") or "").strip()
-            if prompt:
-                for item in prompt.splitlines():
-                    lines.append(f"    {item.strip()}")
+def build_google_tasks_csv(prompts: pd.DataFrame) -> bytes:
+    headers = ["Task ID", "Task List", "Title", "Notes", "Due Date", "Reminder Time", "Status", "Repeat Pattern", "Related Google Calendar Item"]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=headers, lineterminator="\n")
+    writer.writeheader()
+    for _, r in prompts.iterrows():
+        writer.writerow({
+            "Task ID": f"PM_TASK_{r.get('id') or uuid.uuid4().hex}",
+            "Task List": r.get("task_list") or "Pathmark",
+            "Title": r.get("title") or "",
+            "Notes": r.get("notes") or "",
+            "Due Date": r.get("due_date") or "",
+            "Reminder Time": r.get("reminder_time") or "",
+            "Status": "completed" if str(r.get("status", "")).lower() == "completed" else "needsAction",
+            "Repeat Pattern": r.get("repeat_pattern") or "",
+            "Related Google Calendar Item": r.get("linked_calendar_summary") or "",
+        })
+    return out.getvalue().encode("utf-8-sig")
+
+
+def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
+    lines = ["Pathmark tasklist", ""]
+    if rows.empty:
+        lines.append("No tasklist rows.")
+        return "\n".join(lines).encode("utf-8")
+    for source_type in ["Goal action", "Routine activity"]:
+        subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
+        if subset.empty:
+            continue
+        lines.append(source_type + "s")
+        current_parent = None
+        for _, row in subset.iterrows():
+            parent = str(row.get("parent", "") or "").strip()
+            if parent and parent != current_parent:
+                lines.append(f"\n{parent}")
+                current_parent = parent
+            bits = []
+            if str(row.get("scheduled_date", "") or "").strip():
+                bits.append(f"scheduled {row.get('scheduled_date')}")
+            if str(row.get("due_date", "") or "").strip():
+                bits.append(f"due {row.get('due_date')}")
+            if str(row.get("estimated_minutes", "") or "").strip():
+                bits.append(f"{row.get('estimated_minutes')} min")
+            suffix = f" ({'; '.join(bits)})" if bits else ""
+            lines.append(f"[ ] {row.get('title','Untitled')}{suffix}")
+            first = str(row.get("first_step", "") or "").strip()
+            if first:
+                lines.append(f"    First action: {first}")
         lines.append("")
     return "\n".join(lines).encode("utf-8")
 
 
 def render_exports_manager(sheet_id: str) -> None:
     st.subheader("Exports")
-    st.write("Generate browser-downloadable exports from the records in your Pathmark sync sheet.")
-    blocks = read_online_table(sheet_id, "calendar_blocks")
-    prompts = read_online_table(sheet_id, "task_prompts")
-    tasklists = read_online_table(sheet_id, "tasklists")
+    st.write("Generate browser-downloadable exports using the same core mechanics as the desktop app: calendar blocks and Google Tasks prompts are staged from action blocks and routine activities.")
+    derived_blocks = staged_calendar_blocks(sheet_id)
+    ad_hoc_blocks = read_online_table(sheet_id, "calendar_blocks")
+    blocks = pd.concat([derived_blocks, ad_hoc_blocks], ignore_index=True) if not ad_hoc_blocks.empty else derived_blocks
+    derived_prompts = staged_task_prompts(sheet_id)
+    ad_hoc_prompts = read_online_table(sheet_id, "task_prompts")
+    if not ad_hoc_prompts.empty:
+        converted = pd.DataFrame([{
+            "id": row.get("prompt_id", ""),
+            "title": row.get("title", ""),
+            "area_name": row.get("area_name", ""),
+            "due_date": "",
+            "reminder_time": "",
+            "task_list": row.get("area_name", "") or "Pathmark",
+            "notes": row.get("prompt_text", ""),
+            "repeat_pattern": "",
+            "linked_calendar_summary": "",
+            "status": "needsAction",
+        } for _, row in ad_hoc_prompts.iterrows()])
+        prompts = pd.concat([derived_prompts, converted], ignore_index=True) if not derived_prompts.empty else converted
+    else:
+        prompts = derived_prompts
+    tasklist = staged_tasklist(sheet_id)
     c1, c2, c3 = st.columns(3)
     with c1:
         st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
     with c2:
-        st.download_button("Download Google Tasks CSV", data=dataframe_to_csv_bytes(prompts), file_name="pathmark_task_prompts.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
+        st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
     with c3:
-        st.download_button("Download printable tasklist", data=build_printable_tasklist(tasklists, prompts), file_name="pathmark_printable_tasklist.txt", mime="text/plain", use_container_width=True, disabled=(tasklists.empty and prompts.empty))
-    st.caption("These exports are generated in the hosted app for download. They are not saved to Supabase or GitHub.")
+        st.download_button("Download printable tasklist", data=build_printable_tasklist_from_rows(tasklist), file_name="pathmark_tasklist.txt", mime="text/plain", use_container_width=True, disabled=tasklist.empty)
+    with st.expander("Preview staged exports", expanded=False):
+        st.markdown("**Calendar blocks**")
+        dataframe_preview(blocks, ["title", "area_name", "start", "end", "recurrence", "linked_record_id"])
+        st.markdown("**Google Tasks prompts**")
+        dataframe_preview(prompts, ["title", "area_name", "due_date", "reminder_time", "task_list", "linked_calendar_summary"])
+    st.caption("Exports are generated in the hosted app for download. They are not saved to Supabase or GitHub.")
 
 
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Pathmark Online")
-    st.write("Use the online version to manage the same planning model as the desktop app. The online version stores structured records in your own Google Sheet instead of creating local Markdown files.")
-    counts = {}
-    for table in ["areas", "goals", "routines", "calendar_blocks", "task_prompts", "tasklists"]:
-        counts[table] = len(read_online_table(sheet_id, table))
+    st.write("Use the online version as a Google-Sheet-backed Pathmark workspace. It now follows the desktop model more closely: goals and routines contain action blocks that drive tasklists, calendar exports and Google Tasks first-action prompts.")
+    tables = load_online_tables(sheet_id)
+    counts = {table: len(tables.get(table, pd.DataFrame())) for table in ["areas", "goals", "routines", "actions"]}
+    derived_calendar = len(staged_calendar_blocks(sheet_id))
+    derived_prompts = len(staged_task_prompts(sheet_id))
+    tasklist_rows = len(staged_tasklist(sheet_id))
     c1, c2, c3 = st.columns(3)
     c1.metric("Areas", counts["areas"])
     c2.metric("Goals", counts["goals"])
     c3.metric("Routines", counts["routines"])
     c4, c5, c6 = st.columns(3)
-    c4.metric("Calendar blocks", counts["calendar_blocks"])
-    c5.metric("Task prompts", counts["task_prompts"])
-    c6.metric("Tasklists", counts["tasklists"])
+    c4.metric("Action blocks", counts["actions"])
+    c5.metric("Calendar export rows", derived_calendar)
+    c6.metric("Google Tasks prompts", derived_prompts)
+    st.metric("Tasklist rows", tasklist_rows)
     st.markdown("""
-    **What is different from the desktop app?**
+    **How this now matches the desktop app**
 
-    Pathmark Online can manage structured planning records and generate downloadable exports. It does not create local folders, Markdown files, or local backups. The desktop app remains the place where your local Workspace is published and maintained.
+    - Goals and routines are the containers.
+    - Action blocks and routine activities are the working rows.
+    - Action rows can be included on the printable tasklist.
+    - Action rows can stage Google Calendar blocks.
+    - Action rows can stage Google Tasks first-action prompts.
+    - Pathmark Online stores those records in your Google Sheet instead of creating local Markdown files.
     """)
 
 def download_tab() -> None:
@@ -1779,11 +2257,13 @@ def on_the_go_tab() -> None:
         st.info("Sign in with Google and allow Pathmark's narrow Drive permission before using the online planning screens. You can still download the desktop app from the first tab.")
         return
 
-    # Ensure the online schema exists before rendering the management screens.
+    # Ensure the online schema exists and read the sheet once before rendering the tabs.
     service = sheets_service()
     if service is not None:
         try:
-            ensure_pathmark_online_schema(service, sheet_id)
+            with st.spinner("Loading your Pathmark Online workspace from Google Sheets..."):
+                ensure_pathmark_online_schema(service, sheet_id)
+                load_online_tables(sheet_id)
         except Exception as exc:
             st.warning(f"Could not prepare the full Pathmark Online sheet structure: {exc}")
 

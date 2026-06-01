@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.83",
+  "version": "0.5.84",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_83.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_84.zip",
   "mac_package": "",
   "notes": [
-    "Renamed the beta workspace to Pathmark Online beta and moved it closer to the desktop planning model.",
-    "Added Google-Sheet-backed management screens for Areas, Goals and Projects, Routines, Calendar Blocks, Task Prompts, Tasklists, and Exports.",
-    "Expanded the Pathmark Sync sheet schema beyond pending_changes so online records can live in structured tabs owned by the user.",
-    "Added browser downloads for calendar .ics files, Google Tasks CSV, and printable tasklists generated from the user-owned sync sheet.",
-    "Kept Supabase limited to roles, status, feature flags, and audit logs; personal planning records remain in the user's Google Sheet or local Workspace."
+    "Reduced Google Sheets read requests by caching Pathmark Online records and reading tables with a batch request.",
+    "Added a loading spinner while the online workspace is prepared from the user-owned Google Sheet.",
+    "Moved Pathmark Online closer to the desktop mechanics by adding action blocks under goals and routine activities under routines.",
+    "Tasklists, Google Calendar ICS exports, and Google Tasks CSV exports are now derived from action blocks and routine activities rather than only from separate ad hoc rows.",
+    "Expanded the Pathmark Sync sheet schema while preserving existing beta rows by appending missing columns instead of replacing headers."
   ]
 }
