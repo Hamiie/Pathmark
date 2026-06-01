@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_86.zip
+  Pathmark_Local_App_Windows_v0_5_89.zip
 supabase/
   migrations/
     20260531000000_create_pathmark_access_tables.sql
@@ -225,3 +225,8 @@ Key refinements:
 - Google Tasks export can be written to a `google_tasks_export` tab in the Pathmark Sync sheet.
 
 Security note: Pathmark still does not store goals, routines, task prompts, calendar plans, or Workspace files in Supabase. Supabase remains the access layer only.
+
+
+## v0.5.89 notes
+
+This release polishes Pathmark Online's user-facing guidance. The online Home page now presents a stepped guide through Areas, routines, goals, actions and exports, rather than describing backend parity with the desktop app. The printable tasklist PDF has been improved and the plain text tasklist export has been removed from the normal interface.

@@ -144,6 +144,10 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; }
 .guide-box { background: rgba(255,255,255,.82); border: 1px solid var(--line); border-left: 6px solid var(--accent); border-radius: 1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
 .guide-box strong { color: var(--ink); }
+.step-card { background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 1.15rem; padding: 1rem 1.1rem; margin: .45rem 0 1rem; box-shadow: 0 8px 20px var(--shadow); }
+.step-card h3 { margin-top: 0; margin-bottom: .35rem; }
+.step-card p { color: var(--muted); margin-bottom: .45rem; }
+.pathmark-note { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; color: var(--ink); }
 .swatch-row { display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; margin:.35rem 0 .85rem; }
 .swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:white; padding:.25rem .55rem; font-size:.85rem; }
 .swatch-dot { width:.8rem; height:.8rem; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.18); }
@@ -894,14 +898,17 @@ def render_google_sheets_oauth_diagnostics() -> None:
             st.success("Google Sheets OAuth secrets are present in Streamlit for this deployment.")
         else:
             st.warning("Google Sheets OAuth secrets are not fully configured in Streamlit.")
-        st.code(
-            "Configured: {configured}\n"
-            "OAuth client ID: {client_id_prefix}\n"
-            "Redirect URI: {redirect_uri}\n"
-            "Login scope: {login_scope}\n"
-            "Sheets scope: {scope}\n"
-            "Google auth endpoint: {auth_uri}".format(**diag),
-            language="text",
+        st.dataframe(
+            pd.DataFrame([
+                {"Setting": "Configured", "Value": diag.get("configured", "")},
+                {"Setting": "OAuth client ID", "Value": diag.get("client_id_prefix", "")},
+                {"Setting": "Redirect URI", "Value": diag.get("redirect_uri", "")},
+                {"Setting": "Login scope", "Value": diag.get("login_scope", "")},
+                {"Setting": "Sheets scope", "Value": diag.get("scope", "")},
+                {"Setting": "Google auth endpoint", "Value": diag.get("auth_uri", "")},
+            ]),
+            use_container_width=True,
+            hide_index=True,
         )
         st.markdown("""
         If Google shows an **Access blocked**, **redirect_uri_mismatch**, or **invalid_request** page, check Google Cloud first:
@@ -1071,7 +1078,7 @@ def handle_google_oauth_redirect() -> None:
     except Exception as exc:
         st.session_state.pop("google_oauth_state", None)
         st.query_params.clear()
-        st.warning(f"Could not complete Google authorisation: {exc}")
+        st.warning("Could not complete Google authorisation. Please try logging in again.")
 
 
 def google_auth_url() -> str | None:
@@ -1096,7 +1103,7 @@ def google_auth_url() -> str | None:
         st.session_state["google_oauth_state"] = state
         return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     except Exception as exc:
-        st.warning(f"Could not prepare Google authorisation: {exc}")
+        st.warning("Could not prepare Google authorisation. Please refresh the page and try again.")
         return None
 
 def sheets_service():
@@ -1585,6 +1592,14 @@ def record_title_map(df: pd.DataFrame, id_col: str) -> dict[str, str]:
     return out
 
 
+
+
+def safe_user_message(message: str) -> str:
+    """Keep low-level API/code details out of the normal user interface."""
+    text = str(message or "")
+    if "<HttpError" in text or "Traceback" in text or "returned \"" in text or "googleapis.com" in text:
+        return "Pathmark could not complete that action. Please refresh the online data or reconnect Google access, then try again."
+    return text
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
         st.info("No records yet.")
@@ -2115,7 +2130,7 @@ def render_area_manager(sheet_id: str) -> None:
                             "default_task_list": default_task_list.strip() or "Pathmark",
                             "notes": notes.strip(),
                         })
-                        st.success(message) if ok else st.warning(message)
+                        st.success(message) if ok else st.warning(safe_user_message(message))
                         if ok:
                             st.rerun()
     with col_main:
@@ -2138,12 +2153,12 @@ def render_area_manager(sheet_id: str) -> None:
                         "area_name": name.strip(), "description": description.strip(), "colour": colour,
                         "default_calendar": default_calendar.strip(), "default_task_list": default_task_list.strip(), "notes": notes.strip(), "status": row.get("status", "active") or "active"
                     })
-                    st.success(message) if ok else st.warning(message)
+                    st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
             if st.button("Archive Area", key=f"archive_area_{selected_id}"):
                 ok, message = archive_online_record(sheet_id, "areas", selected_id, "Archived from Pathmark Online.")
-                st.success(message) if ok else st.warning(message)
+                st.success(message) if ok else st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
 
@@ -2216,7 +2231,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                 else:
                     payload["action_id"] = f"action-{uuid.uuid4().hex}"
                     ok, message = append_online_record(sheet_id, "actions", payload)
-                st.success(message) if ok else st.warning(message)
+                st.success(message) if ok else st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
 
@@ -2234,7 +2249,7 @@ def _render_action_list(sheet_id: str, actions: pd.DataFrame, *, goal_id: str = 
                 _action_form(sheet_id, goal_id=goal_id, routine_id=routine_id, default_area=default_area, form_key=f"action_{a.get('action_id')}", action=a.to_dict())
                 if st.button("Archive action" if not routine_id else "Archive activity", key=f"archive_action_{a.get('action_id')}"):
                     ok, message = archive_online_record(sheet_id, "actions", str(a.get("action_id", "")), "Archived from Pathmark Online.")
-                    st.success(message) if ok else st.warning(message)
+                    st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
@@ -2276,7 +2291,7 @@ def render_goal_manager(sheet_id: str) -> None:
                             "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status,
                             "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip(),
                         })
-                        st.success(message) if ok else st.warning(message)
+                        st.success(message) if ok else st.warning(safe_user_message(message))
                         if ok:
                             st.rerun()
         if goals.empty:
@@ -2312,7 +2327,7 @@ def render_goal_manager(sheet_id: str) -> None:
                             st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
                         else:
                             ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
-                            st.success(message) if ok else st.warning(message)
+                            st.success(message) if ok else st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[1]:
@@ -2324,14 +2339,17 @@ def render_goal_manager(sheet_id: str) -> None:
                 st.write("Archive the goal when it is finished or no longer useful. This hides it from active online views.")
                 if st.button("Archive goal", key=f"archive_goal_{selected_id}"):
                     ok, message = archive_online_record(sheet_id, "goals", selected_id, "Archived from Pathmark Online.")
-                    st.success(message) if ok else st.warning(message)
+                    st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
 
 def render_routine_manager(sheet_id: str) -> None:
     st.subheader("Routines")
-    st.write("The online Routines page follows the desktop pattern: the routine stores the repeat pattern, and activities store the individual work rows used by tasklists and exports.")
+    st.markdown("""
+    <div class='guide-box'><strong>Routines are healthy habits you repeat.</strong><br>
+    Use routines for the basics that maintain wellbeing and capacity: sleep, food, movement, practice, planning, and admin. A routine can create calendar time and a small Google Tasks prompt so the habit is easier to start.</div>
+    """, unsafe_allow_html=True)
     routines = active_online_df(read_online_table(sheet_id, "routines"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
     areas = area_options(sheet_id)
@@ -2363,7 +2381,7 @@ def render_routine_manager(sheet_id: str) -> None:
                             st.error(problem)
                     else:
                         ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "status": status, "purpose": purpose.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "checklist": checklist.strip(), "notes": notes.strip()})
-                        st.success(message) if ok else st.warning(message)
+                        st.success(message) if ok else st.warning(safe_user_message(message))
                         if ok:
                             st.rerun()
         if routines.empty:
@@ -2394,7 +2412,7 @@ def render_routine_manager(sheet_id: str) -> None:
                             st.error("Add a routine title before saving.")
                         else:
                             ok, message = update_online_record(sheet_id, "routines", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "status": status, "purpose": purpose.strip(), "checklist": checklist.strip(), "notes": notes.strip()})
-                            st.success(message) if ok else st.warning(message)
+                            st.success(message) if ok else st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[1]:
@@ -2428,19 +2446,19 @@ def render_routine_manager(sheet_id: str) -> None:
                                 st.error(problem)
                         else:
                             ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "duration_minutes": duration.strip(), "calendar_start_time": start.strip(), "calendar_end_time": end.strip()})
-                            st.success(message) if ok else st.warning(message)
+                            st.success(message) if ok else st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[3]:
                 c1, c2 = st.columns(2)
                 if c1.button("Pause routine", key=f"pause_r_{selected_id}"):
                     ok, message = update_online_record(sheet_id, "routines", selected_id, {"status": "Paused"})
-                    st.success(message) if ok else st.warning(message)
+                    st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
                 if c2.button("Archive routine", key=f"archive_r_{selected_id}"):
                     ok, message = archive_online_record(sheet_id, "routines", selected_id, "Archived from Pathmark Online.")
-                    st.success(message) if ok else st.warning(message)
+                    st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
@@ -2530,7 +2548,6 @@ def render_tasklist_manager(sheet_id: str) -> None:
         content += "\nNotes\n" + notes.strip() + "\n"
     pdf_bytes = build_tasklist_pdf(content_rows, title=title or "Pathmark Tasklist", notes=notes)
     st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
-    st.download_button("Download plain text tasklist", data=content.encode("utf-8"), file_name="pathmark_tasklist.txt", mime="text/plain", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
 
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Export")
@@ -2586,7 +2603,7 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
     if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
         ok, message = write_google_tasks_export_tab(sheet_id, prompts)
-        st.success(message) if ok else st.warning(message)
+        st.success(message) if ok else st.warning(safe_user_message(message))
 
 
 def render_archive_manager(sheet_id: str) -> None:
@@ -2604,8 +2621,11 @@ def render_archive_manager(sheet_id: str) -> None:
 
 def render_online_settings(sheet_id: str) -> None:
     st.subheader("Settings")
-    st.write("Manage the online Google Sheet connection. Planning data remains in your Google Sheet; Supabase stores access roles only.")
-    st.code(sheet_id or "No sync sheet selected")
+    st.write("Manage your online workspace, theme, and Google Sheet connection.")
+    if sheet_id:
+        st.caption(f"Sync sheet connected: …{sheet_id[-8:]}")
+    else:
+        st.caption("No sync sheet selected.")
     c1, c2 = st.columns(2)
     if sheet_id:
         c1.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_id}", use_container_width=True)
@@ -2617,7 +2637,7 @@ def render_online_settings(sheet_id: str) -> None:
     theme_name = st.selectbox("Online theme", list(ONLINE_THEMES.keys()), index=list(ONLINE_THEMES.keys()).index(current_theme) if current_theme in ONLINE_THEMES else 0)
     if st.button("Save theme", use_container_width=True):
         ok, message = save_online_setting(sheet_id, "theme", theme_name)
-        st.success(message) if ok else st.warning(message)
+        st.success(message) if ok else st.warning(safe_user_message(message))
         if ok:
             st.rerun()
 
@@ -2625,6 +2645,7 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
+    """Build a polished printable tasklist PDF with real checkbox symbols."""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
@@ -2633,13 +2654,22 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     except Exception:
         return build_printable_tasklist_from_rows(rows)
+
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=15*mm, bottomMargin=15*mm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=14*mm, bottomMargin=14*mm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=20, leading=24, spaceAfter=8)
-    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=10, spaceAfter=4)
-    body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.5, leading=12)
-    story = [Paragraph(html.escape(title or "Pathmark Tasklist"), title_style), Paragraph(datetime.now().strftime("Created %d %B %Y"), body), Spacer(1, 6)]
+    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=21, leading=25, spaceAfter=4, textColor=colors.HexColor("#1F2221"))
+    sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=8)
+    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=8, spaceAfter=4, textColor=colors.HexColor("#334E68"))
+    body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
+    small = ParagraphStyle("PathmarkSmall", parent=styles["BodyText"], fontSize=8.4, leading=11, textColor=colors.HexColor("#626966"))
+
+    story = [
+        Paragraph(html.escape(title or "Pathmark Tasklist"), title_style),
+        Paragraph(datetime.now().strftime("Created %d %B %Y"), sub_style),
+        Spacer(1, 4),
+    ]
+
     if rows.empty:
         story.append(Paragraph("No tasklist rows selected.", body))
     else:
@@ -2648,7 +2678,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             if subset.empty:
                 continue
             story.append(Paragraph(html.escape(source_type + "s"), h_style))
-            data = [["Done", "Task", "Context", "First action"]]
+            data = [["", "Task", "When / context", "First action prompt"]]
             for _, row in subset.iterrows():
                 context_bits = []
                 for label, col in [("Area", "area_name"), ("Parent", "parent"), ("Scheduled", "scheduled_date"), ("Due", "due_date"), ("Time", "estimated_minutes")]:
@@ -2657,19 +2687,23 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                         if col == "estimated_minutes":
                             val = f"{val} min"
                         context_bits.append(f"{label}: {val}")
+                first = str(row.get("first_step", "") or "").strip()
                 data.append([
-                    "[ ]",
+                    "☐",
                     Paragraph(html.escape(str(row.get("title", "Untitled") or "Untitled")), body),
-                    Paragraph(html.escape("\n".join(context_bits)), body),
-                    Paragraph(html.escape(str(row.get("first_step", "") or "")), body),
+                    Paragraph(html.escape("<br/>".join(context_bits)), small),
+                    Paragraph(html.escape(first), body),
                 ])
-            table = Table(data, colWidths=[14*mm, 54*mm, 54*mm, 54*mm], repeatRows=1)
+            table = Table(data, colWidths=[8*mm, 60*mm, 52*mm, 58*mm], repeatRows=1)
             table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EEF4")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2221")),
-                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#D8D4CB")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#334E68")),
+                ("GRID", (0, 1), (-1, -1), 0.25, colors.HexColor("#D8D4CB")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (0, 1), (0, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8.5),
                 ("LEFTPADDING", (0, 0), (-1, -1), 5),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -2678,6 +2712,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             ]))
             story.append(table)
             story.append(Spacer(1, 8))
+
     if notes.strip():
         story.append(Paragraph("Notes", h_style))
         for line in notes.strip().splitlines():
@@ -2686,11 +2721,6 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
     return buffer.getvalue()
 
 
-def render_exports_manager(sheet_id: str) -> None:
-    st.subheader("Exports")
-    st.write("Use the dedicated Google Calendar Export, Google Tasks Export, and Tasklist tabs. This combined export page is kept only as a compatibility wrapper.")
-    render_google_calendar_export_manager(sheet_id)
-    render_google_tasks_export_manager(sheet_id)
 def parse_dt_for_ics(value: str) -> str:
     text = (value or "").strip()
     if not text:
@@ -2776,7 +2806,7 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
             if str(row.get("estimated_minutes", "") or "").strip():
                 bits.append(f"{row.get('estimated_minutes')} min")
             suffix = f" ({'; '.join(bits)})" if bits else ""
-            lines.append(f"[ ] {row.get('title','Untitled')}{suffix}")
+            lines.append(f"☐ {row.get('title','Untitled')}{suffix}")
             first = str(row.get("first_step", "") or "").strip()
             if first:
                 lines.append(f"    First action: {first}")
@@ -2786,71 +2816,9 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
 
 
 
-def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    except Exception:
-        return build_printable_tasklist_from_rows(rows)
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=15*mm, bottomMargin=15*mm)
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=20, leading=24, spaceAfter=8)
-    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=10, spaceAfter=4)
-    body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.5, leading=12)
-    story = [Paragraph(html.escape(title or "Pathmark Tasklist"), title_style), Paragraph(datetime.now().strftime("Created %d %B %Y"), body), Spacer(1, 6)]
-    if rows.empty:
-        story.append(Paragraph("No tasklist rows selected.", body))
-    else:
-        for source_type in ["Goal action", "Routine activity"]:
-            subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
-            if subset.empty:
-                continue
-            story.append(Paragraph(html.escape(source_type + "s"), h_style))
-            data = [["Done", "Task", "Context", "First action"]]
-            for _, row in subset.iterrows():
-                context_bits = []
-                for label, col in [("Area", "area_name"), ("Parent", "parent"), ("Scheduled", "scheduled_date"), ("Due", "due_date"), ("Time", "estimated_minutes")]:
-                    val = str(row.get(col, "") or "").strip()
-                    if val:
-                        if col == "estimated_minutes":
-                            val = f"{val} min"
-                        context_bits.append(f"{label}: {val}")
-                data.append([
-                    "[ ]",
-                    Paragraph(html.escape(str(row.get("title", "Untitled") or "Untitled")), body),
-                    Paragraph(html.escape("\n".join(context_bits)), body),
-                    Paragraph(html.escape(str(row.get("first_step", "") or "")), body),
-                ])
-            table = Table(data, colWidths=[14*mm, 54*mm, 54*mm, 54*mm], repeatRows=1)
-            table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EEF4")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2221")),
-                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#D8D4CB")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]))
-            story.append(table)
-            story.append(Spacer(1, 8))
-    if notes.strip():
-        story.append(Paragraph("Notes", h_style))
-        for line in notes.strip().splitlines():
-            story.append(Paragraph(html.escape(line), body))
-    doc.build(story)
-    return buffer.getvalue()
-
-
 def render_exports_manager(sheet_id: str) -> None:
     st.subheader("Exports")
-    st.write("Use the dedicated Google Calendar Export, Google Tasks Export, and Tasklist tabs. This compatibility page is intentionally minimal so online behaviour stays aligned with the desktop app.")
+    st.write("Use the dedicated Google Calendar Export, Google Tasks Export, and Tasklist tabs to prepare files from your saved actions and routine activities.")
     c1, c2 = st.columns(2)
     with c1:
         render_google_calendar_export_manager(sheet_id)
@@ -2861,11 +2829,33 @@ def render_exports_manager(sheet_id: str) -> None:
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Pathmark Online")
     st.markdown("""
-    <div class='guide-box'><strong>How to use Pathmark Online</strong><br>
-    1. Set up Areas for the main parts of your life. 2. Add routines that protect your wellbeing and capacity. 3. Add goals with clear closure criteria. 4. Define the next one or two actions. 5. Put those actions into your calendar and create Google Tasks prompts that reduce activation energy.</div>
+    <div class='pathmark-note'>Pathmark turns routines and goals into calendar time, task prompts, and printable checklists. Start with the broad parts of your life, then build the next useful action rather than trying to plan everything at once.</div>
     """, unsafe_allow_html=True)
+
+    guide_tabs = st.tabs(["1. Areas", "2. Routines", "3. Goals", "4. Actions", "5. Exports"])
+    with guide_tabs[0]:
+        st.markdown("""
+        <div class='step-card'><h3>Set up Areas</h3><p>Areas are the broad parts of life you want Pathmark to protect, such as body, food, home, work, learning, or creativity.</p><p>Use Areas to keep goals, routines, tasklists, and exports grouped in a way that still makes sense later.</p></div>
+        """, unsafe_allow_html=True)
+    with guide_tabs[1]:
+        st.markdown("""
+        <div class='step-card'><h3>Build routines first</h3><p>Routines are the healthy habits that keep your baseline steady: sleep, meals, exercise, practice, planning, and admin.</p><p>They help maintain the energy and capacity needed to commit to your goals. Add a routine, choose the repeat pattern, then add one or more activities that can appear on your tasklist and calendar.</p></div>
+        """, unsafe_allow_html=True)
+    with guide_tabs[2]:
+        st.markdown("""
+        <div class='step-card'><h3>Give each goal a finish line</h3><p>A goal should include closure criteria: how will you know it is complete?</p><p>Once the finish line is clear, Pathmark is designed to hold only the next one or two useful actions. This keeps the goal moving without turning planning into another project.</p></div>
+        """, unsafe_allow_html=True)
+    with guide_tabs[3]:
+        st.markdown("""
+        <div class='step-card'><h3>Define the next action</h3><p>Action rows are where the work becomes concrete. A good action is small enough to schedule and specific enough to start.</p><p>Use the first-action prompt to reduce activation energy: pack gym clothes, open the book, put running shoes by the door, or choose the recipe before the calendar block arrives.</p></div>
+        """, unsafe_allow_html=True)
+    with guide_tabs[4]:
+        st.markdown("""
+        <div class='step-card'><h3>Export what helps you act</h3><p>Calendar blocks make time for the work. Google Tasks prompts give you a satisfying checklist and reduce friction at the moment you need to begin.</p><p>The printable tasklist gives you a focused paper view of the actions and routine activities you choose for the week.</p></div>
+        """, unsafe_allow_html=True)
+
     tables = load_online_tables(sheet_id)
-    counts = {table: len(tables.get(table, pd.DataFrame())) for table in ["areas", "goals", "routines", "actions"]}
+    counts = {table: len(active_online_df(tables.get(table, pd.DataFrame()))) if table in ["areas", "goals", "routines", "actions"] else len(tables.get(table, pd.DataFrame())) for table in ["areas", "goals", "routines", "actions"]}
     derived_calendar = len(staged_calendar_blocks(sheet_id))
     derived_prompts = len(staged_task_prompts(sheet_id))
     tasklist_rows = len(staged_tasklist(sheet_id))
@@ -2874,37 +2864,26 @@ def render_online_overview(sheet_id: str) -> None:
     c2.metric("Goals", counts["goals"])
     c3.metric("Routines", counts["routines"])
     c4, c5, c6 = st.columns(3)
-    c4.metric("Action blocks", counts["actions"])
-    c5.metric("Calendar export rows", derived_calendar)
-    c6.metric("Google Tasks prompts", derived_prompts)
+    c4.metric("Action rows", counts["actions"])
+    c5.metric("Calendar rows", derived_calendar)
+    c6.metric("Task prompts", derived_prompts)
     st.metric("Tasklist rows", tasklist_rows)
 
     if counts["areas"] == 0 and counts["goals"] == 0 and counts["routines"] == 0:
-        st.info("New to Pathmark? Load editable starter examples to see how Areas, routines, goals, action blocks, tasklists and exports work together. You can rename, pause or archive anything afterwards.")
+        st.info("New to Pathmark? Load editable starter examples for ordinary routines and goals, then change or archive anything that does not fit your life.")
         if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_empty"):
             ok, message = load_starter_examples(sheet_id)
-            st.success(message) if ok else st.warning(message)
+            st.success(message) if ok else st.warning(safe_user_message(message))
             if ok:
                 st.rerun()
     elif not starter_examples_already_loaded(sheet_id):
         with st.expander("Suggested starter examples", expanded=False):
-            st.write("Load ordinary editable examples for food, sleep, exercise, learning and weekly planning. This is optional and is only meant to show how Pathmark is structured.")
+            st.write("Load editable examples for food, sleep, exercise, learning and planning. These are optional and can be renamed, paused or archived.")
             if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_optional"):
                 ok, message = load_starter_examples(sheet_id)
-                st.success(message) if ok else st.warning(message)
+                st.success(message) if ok else st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
-
-    st.markdown("""
-    **How this now matches the desktop app**
-
-    - Goals and routines are the containers.
-    - Action blocks and routine activities are the working rows.
-    - Action rows can be included on the printable tasklist.
-    - Action rows can stage Google Calendar blocks.
-    - Action rows can stage Google Tasks first-action prompts.
-    - Pathmark Online stores those records in your Google Sheet instead of creating local Markdown files.
-    """)
 
 def download_tab() -> None:
     version = load_version()
@@ -2981,7 +2960,7 @@ def download_tab() -> None:
 
 def about_privacy_tab() -> None:
     st.header("About Pathmark")
-    st.write("Pathmark is a routine, goal, tasklist and calendar planning system. The online version is designed to work like the desktop version, except it stores structured records in your Google Sheet instead of creating local Markdown files.")
+    st.write("Pathmark is a routine, goal, tasklist and calendar planning system. The signed-in online version stores structured planning records in a Google Sheet owned by you.")
     st.markdown("""
     <div class="grid-2">
       <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage Areas, goals, routines, action blocks, tasklists, Google Calendar exports and Google Tasks prompts from a Google Sheet you own.</p></div>
@@ -3037,8 +3016,8 @@ def on_the_go_tab() -> None:
     if notice:
         st.success(notice)
     st.markdown(
-        "<div class='beta-note'><strong>Beta feature.</strong> Pathmark Online now uses your own Google Sheet as its structured planning file. "
-        "It can manage Areas, goals, routines, calendar blocks, task prompts, tasklists, and simple exports. The desktop app still handles local Workspace folders, Markdown generation, backups, and heavier publishing.</div>",
+        "<div class='beta-note'><strong>Beta feature.</strong> Pathmark Online saves your planning records in a Google Sheet you own. "
+        "Use it to manage routines, goals, actions, tasklists, and exports from the browser.</div>",
         unsafe_allow_html=True,
     )
 
@@ -3051,7 +3030,7 @@ def on_the_go_tab() -> None:
         if ok:
             st.success("Your Pathmark sync sheet is ready.")
         else:
-            st.warning(message)
+            st.warning(safe_user_message(message))
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
     render_connection_summary(credentials, sheet_id, auth_ready)
@@ -3068,14 +3047,14 @@ def on_the_go_tab() -> None:
                         st.success("Pathmark sync sheet is ready.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
-                        st.warning(message)
+                        st.warning(safe_user_message(message))
                 if st.button("Create new sync sheet", use_container_width=True):
                     ok, new_sheet_id, message = create_user_sync_sheet()
                     if ok:
                         st.success("Created a new Pathmark sync sheet.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
-                        st.warning(message)
+                        st.warning(safe_user_message(message))
         with c2:
             if st.button("Disconnect Google access", use_container_width=True):
                 revoke_google_session_token()
@@ -3117,7 +3096,7 @@ def on_the_go_tab() -> None:
                 ensure_pathmark_online_schema(service, sheet_id)
                 load_online_tables(sheet_id)
         except Exception as exc:
-            st.warning(f"Could not prepare the full Pathmark Online sheet structure: {exc}")
+            st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
     sections = st.tabs([
         "Home",
