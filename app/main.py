@@ -775,17 +775,37 @@ def google_credentials_from_session():
     The hosted page deliberately avoids requesting offline access. If the access
     token expires, the user reconnects rather than Pathmark storing a refresh
     token on the hosted app.
+
+    v0.5.79 deliberately reconstructs credentials from the short-lived access
+    token instead of using Credentials.from_authorized_user_info(). Google's
+    helper expects an installed-app style authorised-user payload and can reject
+    a perfectly valid session token when no refresh token is present. That made
+    Pathmark show a green connection notice while immediately falling back to the
+    Connect button on the next rerun.
     """
     raw = st.session_state.get("google_sheets_credentials")
     if not raw:
         return None
     try:
-        from google.oauth2.credentials import Credentials  # type: ignore
-        credentials = Credentials.from_authorized_user_info(json.loads(raw), GOOGLE_SHEETS_SCOPES)
-        if credentials.expired:
+        info = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        token = str(info.get("token", "") or "")
+        if not token:
             st.session_state.pop("google_sheets_credentials", None)
             return None
-        return credentials if credentials and credentials.valid else None
+
+        expires_at = int(info.get("expires_at", 0) or 0)
+        # Treat tokens as expired a minute early so a save operation does not
+        # begin with a token that is about to expire.
+        if expires_at and expires_at <= int(datetime.now(timezone.utc).timestamp()) + 60:
+            st.session_state.pop("google_sheets_credentials", None)
+            return None
+
+        from google.oauth2.credentials import Credentials  # type: ignore
+        credentials = Credentials(
+            token=token,
+            scopes=info.get("scopes") or GOOGLE_SHEETS_SCOPES,
+        )
+        return credentials
     except Exception:
         st.session_state.pop("google_sheets_credentials", None)
         return None
@@ -848,10 +868,10 @@ def exchange_google_code_for_credentials(cfg: dict[str, Any], code: str) -> dict
         "token": token_data.get("access_token"),
         "token_uri": "https://oauth2.googleapis.com/token",
         "client_id": cfg["client_id"],
-        "client_secret": cfg["client_secret"],
         "scopes": token_data.get("scope", " ".join(GOOGLE_SHEETS_SCOPES)).split(),
     }
     if expires_at:
+        cred_info["expires_at"] = expires_at
         cred_info["expiry"] = datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z")
     return cred_info
 
@@ -897,6 +917,7 @@ def handle_google_oauth_redirect() -> None:
             raise RuntimeError("Google did not return an access token.")
         st.session_state["google_sheets_credentials"] = json.dumps(cred_info)
         st.session_state["on_the_go_connected_notice"] = "Google Sheets is connected for this session."
+        st.session_state["auto_create_sync_sheet_after_connect"] = True
         st.session_state.pop("google_oauth_state", None)
         st.query_params.clear()
         st.rerun()
@@ -1085,6 +1106,12 @@ def on_the_go_tab() -> None:
     st.subheader("1. Choose where to save this capture")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
+    if credentials and not st.session_state.get("sync_sheet_id") and st.session_state.pop("auto_create_sync_sheet_after_connect", False):
+        ok, sheet_id, message = create_user_sync_sheet()
+        if ok:
+            st.success("Created your Pathmark sync sheet for on-the-go captures.")
+        else:
+            st.warning(message)
     render_google_sheets_oauth_diagnostics()
     if not auth_ready:
         st.info("Google Sheets OAuth is not configured on this hosted deployment yet. Use the CSV download workflow below.")
@@ -1109,7 +1136,7 @@ def on_the_go_tab() -> None:
                     revoke_google_session_token()
                     st.rerun()
             if not st.session_state.get("sync_sheet_id"):
-                st.info("Create a Pathmark sync sheet above before saving captures to Google Sheets, or use the CSV download below.")
+                st.info("Create a Pathmark sync sheet above before saving captures to Google Sheets, or use the CSV download below. Pathmark now tries to create one automatically after connection, but you can retry here if Google or Streamlit interrupted that first attempt.")
         else:
             auth_url = google_auth_url()
             if auth_url:

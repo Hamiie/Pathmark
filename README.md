@@ -163,7 +163,7 @@ This release adds a versioned Supabase migration structure for the hosted access
 
 ## Google Sheets On-the-go OAuth checks
 
-Pathmark v0.5.78 keeps the safe diagnostics panel in the hosted On-the-go beta tab. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
+Pathmark v0.5.79 keeps the safe diagnostics panel in the hosted On-the-go beta tab and improves session handling after Google Sheets connection. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
 
 For Google Sheets sync, configure the same Google Cloud project used by Streamlit secrets:
 
@@ -190,3 +190,10 @@ The hosted app requests `drive.file` only. It should create and update user-auth
 - Fixed the hosted Google Sheets OAuth callback so it is handled before role-gated tabs are rendered.
 - Added signed callback routing context for the On-the-go Google Sheets flow so the app can recover after a Streamlit session reset.
 - Replaced Google OAuth `st.link_button` controls with same-tab links to reduce extra browser tabs during login and connection.
+
+
+## v0.5.79 On-the-go Google Sheets session fix
+
+This release keeps the short-lived Google Sheets session model, but reconstructs Google credentials directly from the access token returned by Google rather than from an authorised-user payload. This avoids a confusing state where the hosted page shows a connection notice but then returns to the Connect button after a Streamlit rerun.
+
+After Google Sheets is connected, Pathmark also tries to create the user's Pathmark sync sheet automatically. If creation is interrupted, the manual create button remains available.

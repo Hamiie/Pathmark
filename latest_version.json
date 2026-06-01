@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.78",
+  "version": "0.5.79",
   "release_date": "2026-05-31",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_78.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_79.zip",
   "mac_package": "",
   "notes": [
-    "Fixed Google Sheets On-the-go OAuth token exchange by removing PKCE from the confidential hosted web-client flow, avoiding missing code_verifier errors after Streamlit session changes.",
-    "Kept signed OAuth state verification and On-the-go return context handling from v0.5.76.",
-    "Kept Streamlit native OAuth launch buttons for reliable Google redirects.",
-    "Kept the Supabase migration and Secret API key access model from v0.5.74."
+    "Fixed Google Sheets On-the-go connected state so a successful OAuth session remains usable after Streamlit reruns.",
+    "Rebuilt hosted Google credentials directly from the short-lived access token rather than the authorised-user helper that expects refresh-token style payloads.",
+    "After Google Sheets connects, Pathmark now attempts to create the Pathmark sync sheet automatically so Save to my Pathmark sync sheet is available sooner.",
+    "Kept the Supabase migration and Secret API key access model unchanged."
   ]
 }
