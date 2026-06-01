@@ -1,14 +1,16 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.86",
+  "version": "0.5.87",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_86.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_87.zip",
   "mac_package": "",
   "notes": [
-    "Changed Pathmark Online sync-sheet handling so it searches for an existing Pathmark Sync file and no longer automatically creates a new spreadsheet on every login when one cannot be found.",
-    "Newly created sync sheets are tagged with Drive appProperties so future sessions can re-find them under the narrow drive.file permission.",
-    "Added optional editable starter examples for ordinary Areas, routines, goals and action blocks, including sleep, meals, strength training, running, violin practice, sketching and gradual running-distance goals.",
-    "Added online validation for date and time fields before saving goals, routines, actions and routine activities.",
-    "Adjusted the online Tasklist page to behave more like the desktop page: name the list, tick goal actions and routine activities, preview the selected rows, then download the printable tasklist."
+    "Improved Pathmark Online guidance so routines are described as capacity-supporting habits and goals are framed around closure criteria plus the next one or two actions.",
+    "Changed the Google sign-in/reconnect controls to redirect in the current browser tab, reducing the extra-tab behaviour seen with Streamlit link buttons.",
+    "Added Google Calendar colour dropdowns and colour swatches for Areas.",
+    "Added stronger routine schedule validation so frequency and preferred days are compatible with task and calendar exports.",
+    "Added a printable PDF tasklist export alongside the plain text tasklist.",
+    "Added an online theme selector saved to the user's Pathmark Sync sheet.",
+    "Added an option to write the Google Tasks export into a google_tasks_export tab in the user's Pathmark Sync sheet."
   ]
 }

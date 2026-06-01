@@ -73,7 +73,7 @@ The hosted app is becoming a Google-Sheet-backed version of the Pathmark plannin
 - **Pathmark Online:** Areas, goals, projects, routines, calendar blocks, task prompts, tasklists, quick captures, and browser downloads backed by the user-owned Pathmark Sync sheet.
 - **Pathmark Desktop:** the same planning model plus local Workspace folders, Markdown generation, local backups, review/import, and heavier publishing workflows.
 
-v0.5.86 tightens the Pathmark Online foundation. The hosted app now avoids creating duplicate Pathmark Sync spreadsheets, tags new sync sheets so they can be re-found under the narrow drive.file permission, adds optional editable starter examples, validates date and time fields before saving, and makes the online Tasklist flow closer to the desktop version. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
+v0.5.87 tightens the Pathmark Online foundation. The hosted app now avoids creating duplicate Pathmark Sync spreadsheets, tags new sync sheets so they can be re-found under the narrow drive.file permission, adds optional editable starter examples, validates date and time fields before saving, and makes the online Tasklist flow closer to the desktop version. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
 
 ## Supabase access layer
 
@@ -204,3 +204,19 @@ Pathmark Online is framed as a Google-Sheet-backed routine and goal management s
 - Pathmark Online records live in the user's own Pathmark Sync Google Sheet;
 - Supabase stores only access-control data such as email, role, status, feature flags, and audit logs;
 - GitHub stores code and release packages, not private planning data or secrets.
+
+
+## v0.5.87 Pathmark Online refinements
+
+This release continues moving Pathmark Online toward the same routine and goal management model as the desktop app while keeping user planning data in the user's own Google Sheet.
+
+Key refinements:
+- More user-facing guidance for routines, goals, calendar blocks, and Google Tasks prompts.
+- Same-tab Google sign-in and reconnect controls to reduce duplicate browser tabs.
+- Google Calendar colour dropdowns for Areas.
+- Stronger routine frequency/preferred-day validation for exports.
+- Printable PDF tasklist export.
+- Online theme selection saved to the Pathmark Sync sheet.
+- Google Tasks export can be written to a `google_tasks_export` tab in the Pathmark Sync sheet.
+
+Security note: Pathmark still does not store goals, routines, task prompts, calendar plans, or Workspace files in Supabase. Supabase remains the access layer only.
