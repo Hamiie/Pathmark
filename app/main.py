@@ -1086,18 +1086,28 @@ def find_existing_sync_sheet() -> tuple[bool, str, str]:
     if service is None:
         return False, "", "Google Drive is not available for this session."
     try:
-        safe_title = SYNC_SHEET_TITLE.replace("'", "\\'")
-        result = service.files().list(
-            q=f"name='{safe_title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-            spaces="drive",
-            fields="files(id,name,modifiedTime,webViewLink)",
-            orderBy="modifiedTime desc",
-            pageSize=1,
-        ).execute()
-        files = result.get("files", [])
-        if not files:
-            return False, "", "No existing Pathmark sync sheet was found for this app."
-        file = files[0]
+        # Search by both name and Pathmark appProperties. Older beta sheets only
+        # had the name, while v0.5.86+ tags newly created files with appProperties
+        # to make them easier to re-find without using a broad Drive scope.
+        queries = [
+            "appProperties has { key='pathmark_sync' and value='true' } and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+            f"name='{SYNC_SHEET_TITLE.replace(chr(39), chr(92)+chr(39))}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+        ]
+        found_files: list[dict[str, Any]] = []
+        for query in queries:
+            result = service.files().list(
+                q=query,
+                spaces="drive",
+                fields="files(id,name,modifiedTime,webViewLink,appProperties)",
+                orderBy="modifiedTime desc",
+                pageSize=10,
+            ).execute()
+            for file in result.get("files", []):
+                if file.get("id") and not any(existing.get("id") == file.get("id") for existing in found_files):
+                    found_files.append(file)
+        if not found_files:
+            return False, "", "No existing Pathmark sync sheet was found for this app. To avoid duplicates, Pathmark will not create another one automatically. Use Create new sync sheet only if this is your first Pathmark Online sheet, or paste the URL of your existing sheet under Advanced."
+        file = sorted(found_files, key=lambda f: str(f.get("modifiedTime", "")), reverse=True)[0]
         sheet_id = file.get("id", "")
         if sheet_id:
             st.session_state["sync_sheet_id"] = sheet_id
@@ -1127,7 +1137,7 @@ def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
             ensure_pathmark_online_schema(service, sheet_id)
         return True, sheet_id, link_or_message
 
-    return create_user_sync_sheet()
+    return False, "", link_or_message
 
 
 def ensure_pending_changes_sheet(service: Any, sheet_id: str) -> None:
@@ -1161,6 +1171,16 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
             fields="spreadsheetId,spreadsheetUrl",
         ).execute()
         sheet_id = spreadsheet.get("spreadsheetId", "")
+        try:
+            dservice = drive_service()
+            if dservice is not None and sheet_id:
+                dservice.files().update(
+                    fileId=sheet_id,
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.5.86"}},
+                    fields="id",
+                ).execute()
+        except Exception:
+            pass
         ensure_pathmark_online_schema(service, sheet_id)
         st.session_state["sync_sheet_id"] = sheet_id
         return True, sheet_id, spreadsheet.get("spreadsheetUrl", "")
@@ -1370,6 +1390,47 @@ ONLINE_ID_COLUMNS = {
 }
 
 
+def append_many_online_records(sheet_id: str, records_by_table: dict[str, list[dict[str, Any]]]) -> tuple[bool, str]:
+    """Append starter/example records with one write per table.
+
+    This keeps the online setup guided without consuming lots of Google Sheets
+    quota through one request per row.
+    """
+    sheet_id = extract_google_sheet_id(sheet_id)
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets is not available for this session."
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        total = 0
+        for table, records in records_by_table.items():
+            if not records:
+                continue
+            columns = ONLINE_TABLES.get(table)
+            if not columns:
+                continue
+            now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            rows = []
+            for record in records:
+                row = dict(record)
+                row.setdefault("created_at", now)
+                row.setdefault("updated_at", now)
+                row.setdefault("source", "Pathmark Online starter examples")
+                rows.append([str(row.get(col, "")) for col in columns])
+            service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range=f"{table}!A1",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": rows},
+            ).execute()
+            total += len(rows)
+        clear_online_cache(sheet_id)
+        return True, f"Loaded {total} editable starter records into your Pathmark sync sheet."
+    except Exception as exc:
+        return False, f"Could not load starter examples: {exc}"
+
+
 def update_online_record(sheet_id: str, table: str, record_id: str, updates: dict[str, Any]) -> tuple[bool, str]:
     """Update one Google Sheet row by stable record id.
 
@@ -1524,6 +1585,41 @@ def parse_online_time(value: Any, default: str = "09:00") -> time:
     except Exception:
         h, m = default.split(":")[:2]
         return time(int(h), int(m))
+
+
+def valid_online_date(value: Any, *, allow_blank: bool = True) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return allow_blank
+    return parse_online_date(text) is not None
+
+
+def normalise_online_date(value: Any) -> str:
+    d = parse_online_date(value)
+    return d.isoformat() if d else str(value or "").strip()
+
+
+def valid_online_time(value: Any, *, allow_blank: bool = True) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return allow_blank
+    try:
+        parse_online_time(text)
+        return True
+    except Exception:
+        return False
+
+
+def validate_online_action_dates_and_times(*, scheduled: str = "", due: str = "", start_time: str = "", end_time: str = "", prompt_time: str = "") -> list[str]:
+    problems: list[str] = []
+    if not valid_online_date(scheduled):
+        problems.append("Scheduled date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+    if not valid_online_date(due):
+        problems.append("Due date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+    for label, value in [("Calendar start time", start_time), ("Calendar end time", end_time), ("Prompt reference time", prompt_time)]:
+        if not valid_online_time(value):
+            problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
+    return problems
 
 
 def online_event_bounds(date_text: Any, start_text: Any, end_text: Any) -> tuple[str, str]:
@@ -1691,6 +1787,106 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+
+
+def next_weekday_iso(day_name: str, *, include_today: bool = False) -> str:
+    day_map = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+    target = day_map.get(str(day_name).strip().lower(), date.today().weekday())
+    today = date.today()
+    delta = (target - today.weekday()) % 7
+    if delta == 0 and not include_today:
+        delta = 7
+    return (today + timedelta(days=delta)).isoformat()
+
+
+def starter_examples_already_loaded(sheet_id: str) -> bool:
+    settings = read_online_table(sheet_id, "settings") if sheet_id else pd.DataFrame()
+    if settings.empty:
+        return False
+    loaded = settings[
+        settings.get("key", pd.Series(dtype=str)).fillna("").astype(str).eq("starter_examples_loaded")
+    ]
+    return not loaded.empty and str(loaded.iloc[-1].get("value", "")).strip().lower() in {"yes", "true", "1"}
+
+
+def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
+    """Editable starter records modelled on the desktop starter-data approach.
+
+    These are deliberately ordinary examples: food, sleep, exercise, admin and
+    learning. They guide a new user without requiring everyone to keep the same
+    routines or goals.
+    """
+    now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    area_body = f"area-{uuid.uuid4().hex}"
+    area_food = f"area-{uuid.uuid4().hex}"
+    area_admin = f"area-{uuid.uuid4().hex}"
+    area_learning = f"area-{uuid.uuid4().hex}"
+    areas = [
+        {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_food, "area_name": "Food And Home", "description": "Meals, groceries, household reset, cleaning and the routines that make home life easier.", "colour": "ochre", "status": "active", "default_calendar": "Food And Home", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_admin, "area_name": "Work And Admin", "description": "Planning, errands, paperwork, money, work tasks and weekly review.", "colour": "blue", "status": "active", "default_calendar": "Work And Admin", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_learning, "area_name": "Learning And Creativity", "description": "Creative practice, study, music, sketching and personal projects.", "colour": "plum", "status": "active", "default_calendar": "Learning And Creativity", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+    ]
+
+    def routine(title: str, area_id: str, area_name: str, purpose: str, frequency: str, preferred_days: str, next_due: str, checklist: str = "") -> dict[str, Any]:
+        return {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": area_id, "area_name": area_name, "title": title, "description": purpose, "frequency": frequency, "preferred_days": preferred_days, "duration_minutes": "", "status": "Active", "purpose": purpose, "next_due": next_due, "checklist": checklist, "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."}
+
+    sleep_id = f"routine-{uuid.uuid4().hex}"
+    cook_weeknight_id = f"routine-{uuid.uuid4().hex}"
+    friday_takeaways_id = f"routine-{uuid.uuid4().hex}"
+    sunday_meal_id = f"routine-{uuid.uuid4().hex}"
+    strength_id = f"routine-{uuid.uuid4().hex}"
+    violin_id = f"routine-{uuid.uuid4().hex}"
+    running_id = f"routine-{uuid.uuid4().hex}"
+    routines = [
+        {"routine_id": sleep_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Protect an 8-hour sleep block", "description": "Give tomorrow a better starting point by protecting enough time for sleep.", "frequency": "Daily", "preferred_days": "Every day", "duration_minutes": "480", "status": "Active", "purpose": "Protect sleep before adding more work to the system.", "next_due": date.today().isoformat(), "checklist": "Set wind-down time\nPut phone away\nPrepare tomorrow's first action", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": cook_weeknight_id, "area_id": area_food, "area_name": "Food And Home", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": friday_takeaways_id, "area_id": area_food, "area_name": "Food And Home", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": sunday_meal_id, "area_id": area_food, "area_name": "Food And Home", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": strength_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Strength training", "description": "A four-session weekly strength routine split into A, B, C and D activities.", "frequency": "Weekly", "preferred_days": "Monday, Tuesday, Thursday, Friday", "duration_minutes": "45", "status": "Active", "purpose": "Keep strength work visible and repeatable.", "next_due": next_weekday_iso("Monday"), "checklist": "Warm up\nMain lift\nAccessory work\nLog session", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": violin_id, "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": running_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Run 30 minutes", "description": "A weekday running habit that can be reduced or paused if recovery needs it.", "frequency": "Weekdays", "preferred_days": "Monday, Tuesday, Wednesday, Thursday, Friday", "duration_minutes": "30", "status": "Active", "purpose": "Make regular cardiovascular work easy to see in the calendar.", "next_due": next_weekday_iso("Monday"), "checklist": "Shoes ready\nEasy pace\nLog how it felt", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+    ]
+
+    def activity(routine_id: str, area_id: str, area_name: str, title: str, day: str, start: str, end: str, minutes: str, first_step: str, location: str = "") -> dict[str, Any]:
+        return {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": "", "routine_id": routine_id, "area_id": area_id, "area_name": area_name, "title": title, "description": "Starter routine activity. Edit the day, time and prompt to suit you.", "status": "Included", "priority": "Medium", "specific_area": "", "due_date": "", "scheduled_date": "", "activity_days": day, "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": first_step, "task_reminder_time": start, "calendar_start_time": start, "calendar_end_time": end, "calendar_location": location, "notes": "Starter routine activity."}
+
+    actions = [
+        activity(sleep_id, area_body, "Body And Stability", "Sleep block", "Every day", "22:30", "06:30", "480", "Start wind-down routine"),
+        activity(cook_weeknight_id, area_food, "Food And Home", "Cook weeknight dinner", "Monday, Wednesday", "18:00", "18:45", "45", "Open the meal plan and start the first prep step"),
+        activity(friday_takeaways_id, area_food, "Food And Home", "Takeaway dinner", "Friday", "18:30", "19:00", "30", "Choose takeaway option"),
+        activity(sunday_meal_id, area_food, "Food And Home", "Cook weekend meal", "Sunday", "17:00", "18:30", "90", "Open the recipe and check ingredients"),
+        activity(strength_id, area_body, "Body And Stability", "Strength training A", "Monday", "07:00", "07:45", "45", "Start warm-up for strength A"),
+        activity(strength_id, area_body, "Body And Stability", "Strength training B", "Tuesday", "07:00", "07:45", "45", "Start warm-up for strength B"),
+        activity(strength_id, area_body, "Body And Stability", "Strength training C", "Thursday", "07:00", "07:45", "45", "Start warm-up for strength C"),
+        activity(strength_id, area_body, "Body And Stability", "Strength training D", "Friday", "07:00", "07:45", "45", "Start warm-up for strength D"),
+        activity(violin_id, area_learning, "Learning And Creativity", "Practice violin", "Wednesday", "19:00", "19:45", "45", "Tune violin and start with scales"),
+        activity(running_id, area_body, "Body And Stability", "Run 30 minutes", "Monday, Tuesday, Wednesday, Thursday, Friday", "17:30", "18:00", "30", "Put on running shoes and start easy"),
+    ]
+
+    sketch_goal = f"goal-{uuid.uuid4().hex}"
+    run_goal = f"goal-{uuid.uuid4().hex}"
+    goals = [
+        {"goal_id": sketch_goal, "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Learn to sketch", "description": "Build enough basic skill to sketch simple forms confidently.", "specific_area": "Sketching", "status": "Captured", "target_date": "", "purpose": "Create a small creative learning project with clear first actions.", "desired_outcome": "Complete a few beginner sketching exercises and keep the materials ready.", "closure_criteria": "A beginner guide has been started and at least three sketches have been completed.", "notes": "Starter goal. Edit, archive or replace if it does not fit."},
+        {"goal_id": run_goal, "area_id": area_body, "area_name": "Body And Stability", "title": "Build running distance", "description": "Increase distance gradually while keeping the next step clear.", "specific_area": "Running", "status": "Captured", "target_date": "", "purpose": "Turn a broad running ambition into visible next actions.", "desired_outcome": "Run 6.5 km comfortably enough to plan the next distance step.", "closure_criteria": "6.5 km run completed and next distance goal chosen.", "notes": "Starter goal. Edit, archive or replace if it does not fit."},
+    ]
+    actions.extend([
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Purchase beginner sketching guide", "description": "Find and purchase a beginner-friendly sketching guide.", "status": "Next", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Search for one beginner sketching guide", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Purchase sketching materials", "description": "Buy a simple sketchbook, pencils and eraser.", "status": "Planned", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Choose a sketchbook and pencil set", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": run_goal, "routine_id": "", "area_id": area_body, "area_name": "Body And Stability", "title": "Run 6 km", "description": "Complete one steady 6 km run.", "status": "Next", "priority": "Medium", "specific_area": "Running", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "45", "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": "Choose the 6 km route", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:45", "calendar_location": "", "notes": "Starter action."},
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": run_goal, "routine_id": "", "area_id": area_body, "area_name": "Body And Stability", "title": "Run 6.5 km", "description": "Complete one steady 6.5 km run after the 6 km action is done.", "status": "Planned", "priority": "Medium", "specific_area": "Running", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "50", "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": "Choose the 6.5 km route", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:50", "calendar_location": "", "notes": "Starter action."},
+    ])
+
+    settings = [{"key": "starter_examples_loaded", "value": "yes", "updated_at": now, "source": "Pathmark Online starter examples"}]
+    return {"settings": settings, "areas": areas, "goals": goals, "routines": routines, "actions": actions}
+
+
+def load_starter_examples(sheet_id: str) -> tuple[bool, str]:
+    if starter_examples_already_loaded(sheet_id):
+        return False, "Starter examples have already been loaded for this sync sheet. Edit or archive the existing examples instead of loading duplicates."
+    return append_many_online_records(sheet_id, build_starter_example_records())
+
+
 def render_area_manager(sheet_id: str) -> None:
     st.subheader("Areas")
     st.write("Areas group related goals, routines, actions, tasklists and exports. This is the online equivalent of the desktop Areas page; it stores the Area record in your Google Sheet rather than creating a local folder.")
@@ -1802,8 +1998,14 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
         submitted = st.form_submit_button("Save changes" if record_id else "Save action block", use_container_width=True)
         if submitted:
+            problems = validate_online_action_dates_and_times(
+                scheduled=scheduled, due=due, start_time=start_time, end_time=end_time, prompt_time=prompt_time
+            )
             if not title.strip():
                 st.error("Add an action title before saving.")
+            elif problems:
+                for problem in problems:
+                    st.error(problem)
             else:
                 payload = {
                     "goal_id": goal_id or str(action.get("goal_id", "") or ""),
@@ -1811,7 +2013,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     "area_id": area_id or str(action.get("area_id", "") or ""),
                     "area_name": default_area or str(action.get("area_name", "") or ""),
                     "title": title.strip(), "description": description.strip(), "status": status, "priority": priority,
-                    "due_date": due.strip(), "scheduled_date": scheduled.strip(), "activity_days": activity_days.strip(),
+                    "due_date": normalise_online_date(due) if due.strip() else "", "scheduled_date": normalise_online_date(scheduled) if scheduled.strip() else "", "activity_days": activity_days.strip(),
                     "estimated_minutes": str(int(minutes or 0)) if minutes else "", "calendar_block": "1" if calendar_block else "0",
                     "reminder": "1" if reminder else "0", "include_tasklist": "1" if include_tasklist else "0",
                     "first_step": first_step.strip(), "task_reminder_time": prompt_time.strip(), "calendar_start_time": start_time.strip(),
@@ -1869,11 +2071,15 @@ def render_goal_manager(sheet_id: str) -> None:
                 if submitted:
                     if not title.strip():
                         st.error("Add a title before saving.")
+                    elif not str(area).strip():
+                        st.error("Choose or create an Area before saving this goal.")
+                    elif not valid_online_date(target_date):
+                        st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
                     else:
                         ok, message = append_online_record(sheet_id, "goals", {
                             "goal_id": f"goal-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(),
                             "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status,
-                            "target_date": target_date.strip(), "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip(),
+                            "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip(),
                         })
                         st.success(message) if ok else st.warning(message)
                         if ok:
@@ -1905,10 +2111,15 @@ def render_goal_manager(sheet_id: str) -> None:
                     notes = st.text_area("Notes", value=str(g.get("notes", "")), height=80)
                     submitted = st.form_submit_button("Save changes", use_container_width=True)
                     if submitted:
-                        ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": target_date.strip(), "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
-                        st.success(message) if ok else st.warning(message)
-                        if ok:
-                            st.rerun()
+                        if not title.strip():
+                            st.error("Add a goal title before saving.")
+                        elif not valid_online_date(target_date):
+                            st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
+                        else:
+                            ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
+                            st.success(message) if ok else st.warning(message)
+                            if ok:
+                                st.rerun()
             with tabs[1]:
                 linked = actions[actions["goal_id"].fillna("") == selected_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
                 _render_action_list(sheet_id, linked, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""))
@@ -1947,8 +2158,12 @@ def render_routine_manager(sheet_id: str) -> None:
                 if submitted:
                     if not title.strip():
                         st.error("Add a routine title before saving.")
+                    elif not str(area).strip():
+                        st.error("Choose or create an Area before saving this routine.")
+                    elif not valid_online_date(next_due):
+                        st.error("Repeat starts must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
                     else:
-                        ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "status": status, "purpose": purpose.strip(), "next_due": next_due.strip(), "checklist": checklist.strip(), "notes": notes.strip()})
+                        ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "status": status, "purpose": purpose.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "checklist": checklist.strip(), "notes": notes.strip()})
                         st.success(message) if ok else st.warning(message)
                         if ok:
                             st.rerun()
@@ -1976,10 +2191,13 @@ def render_routine_manager(sheet_id: str) -> None:
                     status = st.selectbox("Status", status_options, index=status_options.index(cur_status) if cur_status in status_options else 0)
                     submitted = st.form_submit_button("Save changes", use_container_width=True)
                     if submitted:
-                        ok, message = update_online_record(sheet_id, "routines", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "status": status, "purpose": purpose.strip(), "checklist": checklist.strip(), "notes": notes.strip()})
-                        st.success(message) if ok else st.warning(message)
-                        if ok:
-                            st.rerun()
+                        if not title.strip():
+                            st.error("Add a routine title before saving.")
+                        else:
+                            ok, message = update_online_record(sheet_id, "routines", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "status": status, "purpose": purpose.strip(), "checklist": checklist.strip(), "notes": notes.strip()})
+                            st.success(message) if ok else st.warning(message)
+                            if ok:
+                                st.rerun()
             with tabs[1]:
                 linked = actions[actions["routine_id"].fillna("") == selected_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
                 _render_action_list(sheet_id, linked, routine_id=selected_id, default_area=str(r.get("area_name", "") or ""))
@@ -1996,10 +2214,20 @@ def render_routine_manager(sheet_id: str) -> None:
                     end = c2.text_input("Default end time", value=str(r.get("calendar_end_time", "10:00") or "10:00"))
                     submitted = st.form_submit_button("Save repeat settings", use_container_width=True)
                     if submitted:
-                        ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": next_due.strip(), "duration_minutes": duration.strip(), "calendar_start_time": start.strip(), "calendar_end_time": end.strip()})
-                        st.success(message) if ok else st.warning(message)
-                        if ok:
-                            st.rerun()
+                        problems = []
+                        if not valid_online_date(next_due):
+                            problems.append("Repeat starts must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+                        for label, value in [("Default start time", start), ("Default end time", end)]:
+                            if not valid_online_time(value):
+                                problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
+                        if problems:
+                            for problem in problems:
+                                st.error(problem)
+                        else:
+                            ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "duration_minutes": duration.strip(), "calendar_start_time": start.strip(), "calendar_end_time": end.strip()})
+                            st.success(message) if ok else st.warning(message)
+                            if ok:
+                                st.rerun()
             with tabs[3]:
                 c1, c2 = st.columns(2)
                 if c1.button("Pause routine", key=f"pause_r_{selected_id}"):
@@ -2042,27 +2270,62 @@ def render_review_queue_manager(sheet_id: str) -> None:
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Name the list, then select goal actions and routine activities to include. The online version downloads a printable text tasklist; the desktop version can also create local PDF/files.")
+    st.write("Name the list, then select goal actions and routine activities to include. This mirrors the desktop Tasklist page; the online version downloads a printable text file rather than writing a local PDF.")
     tasklist = staged_tasklist(sheet_id)
-    title = st.text_input("Tasklist name", value="Weekly Tasklist")
-    notes = st.text_area("Optional tasklist notes", height=80)
+    title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
+    notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
     if tasklist.empty:
         st.info("No tasklist rows yet. Add goal actions or routine activities and tick 'Include on tasklist'.")
-    else:
-        source = st.selectbox("Show", ["All", "Goal actions", "Routine activities"], index=0)
-        view = tasklist.copy()
-        if source == "Goal actions":
-            view = view[view["source_type"] == "Goal action"]
-        elif source == "Routine activities":
-            view = view[view["source_type"] == "Routine activity"]
-        dataframe_preview(view, ["source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
-        content = build_printable_tasklist_from_rows(view).decode("utf-8")
-        if title:
-            content = content.replace("Pathmark tasklist", title, 1)
-        if notes.strip():
-            content += "\nNotes\n" + notes.strip() + "\n"
-        st.download_button("Download printable tasklist", data=content.encode("utf-8"), file_name="pathmark_tasklist.txt", mime="text/plain", use_container_width=True)
+        return
 
+    selected_indices: list[int] = []
+    st.markdown("### Goal actions")
+    goal_actions = tasklist[tasklist["source_type"] == "Goal action"].reset_index(drop=True)
+    if goal_actions.empty:
+        st.markdown("No planned goal actions found.")
+    else:
+        for parent, group in goal_actions.groupby(goal_actions["parent"].fillna("Unlinked goal"), sort=False):
+            st.markdown(f"**{parent or 'Unlinked goal'}**")
+            for _, row in group.iterrows():
+                key = f"tasklist_goal_{row.get('id') or row.get('title')}"
+                label_bits = []
+                if str(row.get("scheduled_date", "") or "").strip():
+                    label_bits.append(f"scheduled {row.get('scheduled_date')}")
+                if str(row.get("due_date", "") or "").strip():
+                    label_bits.append(f"due {row.get('due_date')}")
+                suffix = f" ({'; '.join(label_bits)})" if label_bits else ""
+                checked = st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key)
+                if checked:
+                    selected_indices.append(int(row.name))
+
+    st.markdown("### Routine activities")
+    routine_rows = tasklist[tasklist["source_type"] == "Routine activity"].reset_index(drop=True)
+    routine_offset = len(goal_actions)
+    if routine_rows.empty:
+        st.markdown("No included routine activities found.")
+    else:
+        for parent, group in routine_rows.groupby(routine_rows["parent"].fillna("Unlinked routine"), sort=False):
+            st.markdown(f"**{parent or 'Unlinked routine'}**")
+            for _, row in group.iterrows():
+                key = f"tasklist_routine_{row.get('id') or row.get('title')}"
+                days = str(row.get("activity_days", "") or "").strip()
+                suffix = f" ({days})" if days else ""
+                checked = st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key)
+                if checked:
+                    selected_indices.append(routine_offset + int(row.name))
+
+    selected_rows = tasklist.iloc[selected_indices] if selected_indices else pd.DataFrame(columns=tasklist.columns)
+    st.markdown("### Preview")
+    dataframe_preview(selected_rows if not selected_rows.empty else tasklist.head(0), ["source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+    if selected_rows.empty and not notes.strip():
+        st.warning("Tick at least one action or activity, or add a note, before downloading the tasklist.")
+    content_rows = selected_rows if not selected_rows.empty else pd.DataFrame(columns=tasklist.columns)
+    content = build_printable_tasklist_from_rows(content_rows).decode("utf-8")
+    if title:
+        content = content.replace("Pathmark tasklist", title, 1)
+    if notes.strip():
+        content += "\nNotes\n" + notes.strip() + "\n"
+    st.download_button("Download printable tasklist", data=content.encode("utf-8"), file_name="pathmark_tasklist.txt", mime="text/plain", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
 
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Export")
@@ -2230,6 +2493,23 @@ def render_online_overview(sheet_id: str) -> None:
     c5.metric("Calendar export rows", derived_calendar)
     c6.metric("Google Tasks prompts", derived_prompts)
     st.metric("Tasklist rows", tasklist_rows)
+
+    if counts["areas"] == 0 and counts["goals"] == 0 and counts["routines"] == 0:
+        st.info("New to Pathmark Online? Load editable starter examples to see how Areas, routines, goals, action blocks, tasklists and exports work together. You can rename, pause or archive anything afterwards.")
+        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_empty"):
+            ok, message = load_starter_examples(sheet_id)
+            st.success(message) if ok else st.warning(message)
+            if ok:
+                st.rerun()
+    elif not starter_examples_already_loaded(sheet_id):
+        with st.expander("Suggested starter examples", expanded=False):
+            st.write("Load ordinary editable examples for food, sleep, exercise, learning and weekly planning. This is optional and is only meant to show how Pathmark is structured.")
+            if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_optional"):
+                ok, message = load_starter_examples(sheet_id)
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
     st.markdown("""
     **How this now matches the desktop app**
 
@@ -2397,10 +2677,17 @@ def on_the_go_tab() -> None:
             if sheet_id:
                 st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_id}", use_container_width=True)
             else:
-                if st.button("Find or create Pathmark sync sheet", use_container_width=True):
+                if st.button("Find existing sync sheet", use_container_width=True):
                     ok, new_sheet_id, message = ensure_pathmark_sync_sheet_ready()
                     if ok:
                         st.success("Pathmark sync sheet is ready.")
+                        st.link_button("Open sync sheet", message, use_container_width=True)
+                    else:
+                        st.warning(message)
+                if st.button("Create new sync sheet", use_container_width=True):
+                    ok, new_sheet_id, message = create_user_sync_sheet()
+                    if ok:
+                        st.success("Created a new Pathmark sync sheet.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
                         st.warning(message)

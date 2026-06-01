@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.85",
+  "version": "0.5.86",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_85.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_86.zip",
   "mac_package": "",
   "notes": [
-    "Separated About & Privacy information from the public homepage so the homepage stays more user-facing.",
-    "Renamed and reorganised Pathmark Online to follow the desktop sidebar order: Home, Review Queue, Areas, Routines, Goals and Projects, Tasklist, Google Calendar Export, Google Tasks Export, Archive and Settings.",
-    "Removed standalone ad hoc Calendar Block and Task Prompt creation from the online interface so online functionality does not exceed the desktop model.",
-    "Added edit and archive flows for online Areas, goals, routines, action blocks and routine activities using the user-owned Google Sheet.",
-    "Split online exports into desktop-style Google Calendar Export and Google Tasks Export pages."
+    "Changed Pathmark Online sync-sheet handling so it searches for an existing Pathmark Sync file and no longer automatically creates a new spreadsheet on every login when one cannot be found.",
+    "Newly created sync sheets are tagged with Drive appProperties so future sessions can re-find them under the narrow drive.file permission.",
+    "Added optional editable starter examples for ordinary Areas, routines, goals and action blocks, including sleep, meals, strength training, running, violin practice, sketching and gradual running-distance goals.",
+    "Added online validation for date and time fields before saving goals, routines, actions and routine activities.",
+    "Adjusted the online Tasklist page to behave more like the desktop page: name the list, tick goal actions and routine activities, preview the selected rows, then download the printable tasklist."
   ]
 }
