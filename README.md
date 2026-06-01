@@ -227,10 +227,30 @@ Key refinements:
 Security note: Pathmark still does not store goals, routines, task prompts, calendar plans, or Workspace files in Supabase. Supabase remains the access layer only.
 
 
+## v0.5.92
+
+This release tidies Pathmark Online for beta testing:
+
+- fixes the missing `read_online_tables` wrapper that caused a user-facing NameError;
+- moves connection and diagnostic controls into Settings so the main Online workspace starts with the useful tabs;
+- removes redundant general guidance from the Online page;
+- expands the About & Privacy tab with clearer Google access, storage, disconnect, GitHub and Streamlit secrets explanations;
+- keeps personal planning data in the user-owned Google Sheet, not Supabase or GitHub.
+
 ## v0.5.91 notes
 
 This release polishes Pathmark Online's user-facing guidance. The online Home page now presents a stepped guide through Areas, routines, goals, actions and exports, rather than describing backend parity with the desktop app. The printable tasklist PDF has been improved and the plain text tasklist export has been removed from the normal interface.
 
+
+## v0.5.92
+
+This release tidies Pathmark Online for beta testing:
+
+- fixes the missing `read_online_tables` wrapper that caused a user-facing NameError;
+- moves connection and diagnostic controls into Settings so the main Online workspace starts with the useful tabs;
+- removes redundant general guidance from the Online page;
+- expands the About & Privacy tab with clearer Google access, storage, disconnect, GitHub and Streamlit secrets explanations;
+- keeps personal planning data in the user-owned Google Sheet, not Supabase or GitHub.
 
 ## v0.5.91 hosted theme persistence
 

@@ -1466,10 +1466,22 @@ def load_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataF
         st.session_state[cache_key] = tables
         return tables
     except Exception as exc:
-        st.warning(f"Could not read your Pathmark Online records from Google Sheets: {exc}")
+        st.warning("Pathmark could not read your online records from Google Sheets. Please refresh online data from Settings or try again shortly.")
         tables = {name: pd.DataFrame(columns=cols) for name, cols in ONLINE_TABLES.items()}
         st.session_state[cache_key] = tables
         return tables
+
+
+
+
+def read_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataFrame]:
+    """Compatibility wrapper for older render paths.
+
+    v0.5.91 accidentally called read_online_tables() after the batch reader
+    had been named load_online_tables(). Keeping this wrapper prevents a
+    user-facing NameError and preserves the single batch-read cache path.
+    """
+    return load_online_tables(sheet_id, force=force)
 
 
 def read_online_table(sheet_id: str, table: str) -> pd.DataFrame:
@@ -2729,12 +2741,34 @@ def render_online_settings(sheet_id: str) -> None:
         st.caption(f"Sync sheet connected: …{sheet_id[-8:]}")
     else:
         st.caption("No sync sheet selected.")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     if sheet_id:
         c1.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_id}", use_container_width=True)
-    if c2.button("Refresh online data from Google Sheets", use_container_width=True):
+    if c2.button("Refresh online data", use_container_width=True):
         clear_online_cache(sheet_id)
         st.rerun()
+    if c3.button("Disconnect Google access", use_container_width=True):
+        revoke_google_session_token()
+        st.rerun()
+    with st.expander("Advanced Google Sheet settings", expanded=False):
+        render_google_sheets_oauth_diagnostics()
+        sheet_url_input = st.text_input("Use an existing Pathmark Sync Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark Sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you explicitly authorise.")
+        if sheet_url_input:
+            st.session_state["sync_sheet_id"] = extract_google_sheet_id(sheet_url_input)
+            clear_online_cache(st.session_state.get("sync_sheet_id", ""))
+        if st.button("Find or create Pathmark Sync sheet", use_container_width=True):
+            ok, new_sheet_id, message = ensure_pathmark_sync_sheet_ready()
+            st.success("Pathmark sync sheet is ready.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                clear_online_cache(new_sheet_id)
+                st.rerun()
+    with st.expander("Starter examples", expanded=False):
+        st.write("Starter examples give you editable Areas, routines, goals and actions so you are not starting from a blank sheet.")
+        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_settings"):
+            ok, message = load_starter_examples(sheet_id)
+            st.success(message) if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.rerun()
     st.markdown("### Theme")
     st.write("Choose how Pathmark Online looks on this device. The theme is saved to your Pathmark profile so it follows your Google login.")
     current_theme = st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Default")
@@ -2938,11 +2972,7 @@ def render_exports_manager(sheet_id: str) -> None:
 
 
 def render_online_overview(sheet_id: str) -> None:
-    st.subheader("Pathmark Online")
-    st.markdown("""
-    <div class='guide-box'><strong>Use the tabs above to build your system one piece at a time.</strong><br>
-    Start with Areas if this is your first visit, then add routines, goals, and the next actions you want to make time for. Each section includes its own guidance, so this Home page stays as a simple overview.</div>
-    """, unsafe_allow_html=True)
+    st.subheader("Home")
     data = read_online_tables(sheet_id)
     counts = {name: len(active_online_df(df)) for name, df in data.items() if name in ["areas", "goals", "routines", "actions"]}
     c1, c2, c3, c4 = st.columns(4)
@@ -2951,21 +2981,18 @@ def render_online_overview(sheet_id: str) -> None:
     c3.metric("Routines", counts.get("routines", 0))
     c4.metric("Actions", counts.get("actions", 0))
     st.markdown("""
-    <div class="grid-3">
-      <div class="process-card"><h4>Routines protect capacity</h4><p>Use routines for the repeating basics that help you have enough energy and steadiness for the rest of your life.</p></div>
-      <div class="process-card"><h4>Goals need closure criteria</h4><p>Write what done looks like, then define only the next one or two actions rather than trying to plan the whole journey at once.</p></div>
-      <div class="process-card"><h4>Prompts reduce friction</h4><p>Google Tasks prompts and paper tasklists are for the small first step: pack the bag, put on the shoes, open the file, or start the timer.</p></div>
-    </div>
+    <div class="guide-box"><strong>Your planning system at a glance.</strong><br>
+    Use the tabs below to create Areas, routines, goals, actions, tasklists and exports. Each section includes the guidance needed for that step, so Home stays as a simple dashboard.</div>
     """, unsafe_allow_html=True)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("New to Pathmark Online? Open Areas and load the optional starter examples, then edit or archive anything that does not fit your life.")
-    with st.expander("Optional starter examples", expanded=False):
-        st.write("Starter examples give you editable Areas, routines, goals and actions so you are not starting from a blank sheet.")
-        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_optional"):
-            ok, message = load_starter_examples(sheet_id)
-            st.success(message) if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+        st.info("New to Pathmark Online? Start in Areas, then add routines and goals. You can load optional starter examples from Settings.")
+    st.markdown("""
+    <div class="grid-3">
+      <div class="process-card"><h4>Make time</h4><p>Calendar exports turn routines and goal actions into time blocks rather than leaving them as vague intentions.</p></div>
+      <div class="process-card"><h4>Start smaller</h4><p>Google Tasks prompts can be written as the first tiny step, such as putting on running shoes or opening the sketchbook.</p></div>
+      <div class="process-card"><h4>Tick it off</h4><p>Use Google Tasks prompts or the printable PDF tasklist when you want a visible checklist for the day.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def download_tab() -> None:
     version = load_version()
@@ -2976,22 +3003,22 @@ def download_tab() -> None:
     <div class="hero">
       <div class="eyebrow">Routines. Prompts. Progress.</div>
       <h1>Pathmark</h1>
-      <p class="lead">Put routines and goal actions into your calendar, then reduce friction with first-step prompts and checkable tasklists.</p>
-      <p class="sublead">Pathmark helps you protect the habits that keep you steady, keep track of goals that might otherwise drift, and turn intentions into specific next actions.</p>
+      <p class="lead">Make time for routines, keep goals moving, and start the next action with less friction.</p>
+      <p class="sublead">Pathmark helps you put routines and goal actions into your calendar, then create Google Tasks prompts or a printable tasklist so the day has a clear first step.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Make time for what matters</h3><p>Put routines and goal actions into your calendar so the work has an actual place in the week.</p></div>
-      <div class="card"><h3>Keep competing goals visible</h3><p>Hold multiple goals, interests, and routines in one place so they are easier to revisit instead of drifting out of sight.</p></div>
-      <div class="card"><h3>Reduce the first-step friction</h3><p>Create Google Tasks prompts or a printable checklist that tells you the first small step to take when the time block arrives.</p></div>
+      <div class="card"><h3>Put it in the calendar</h3><p>Routines and goal actions become calendar blocks, so the work has a real place in the week.</p></div>
+      <div class="card"><h3>Keep goals from drifting</h3><p>Track competing goals and interests in one place, then define only the next one or two useful actions.</p></div>
+      <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks prompts for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage routines, goals, actions, tasklists, and exports from any browser. Your planning records are saved in a Google Sheet you own.</p></div>
-      <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want the local Workspace, Markdown records, backups, and the full desktop publishing workflow.</p></div>
+      <div class="card"><h3>Pathmark Online</h3><p>Sign in to manage routines, goals, actions, tasklists, and exports from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
+      <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown records, backups, and desktop publishing/export workflows.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Download Pathmark")
@@ -3041,55 +3068,46 @@ def download_tab() -> None:
 
 
 def about_privacy_tab() -> None:
-    st.header("About Pathmark")
-    st.write("Pathmark helps you make time for routines and goal actions, then gives you first-step prompts or printable checklists so the work is easier to start.")
+    st.header("About & Privacy")
+    st.write("Pathmark helps you make time for routines and goal actions, then gives you first-step prompts or printable checklists so the work is easier to start and finish.")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage Areas, goals, routines, action blocks, tasklists, Google Calendar exports and Google Tasks prompts from a Google Sheet you own.</p></div>
+      <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage routines, goals, actions, tasklists, Google Calendar exports and Google Tasks prompts from a Google Sheet you own.</p></div>
       <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown generation, local backups, and file-based publishing.</p></div>
     </div>
     """, unsafe_allow_html=True)
-    st.header("How your data is stored")
+    st.header("What access you grant")
+    st.markdown("""
+    <div class="safe-rule"><strong>Google access:</strong> Pathmark uses Google sign-in to identify you and asks for the narrow Google Drive permission needed to create or update Pathmark files you use with the app. Pathmark does not ask for your Google password.</div>
+    """, unsafe_allow_html=True)
+    st.write("Pathmark Online uses your permission to create or update a Pathmark Sync spreadsheet in your Google Drive. Your routines, goals, actions, tasklists and export records are saved there so you can inspect, copy, or delete them yourself.")
+    st.header("Where your information is stored")
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Your Google Sheet</h3><p>Pathmark Online saves planning records to a Pathmark Sync spreadsheet in your own Google Drive.</p></div>
+      <div class="card"><h3>Your Google Sheet</h3><p>Pathmark Online planning records are saved to your Pathmark Sync spreadsheet in your own Google Drive.</p></div>
       <div class="card"><h3>Your local Workspace</h3><p>Pathmark Desktop stores Workspace files, generated Markdown, exports, tasklists and backups in the folder you choose.</p></div>
-      <div class="card"><h3>Pathmark access records</h3><p>Supabase stores only hosted access information such as email, role, status, feature flags and audit logs.</p></div>
+      <div class="card"><h3>Access settings</h3><p>Supabase stores hosted access information only: email, role, status, feature flags, audit logs and theme preference.</p></div>
     </div>
     """, unsafe_allow_html=True)
+    st.header("What Pathmark does not store")
     st.markdown("""
     <div class="safe-rule"><strong>Privacy rule:</strong> Pathmark should not store your goals, routines, task prompts, calendar blocks, Workspace files, backups, or Markdown content in Supabase or GitHub. Personal planning data belongs in your local Workspace or in your user-owned Google Sheet.</div>
     """, unsafe_allow_html=True)
-    st.header("Google permissions")
-    st.write("Google login identifies your account and gives Pathmark Online permission to create or update Pathmark files that you authorise. Pathmark uses the narrower drive.file permission rather than broad access to all spreadsheets in your Drive.")
-    st.header("What GitHub stores")
-    st.write("GitHub stores the app code and release packages. It should not contain Streamlit secrets, OAuth tokens, Supabase secret keys, private planning data, or Workspace content.")
-
+    st.header("Disconnecting")
+    st.write("You can disconnect Google access from Pathmark Online Settings. You can also remove Pathmark's access from your Google Account permissions page. Disconnecting stops Pathmark from writing to your Pathmark Sync sheet until you sign in again.")
+    st.header("GitHub and Streamlit secrets")
+    st.write("GitHub stores the app code and release packages. Streamlit secrets are used for deployment credentials. Secret keys, OAuth client secrets, Supabase keys, OAuth tokens and private planning records should not be committed to GitHub.")
 
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
-    """Show the Google Sheets connection state without exposing OAuth plumbing."""
-    if not auth_ready:
-        st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google Sheets access is not configured on this deployment.</span><br>Use the CSV download workflow for now.</div>",
-            unsafe_allow_html=True,
-        )
-        return
+    """Show a compact connection state without exposing OAuth plumbing."""
     if credentials and sheet_id:
-        st.markdown(
-            "<div class='connection-card'><span class='connection-ok'>Pathmark Online is connected to your sync sheet.</span><br>Your online planning records are saved to a Google Sheet owned by you.</div>",
-            unsafe_allow_html=True,
-        )
+        st.success("Pathmark Online is ready. Your planning records are saved to your Pathmark Sync sheet.")
     elif credentials:
-        st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google access is available, but the Pathmark sync sheet is not ready yet.</span><br>Pathmark will try to find or create it automatically. You can also choose an existing sheet under Advanced.</div>",
-            unsafe_allow_html=True,
-        )
+        st.info("Google access is ready. Pathmark is preparing your sync sheet.")
+    elif auth_ready:
+        st.info("Sign in with Google to use Pathmark Online.")
     else:
-        st.markdown(
-            "<div class='connection-card'><span class='connection-warn'>Google Sheets access is not available in this session.</span><br>Log in again to grant Pathmark the narrow Google drive.file permission, or use the CSV download.</div>",
-            unsafe_allow_html=True,
-        )
-
+        st.warning("Google access is not configured for this deployment.")
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
@@ -3097,88 +3115,39 @@ def on_the_go_tab() -> None:
     notice = st.session_state.pop("on_the_go_connected_notice", "")
     if notice:
         st.success(notice)
-    st.markdown(
-        "<div class='beta-note'><strong>Beta feature.</strong> Pathmark Online saves your planning records in a Google Sheet you own. "
-        "Use it to manage routines, goals, actions, tasklists, and exports from the browser.</div>",
-        unsafe_allow_html=True,
-    )
 
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
     if should_prepare_sheet and (st.session_state.pop("auto_create_sync_sheet_after_connect", False) or not st.session_state.get("sync_sheet_ready_attempted")):
         st.session_state["sync_sheet_ready_attempted"] = True
-        ok, sheet_id, message = ensure_pathmark_sync_sheet_ready()
-        if ok:
-            st.success("Your Pathmark sync sheet is ready.")
-        else:
+        ok, sheet_id_found, message = ensure_pathmark_sync_sheet_ready()
+        if not ok:
             st.warning(safe_user_message(message))
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
     render_connection_summary(credentials, sheet_id, auth_ready)
 
-    if auth_ready and credentials:
-        c1, c2 = st.columns(2)
-        with c1:
-            if sheet_id:
-                st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_id}", use_container_width=True)
-            else:
-                if st.button("Find existing sync sheet", use_container_width=True):
-                    ok, new_sheet_id, message = ensure_pathmark_sync_sheet_ready()
-                    if ok:
-                        st.success("Pathmark sync sheet is ready.")
-                        st.link_button("Open sync sheet", message, use_container_width=True)
-                    else:
-                        st.warning(safe_user_message(message))
-                if st.button("Create new sync sheet", use_container_width=True):
-                    ok, new_sheet_id, message = create_user_sync_sheet()
-                    if ok:
-                        st.success("Created a new Pathmark sync sheet.")
-                        st.link_button("Open sync sheet", message, use_container_width=True)
-                    else:
-                        st.warning(safe_user_message(message))
-        with c2:
-            if st.button("Disconnect Google access", use_container_width=True):
-                revoke_google_session_token()
-                st.rerun()
-    elif auth_ready:
+    if not credentials and auth_ready:
         auth_url = login_auth_url()
         if auth_url:
-            same_tab_oauth_button("Reconnect Google access", auth_url)
-        st.caption("Pathmark requests the narrow Google drive.file permission during sign-in so online records can be saved to a Pathmark sync sheet owned by you.")
-
-    with st.expander("How to get the most out of Pathmark", expanded=False):
-        st.markdown("""
-        Pathmark works best when routines and goals do different jobs.
-
-        - **Routines** protect the repeating basics: sleep, meals, movement, practice, planning and admin.
-        - **Goals** need a clear definition of done, then only the next one or two actions needed to move forward.
-        - **Calendar blocks** make time for one specific routine activity or goal action.
-        - **Google Tasks prompts** are for the first tiny step, such as putting gym clothes in your bag, putting on running shoes, opening the sketchbook, or starting a timer.
-        - **Printed tasklists** are the paper alternative if you prefer ticking things off by hand.
-        """)
-
-    with st.expander("Advanced settings and diagnostics", expanded=False):
-        render_google_sheets_oauth_diagnostics()
-        sheet_url_input = st.text_input("Use an existing Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you have explicitly opened with the app.")
-        if sheet_url_input:
-            st.session_state["sync_sheet_id"] = extract_google_sheet_id(sheet_url_input)
-            sheet_id = st.session_state.get("sync_sheet_id", "")
+            st.link_button("Sign in with Google", auth_url, use_container_width=True)
+        st.caption("Pathmark asks for permission to create or update Pathmark files you use with the app. Details are in About & Privacy.")
+        return
 
     if not (credentials and sheet_id):
-        st.info("Sign in with Google and allow Pathmark's narrow Drive permission before using the online planning screens. You can still download the desktop app from the first tab.")
+        st.info("Pathmark is still preparing your online workspace. Refresh online data or reconnect from Settings if this does not resolve.")
         return
 
     apply_online_theme(sheet_id)
 
-    # Ensure the online schema exists and read the sheet once before rendering the tabs.
     service = sheets_service()
     if service is not None:
         try:
             with st.spinner("Loading your Pathmark Online workspace from Google Sheets..."):
                 ensure_pathmark_online_schema(service, sheet_id)
                 load_online_tables(sheet_id)
-        except Exception as exc:
+        except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
     sections = st.tabs([
@@ -3213,7 +3182,6 @@ def on_the_go_tab() -> None:
         render_archive_manager(sheet_id)
     with sections[9]:
         render_online_settings(sheet_id)
-
 
 def developer_tab() -> None:
     st.header("Developer settings")

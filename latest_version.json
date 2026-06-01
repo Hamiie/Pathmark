@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.91",
+  "version": "0.5.92",
   "release_date": "2026-06-01",
   "notes": [
-    "Revised the public homepage to focus on calendar time, competing goals, first-step prompts, and paper tasklists rather than backend structure.",
-    "Simplified Pathmark Online Home so guidance now lives in the relevant Areas, Routines, Goals, Tasklist and export sections.",
-    "Improved user-facing guidance for Areas as Google subcalendars, routines as capacity-protecting habits, goals as closure criteria plus next actions, and Google Tasks prompts as first-step friction reducers.",
-    "Changed Google Calendar colour selection to user-facing colour names with swatches, while still storing the correct Google Calendar colour codes for export.",
-    "Reframed the printable PDF tasklist as the paper alternative to Google Tasks prompts for users who prefer ticking things off by hand."
+    "Fixed a Pathmark Online NameError caused by a missing read_online_tables compatibility wrapper.",
+    "Tidied the Pathmark Online beta page so connection/admin controls live in Settings instead of above the main workspace tabs.",
+    "Removed redundant general guidance from the Online page and kept practical guidance inside the relevant sections.",
+    "Expanded About & Privacy with clearer user-facing Google access, storage, disconnect, GitHub, and Streamlit secrets explanations.",
+    "Softened Google Sheets read failures so users see a recovery message rather than raw API details."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_91.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_92.zip",
   "mac_package": ""
 }
