@@ -255,3 +255,9 @@ This release tidies Pathmark Online for beta testing:
 ## v0.5.91 hosted theme persistence
 
 Pathmark Online now applies the selected theme across the hosted interface, including high-contrast mobile buttons. The chosen theme is stored as a small `theme_preference` value on the Supabase access profile so it can follow the signed-in user. This is UI metadata only; goals, routines, actions, tasklists, calendar blocks, and other planning records remain in the user's Pathmark Sync Google Sheet.
+
+
+## v0.5.93
+
+- Improved mobile contrast for Pathmark Online, especially tab labels, field labels, select boxes, and button text in mobile or in-app browsers.
+- Kept the existing privacy, Google Sheets, Supabase, and Pathmark Online behaviour unchanged.

@@ -139,7 +139,29 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .connection-ok { color: #006B2E; font-weight: 760; }
 .connection-warn { color: #7A4E00; font-weight: 760; }
 .beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
-/* High-contrast controls, especially on mobile. Streamlit can otherwise inherit low-contrast theme colours. */
+/* High-contrast controls, especially on mobile and in in-app browsers. Streamlit can otherwise inherit low-contrast dark-mode colours. */
+[data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label * {
+  color: var(--ink) !important;
+}
+[data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] * {
+  color: var(--ink) !important;
+  opacity: 1 !important;
+}
+[data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
+button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {
+  color: #C93F47 !important;
+  font-weight: 760 !important;
+}
+input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
+[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+input::placeholder, textarea::placeholder { color: var(--muted) !important; opacity: 1 !important; }
+[role="listbox"], [role="option"] { background: var(--surface) !important; color: var(--ink) !important; }
 .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {
   border-radius: .85rem !important;
   min-height: 3rem;
@@ -160,6 +182,7 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .stButton button:disabled *, .stDownloadButton button:disabled * { color: #4B5350 !important; }
 .pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem; padding: .55rem .85rem; border-radius: .85rem; background: var(--accent); color: #FFFFFF !important; text-decoration: none !important; font-weight: 760; border: 1px solid rgba(31,34,33,.18); box-shadow: 0 8px 22px var(--shadow); }
 .pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; color: #FFFFFF !important; }
+.pathmark-link-button * { color:#FFFFFF !important; }
 @media (max-width: 640px) {
   .block-container { padding-left: 1rem; padding-right: 1rem; padding-top: 1.1rem; }
   .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; }
@@ -1785,6 +1808,23 @@ def inject_theme_css(theme_name: str) -> None:
           border-color: rgba(31,34,33,.18) !important;
         }}
         .stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a * {{ color: #FFFFFF !important; }}
+        [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] *,
+        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *,
+        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {{
+          color: #1F2221 !important;
+          opacity: 1 !important;
+        }}
+        [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
+        button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {{
+          color: #C93F47 !important;
+          font-weight: 760 !important;
+        }}
+        input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
+        [data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {{
+          background: {theme['surface']} !important;
+          color: #1F2221 !important;
+          border-color: #D8D4CB !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,

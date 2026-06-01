@@ -1,14 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.92",
+  "version": "0.5.93",
   "release_date": "2026-06-01",
   "notes": [
-    "Fixed a Pathmark Online NameError caused by a missing read_online_tables compatibility wrapper.",
-    "Tidied the Pathmark Online beta page so connection/admin controls live in Settings instead of above the main workspace tabs.",
-    "Removed redundant general guidance from the Online page and kept practical guidance inside the relevant sections.",
-    "Expanded About & Privacy with clearer user-facing Google access, storage, disconnect, GitHub, and Streamlit secrets explanations.",
-    "Softened Google Sheets read failures so users see a recovery message rather than raw API details."
+    "Improved mobile contrast for Pathmark Online tabs, form labels, select boxes and controls, especially in mobile/in-app browsers.",
+    "Forced high-contrast text colours across hosted theme overrides so inactive tabs and field labels remain readable on light backgrounds.",
+    "Kept button text white on dark Pathmark buttons while preserving readable disabled states.",
+    "Kept v0.5.92 privacy and online tidy changes unchanged."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_92.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_93.zip",
   "mac_package": ""
 }
