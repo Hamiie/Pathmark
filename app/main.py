@@ -1187,15 +1187,22 @@ def download_tab() -> None:
     <div class="hero">
       <div class="eyebrow">Routines. Prompts. Progress.</div>
       <h1>Pathmark</h1>
-      <p class="lead">Make space for goals and routines in your calendar, then export Google Tasks prompts that make the next action easier to start.</p>
-      <p class="sublead">Use Pathmark to plan recurring work as calendar blocks, keep related projects grouped in Areas, and generate task prompts that still point back to the goal, routine, or Area they support.</p>
+      <p class="lead">Plan routines, goals, task prompts, and calendar blocks in one structured system.</p>
+      <p class="sublead">Pathmark helps you decide what you are working towards, make time for it in your calendar, and generate checkable task prompts for the moment the work is meant to happen.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Make time visible</h3><p>Prepare calendar blocks for routines, goals, and project work, then export them as ICS files for Google Calendar.</p></div>
-      <div class="card"><h3>Prompt the action</h3><p>Generate Google Tasks prompts alongside calendar exports, so each prompt is easier to understand and edit later.</p></div>
-      <div class="card"><h3>Keep work grouped</h3><p>Organise goals, routines, tasklists, exports, and project files under broad Areas in your Workspace.</p></div>
+      <div class="card"><h3>Manage goals and routines</h3><p>Group related goals, routines, projects, and prompts under Areas so your planning system has a clear structure.</p></div>
+      <div class="card"><h3>Make time visible</h3><p>Create calendar blocks for routines, goals, and project work, then export them as Google Calendar-compatible ICS files.</p></div>
+      <div class="card"><h3>Export useful prompts</h3><p>Generate Google Tasks prompts and printable tasklists that describe the next action, not just the time it should happen.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.header("Two ways to use Pathmark")
+    st.markdown("""
+    <div class="grid-2">
+      <div class="card"><h3>Pathmark Online</h3><p>The signed-in web version uses a Google Sheet owned by you. It is being developed into a browser-based routine and goal management system without local Markdown generation.</p></div>
+      <div class="card"><h3>Pathmark Desktop</h3><p>The Windows app manages your local Workspace, creates files and folders, generates Markdown records, makes backups, and prepares local exports.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Download Pathmark")
@@ -1237,10 +1244,26 @@ def download_tab() -> None:
     st.markdown("""
     <div class="safe-rule"><strong>Replace the app folder only.</strong><br>Open <strong>Pathmark.exe</strong> and choose <strong>Check for updates</strong>. Then replace only <code>Documents\\Pathmark</code>. Do not replace <code>Documents\\Workspace</code> or whichever Workspace folder you selected.</div>
     """, unsafe_allow_html=True)
+    st.header("How Pathmark stores your data")
+    st.markdown("""
+    <div class="grid-3">
+      <div class="card"><h3>Local Workspace</h3><p>The desktop app stores planning files, exports, backups, and generated Markdown in the Workspace folder you choose. Updating the app should not replace this folder.</p></div>
+      <div class="card"><h3>Your Google Sheet</h3><p>Pathmark Online saves web records to a Pathmark Sync spreadsheet in your own Google Drive using the narrow drive.file permission.</p></div>
+      <div class="card"><h3>Supabase access layer</h3><p>Supabase stores only hosted access information such as email, role, status, feature flags, and audit logs. It is not the planning-data store.</p></div>
+    </div>
+    <div class="safe-rule"><strong>Privacy rule:</strong> Pathmark should not store your goals, routines, task prompts, calendar blocks, Workspace files, backups, or Markdown content in Supabase or GitHub. Personal planning data belongs in your local Workspace or in your user-owned Google Sheet.</div>
+    """, unsafe_allow_html=True)
+    with st.expander("More about privacy and permissions", expanded=False):
+        st.markdown("""
+        - **Google login identifies you.** Pathmark does not collect or store your Google password.
+        - **Google Drive/Sheets access uses `drive.file`.** This lets Pathmark create and update Pathmark files you authorise; it does not request broad access to every spreadsheet in your Drive.
+        - **Supabase manages access only.** Roles such as Standard, Beta tester, and Developer are stored there so the hosted app knows which features to show.
+        - **GitHub stores the app code and release package.** It must not contain secrets, OAuth tokens, private planning data, or user Workspace content.
+        - **The desktop app remains the local publisher.** It can create Markdown, folders, local exports, and backups from the Workspace.
+        """)
     st.header("Release notes")
     for note in version.get("notes", []):
         st.write(f"- {note}")
-
 
 
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:

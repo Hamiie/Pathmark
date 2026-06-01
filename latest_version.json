@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.81",
+  "version": "0.5.82",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_81.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_82.zip",
   "mac_package": "",
   "notes": [
-    "Unified the hosted Google login and Google Sheets/Drive access flow for Pathmark Online.",
-    "Google login now requests the narrow drive.file scope so the Web Companion can prepare a user-owned Pathmark sync sheet without a separate Connect Google Sheets step.",
-    "The Web Companion now attempts to find an existing app-visible Pathmark Sync sheet before creating a new one.",
-    "Reconnect and diagnostics remain available for recovery, while Supabase continues to store roles and access data only."
+    "Rewrote the hosted homepage to frame Pathmark as a routine, goal, calendar, and tasklist management system across Online and Desktop.",
+    "Added clearer public guidance about where Pathmark data is stored: local Workspace, user-owned Google Sheet, and Supabase access records.",
+    "Added privacy and permissions guidance explaining Google login, the narrow drive.file scope, Supabase role storage, GitHub release files, and the desktop Workspace boundary.",
+    "Pathmark Online remains backed by the user-owned Pathmark Sync sheet; Supabase remains limited to roles, status, feature flags, and audit logs."
   ]
 }

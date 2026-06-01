@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_81.zip
+  Pathmark_Local_App_Windows_v0_5_82.zip
 supabase/
   migrations/
     20260531000000_create_pathmark_access_tables.sql
@@ -143,6 +143,15 @@ on conflict (key) do nothing;
 
 Keep `[pathmark_access].developer_emails` in Streamlit secrets as an emergency bootstrap route even after Supabase is configured.
 
+## Privacy and storage model
+
+Pathmark deliberately separates personal planning data from hosted access management.
+
+- **Desktop Workspace:** the Windows app stores local planning files, exports, backups, database records, and generated Markdown in the Workspace folder selected by the user. Updating the app should replace only `Documents\Pathmark`, not the Workspace.
+- **User-owned Google Sheet:** Pathmark Online stores web companion records in a `Pathmark Sync` spreadsheet owned by the signed-in user. The app uses the narrow `drive.file` permission so it can create and update Pathmark files the user authorises without requesting broad access to all spreadsheets.
+- **Supabase:** Supabase stores access records only: email, role, status, feature flags, last-login data, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, Markdown, backups, or private planning content.
+- **GitHub:** the public repository stores the app code, release package, migration files, and documentation. It must not contain OAuth secrets, Supabase keys, tokens, user Workspace files, or personal planning data.
+
 ## Pathmark Online Google Sheet setup
 
 From v0.5.81, the hosted login flow is also the Google Sheets/Drive authorisation flow. Users no longer need to complete a separate Google Sheets connection step in the normal path.
@@ -185,8 +194,13 @@ When a beta/developer user opens the Web Companion, Pathmark attempts to find an
 
 Mac support has been removed for now.
 
-## v0.5.81 focus
+## v0.5.82 focus
 
-This release starts the Pathmark Online foundation by unifying Google login and Google Sheets/Drive access. Google login now requests identity plus the narrow `drive.file` scope, stores only a short-lived access token in the hosted Streamlit session, and automatically finds or creates the user-owned Pathmark sync sheet for beta/developer users.
+This release rewrites the hosted homepage around the emerging Pathmark Online/Desktop model and adds clearer user-facing privacy and storage guidance.
 
-The normal Web Companion path no longer requires a separate “Connect Google Sheets” step. Reconnect and diagnostics remain available for recovery and setup troubleshooting.
+Pathmark Online is framed as a Google-Sheet-backed routine and goal management system. Pathmark Desktop remains the local Workspace, Markdown, backups, and publishing/export version. The homepage now explains where data is stored:
+
+- local planning files and Markdown live in the user's chosen Workspace;
+- Pathmark Online records live in the user's own Pathmark Sync Google Sheet;
+- Supabase stores only access-control data such as email, role, status, feature flags, and audit logs;
+- GitHub stores code and release packages, not private planning data or secrets.
