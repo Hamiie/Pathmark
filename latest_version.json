@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.84",
+  "version": "0.5.85",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_84.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_85.zip",
   "mac_package": "",
   "notes": [
-    "Reduced Google Sheets read requests by caching Pathmark Online records and reading tables with a batch request.",
-    "Added a loading spinner while the online workspace is prepared from the user-owned Google Sheet.",
-    "Moved Pathmark Online closer to the desktop mechanics by adding action blocks under goals and routine activities under routines.",
-    "Tasklists, Google Calendar ICS exports, and Google Tasks CSV exports are now derived from action blocks and routine activities rather than only from separate ad hoc rows.",
-    "Expanded the Pathmark Sync sheet schema while preserving existing beta rows by appending missing columns instead of replacing headers."
+    "Separated About & Privacy information from the public homepage so the homepage stays more user-facing.",
+    "Renamed and reorganised Pathmark Online to follow the desktop sidebar order: Home, Review Queue, Areas, Routines, Goals and Projects, Tasklist, Google Calendar Export, Google Tasks Export, Archive and Settings.",
+    "Removed standalone ad hoc Calendar Block and Task Prompt creation from the online interface so online functionality does not exceed the desktop model.",
+    "Added edit and archive flows for online Areas, goals, routines, action blocks and routine activities using the user-owned Google Sheet.",
+    "Split online exports into desktop-style Google Calendar Export and Google Tasks Export pages."
   ]
 }
