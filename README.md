@@ -63,6 +63,16 @@ https://pathmark.streamlit.app
 
 Developer access should be bootstrapped through Streamlit secrets, not hard-coded into the public repository.
 
+
+## Pathmark Web Companion direction
+
+The hosted app is moving beyond simple on-the-go capture towards a Google-Sheet-backed web companion. The intended split is:
+
+- **Online Pathmark:** routine and goal management backed by the user-owned Pathmark sync sheet.
+- **Desktop Pathmark:** local Workspace folders, Markdown generation, backups, review/import, and heavier export workflows.
+
+Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
+
 ## Supabase access layer
 
 From v0.5.74, the Supabase access-control schema is versioned in `supabase/migrations/` so a GitHub-linked Supabase project can track the database structure safely. Persistent role management uses Supabase rather than a Google Sheet service-account key. This version prefers Supabase Secret API keys (`sb_secret_...`) rather than legacy JWT-based `service_role` keys.
@@ -163,7 +173,7 @@ This release adds a versioned Supabase migration structure for the hosted access
 
 ## Google Sheets On-the-go OAuth checks
 
-Pathmark v0.5.79 keeps the safe diagnostics panel in the hosted On-the-go beta tab and improves session handling after Google Sheets connection. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
+Pathmark v0.5.80 keeps the safe diagnostics panel in the hosted On-the-go beta tab and improves session handling after Google Sheets connection. The panel shows only non-secret values: whether Google OAuth is configured, the OAuth client ID prefix, the redirect URI, the requested scope, and the Google authorisation endpoint.
 
 For Google Sheets sync, configure the same Google Cloud project used by Streamlit secrets:
 
@@ -192,7 +202,7 @@ The hosted app requests `drive.file` only. It should create and update user-auth
 - Replaced Google OAuth `st.link_button` controls with same-tab links to reduce extra browser tabs during login and connection.
 
 
-## v0.5.79 On-the-go Google Sheets session fix
+## v0.5.80 On-the-go Google Sheets session fix
 
 This release keeps the short-lived Google Sheets session model, but reconstructs Google credentials directly from the access token returned by Google rather than from an authorised-user payload. This avoids a confusing state where the hosted page shows a connection notice but then returns to the Connect button after a Streamlit rerun.
 

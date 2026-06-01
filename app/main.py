@@ -84,6 +84,12 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .download-panel { background: rgba(255,255,255,.70); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; }
 .safe-rule { background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }
 .profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: rgba(255,255,255,.78); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
+.account-card { background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 1rem; padding: .75rem .9rem; margin-bottom: 1rem; }
+.account-title { color: var(--muted); font-size: .84rem; font-weight: 760; text-transform: uppercase; letter-spacing: .03em; margin-bottom: .2rem; }
+.account-value { color: var(--ink); font-weight: 720; }
+.connection-card { background: rgba(255,255,255,.78); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
+.connection-ok { color: #006B2E; font-weight: 760; }
+.connection-warn { color: #7A4E00; font-weight: 760; }
 .beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
 .stDownloadButton button, .stButton button { border-radius: .85rem !important; min-height: 3rem; font-weight: 700 !important; }
 .pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem; padding: .55rem .85rem; border-radius: .85rem; background: var(--accent); color: #FFFFFF !important; text-decoration: none !important; font-weight: 760; border: 1px solid rgba(31,34,33,.18); box-shadow: 0 8px 22px var(--shadow); }
@@ -592,26 +598,56 @@ def maybe_record_login(email: str, role: str, status: str) -> None:
         upsert_supabase_user(email, str(target_role), str(target_status), notes=notes, actor_email="pathmark-system", update_login=True)
     st.session_state[key] = True
 
+def role_label(role: str) -> str:
+    return {
+        "public": "Public visitor",
+        "standard": "Standard",
+        "beta_tester": "Beta tester",
+        "developer": "Developer",
+    }.get(role, str(role or "standard").replace("_", " ").title())
+
+
+def clear_hosted_login_session() -> None:
+    """Clear Pathmark hosted login and temporary Google Sheets session state."""
+    for key in [
+        "pathmark_user",
+        "pathmark_login_state",
+        "google_sheets_credentials",
+        "sync_sheet_id",
+        "google_oauth_state",
+        "on_the_go_connected_notice",
+        "auto_create_sync_sheet_after_connect",
+    ]:
+        st.session_state.pop(key, None)
+
+
 def render_account_bar(role: str, user: dict[str, str]) -> None:
-    """Render minimal account controls without a status bar."""
+    """Render compact signed-in controls for the hosted page."""
     configured = login_configured()
-    cols = st.columns([3.5, 1.15, 1.15])
+    cols = st.columns([4.2, 1.4, 1.2])
     with cols[0]:
         if user.get("email"):
-            verified_note = "verified" if user.get("email_verified") else "email not verified"
-            st.caption(f"Signed in as {user.get('email')} ({verified_note}). Role: {role}.")
+            st.markdown(
+                f"<div class='account-card'><div class='account-title'>Signed in</div>"
+                f"<div class='account-value'>{html.escape(str(user.get('email')))}</div></div>",
+                unsafe_allow_html=True,
+            )
         elif configured:
             st.caption("Sign in with Google to access beta or developer features. You can download Pathmark without signing in.")
         else:
             st.caption("Login is not configured yet. Download Pathmark below.")
     with cols[1]:
         if user.get("email"):
-            st.markdown(f"<span class='profile-pill'>{role}</span>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='account-card'><div class='account-title'>Access level</div>"
+                f"<div class='account-value'>{html.escape(role_label(role))}</div></div>",
+                unsafe_allow_html=True,
+            )
     with cols[2]:
         if user.get("email"):
+            st.write("")
             if st.button("Log out", use_container_width=True):
-                st.session_state.pop("pathmark_user", None)
-                st.session_state.pop("pathmark_login_state", None)
+                clear_hosted_login_session()
                 st.rerun()
         elif configured:
             auth_url = login_auth_url()
@@ -1088,22 +1124,43 @@ def download_tab() -> None:
 
 
 
+def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
+    """Show the Google Sheets connection state without exposing OAuth plumbing."""
+    if not auth_ready:
+        st.markdown(
+            "<div class='connection-card'><span class='connection-warn'>Google Sheets is not configured on this deployment.</span><br>Use the CSV download workflow for now.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+    if credentials and sheet_id:
+        st.markdown(
+            "<div class='connection-card'><span class='connection-ok'>Connected to your Pathmark sync sheet.</span><br>Captures will be saved to your own Google Sheet for later desktop review.</div>",
+            unsafe_allow_html=True,
+        )
+    elif credentials:
+        st.markdown(
+            "<div class='connection-card'><span class='connection-warn'>Google Sheets is connected, but no sync sheet is selected yet.</span><br>Create a Pathmark sync sheet below, or choose an existing one under Advanced.</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div class='connection-card'><span class='connection-warn'>Google Sheets is not connected.</span><br>Connect your Google Sheet to save captures online, or download a CSV instead.</div>",
+            unsafe_allow_html=True,
+        )
+
+
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("On the go beta")
+    st.header("Web companion beta")
     notice = st.session_state.pop("on_the_go_connected_notice", "")
     if notice:
         st.success(notice)
-    st.markdown("<div class='beta-note'><strong>Beta feature.</strong> Capture goal ideas, routine changes, task prompts, or calendar block ideas while away from your main Workspace. The desktop app can review and import these updates later. Do not use this for sensitive information during testing.</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='beta-note'><strong>Beta feature.</strong> Manage quick goal, routine, task prompt, and calendar block updates while away from your main Workspace. "
+        "Updates are saved to your own Google Sheet and can be reviewed or imported by the desktop app later. Do not use this for sensitive information during testing.</div>",
+        unsafe_allow_html=True,
+    )
 
-    with st.expander("How on-the-go updates work", expanded=False):
-        st.markdown("""
-        **CSV mode** keeps everything offline until you import the file into desktop Pathmark.
-
-        **Google Sheets mode** uses your own Google account and the narrow Google `drive.file` permission. For the safest workflow, create the Pathmark sync sheet from this page and use that sheet for on-the-go captures. Pathmark does not ask for access to all of your Google Sheets and it does not store your entries in this hosted app.
-        """)
-
-    st.subheader("1. Choose where to save this capture")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     if credentials and not st.session_state.get("sync_sheet_id") and st.session_state.pop("auto_create_sync_sheet_after_connect", False):
@@ -1112,44 +1169,51 @@ def on_the_go_tab() -> None:
             st.success("Created your Pathmark sync sheet for on-the-go captures.")
         else:
             st.warning(message)
-    render_google_sheets_oauth_diagnostics()
-    if not auth_ready:
-        st.info("Google Sheets OAuth is not configured on this hosted deployment yet. Use the CSV download workflow below.")
-    else:
-        if credentials:
-            st.success("Google Sheets is connected for this session.")
-            c1, c2, c3 = st.columns(3)
-            with c1:
+
+    sheet_url = st.session_state.get("sync_sheet_id", "")
+    st.subheader("1. Connection")
+    render_connection_summary(credentials, sheet_url, auth_ready)
+
+    if auth_ready and credentials:
+        c1, c2 = st.columns(2)
+        with c1:
+            if sheet_url:
+                st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_url}", use_container_width=True)
+            else:
                 if st.button("Create Pathmark sync sheet", use_container_width=True):
                     ok, sheet_id, message = create_user_sync_sheet()
                     if ok:
-                        st.success("Created Pathmark Sync sheet.")
+                        st.success("Created Pathmark sync sheet.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
                         st.warning(message)
-            with c2:
-                current_sheet = st.session_state.get("sync_sheet_id", "")
-                if current_sheet:
-                    st.link_button("Open current sync sheet", f"https://docs.google.com/spreadsheets/d/{current_sheet}", use_container_width=True)
-            with c3:
-                if st.button("Disconnect", use_container_width=True):
-                    revoke_google_session_token()
-                    st.rerun()
-            if not st.session_state.get("sync_sheet_id"):
-                st.info("Create a Pathmark sync sheet above before saving captures to Google Sheets, or use the CSV download below. Pathmark now tries to create one automatically after connection, but you can retry here if Google or Streamlit interrupted that first attempt.")
-        else:
-            auth_url = google_auth_url()
-            if auth_url:
-                st.link_button("Connect Google Sheets", auth_url, use_container_width=True)
-            st.caption("You will be asked by Google to allow Pathmark to create and update the specific Google Drive files used by this app. Access is kept for this browser session only. If Google shows only a request-details error page, open the diagnostics above and check the exact redirect URI, test-user, and drive.file scope settings in Google Cloud.")
+        with c2:
+            if st.button("Disconnect Google Sheets", use_container_width=True):
+                revoke_google_session_token()
+                st.rerun()
+    elif auth_ready:
+        auth_url = google_auth_url()
+        if auth_url:
+            st.link_button("Connect my Google Sheet", auth_url, use_container_width=True)
+        st.caption("Pathmark uses the narrow Google drive.file permission so it can create and update the specific Pathmark sync files you authorise, rather than asking for access to all spreadsheets.")
 
-    with st.expander("Advanced: use an existing Pathmark sync sheet", expanded=False):
-        sheet_url_input = st.text_input("Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you have explicitly opened with the app.")
+    with st.expander("How the web companion works", expanded=False):
+        st.markdown("""
+        The web companion saves structured Pathmark updates to a Google Sheet owned by you. The desktop app remains the full Workspace publisher: it can review these updates, create local folders and Markdown files, generate backups, and export calendar/task files.
+
+        This is the intended long-term direction:
+        - **Online Pathmark:** routine and goal management backed by your Google Sheet.
+        - **Desktop Pathmark:** local Workspace, Markdown generation, backups, review/import, and heavier publishing/export workflows.
+        """)
+
+    with st.expander("Advanced settings and diagnostics", expanded=False):
+        render_google_sheets_oauth_diagnostics()
+        sheet_url_input = st.text_input("Use an existing Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you have explicitly opened with the app.")
         if sheet_url_input:
             st.session_state["sync_sheet_id"] = extract_google_sheet_id(sheet_url_input)
-    sheet_url = st.session_state.get("sync_sheet_id", "")
+            sheet_url = st.session_state.get("sync_sheet_id", "")
 
-    st.subheader("2. Capture the update")
+    st.subheader("2. Capture update")
     c1, c2 = st.columns(2)
     with c1:
         record_type = st.selectbox("Update type", ["new_goal", "new_routine", "new_task_prompt", "new_calendar_block", "update_note"])
@@ -1176,17 +1240,17 @@ def on_the_go_tab() -> None:
     st.subheader("3. Save for desktop review")
     save_col, dl_col = st.columns(2)
     with save_col:
-        disabled = not bool(credentials and st.session_state.get("sync_sheet_id"))
-        if st.button("Save to my Pathmark sync sheet", use_container_width=True, disabled=disabled):
+        can_save_to_sheet = bool(credentials and st.session_state.get("sync_sheet_id"))
+        if st.button("Save to my Pathmark sync sheet", use_container_width=True, disabled=not can_save_to_sheet):
             if not title.strip():
                 st.error("Add a title before saving.")
             else:
-                ok, message = append_to_user_oauth_sheet(sheet_url, row)
+                ok, message = append_to_user_oauth_sheet(st.session_state.get("sync_sheet_id", ""), row)
                 if ok:
                     st.success(message)
                 else:
                     st.warning(message)
-        if disabled:
+        if not can_save_to_sheet:
             st.caption("Connect Google Sheets and create/select a Pathmark sync sheet first, or use the CSV download.")
     with dl_col:
         st.download_button("Download pending update CSV", data=row_to_csv_bytes(row), file_name="pathmark_on_the_go_update.csv", mime="text/csv", use_container_width=True)
@@ -1335,7 +1399,7 @@ def render_app() -> None:
 
     tabs = ["Download Pathmark"]
     if role_can_use_on_the_go(role, status):
-        tabs.append("On the go beta")
+        tabs.append("Web companion beta")
     if role_can_develop(role, status):
         tabs.append("Developer")
     created_tabs = st.tabs(tabs)
@@ -1353,4 +1417,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Beta and developer tools are visible only to signed-in accounts with a verified email and the appropriate role. On-the-go entries are saved only to a downloaded CSV or to the Pathmark sync sheet authorised by the user with the drive.file scope.")
+st.caption("Pathmark release hub. Beta and developer tools are visible only to signed-in accounts with a verified email and the appropriate role. Web companion entries are saved only to a downloaded CSV or to the user-owned Pathmark sync sheet authorised with the Google drive.file scope.")

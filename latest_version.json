@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.79",
-  "release_date": "2026-05-31",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_79.zip",
+  "version": "0.5.80",
+  "release_date": "2026-06-01",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_80.zip",
   "mac_package": "",
   "notes": [
-    "Fixed Google Sheets On-the-go connected state so a successful OAuth session remains usable after Streamlit reruns.",
-    "Rebuilt hosted Google credentials directly from the short-lived access token rather than the authorised-user helper that expects refresh-token style payloads.",
-    "After Google Sheets connects, Pathmark now attempts to create the Pathmark sync sheet automatically so Save to my Pathmark sync sheet is available sooner.",
-    "Kept the Supabase migration and Secret API key access model unchanged."
+    "Polished the hosted signed-in header so it shows the email and access level once, with a clear Log out control.",
+    "Simplified the Web companion beta page by moving diagnostics and advanced sheet selection behind an expander.",
+    "Only shows Create Pathmark sync sheet when a sheet is missing; otherwise the main action is Open sync sheet or Disconnect Google Sheets.",
+    "Updated wording to position the hosted tool as the beginning of a Google-Sheet-backed Pathmark Web Companion while the desktop app remains the local Workspace publisher."
   ]
 }
