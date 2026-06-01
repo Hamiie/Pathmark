@@ -60,10 +60,10 @@ GOOGLE_CALENDAR_COLOURS = [
     ("10", "Basil", "#0B8043"),
     ("11", "Tomato", "#D50000"),
 ]
-GOOGLE_COLOUR_LABELS = [f"{name} ({code})" for code, name, _hex in GOOGLE_CALENDAR_COLOURS]
-GOOGLE_COLOUR_BY_LABEL = {f"{name} ({code})": {"code": code, "name": name, "hex": _hex} for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
-GOOGLE_COLOUR_BY_CODE_OR_NAME = {code.lower(): f"{name} ({code})" for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
-GOOGLE_COLOUR_BY_CODE_OR_NAME.update({name.lower(): f"{name} ({code})" for code, name, _hex in GOOGLE_CALENDAR_COLOURS})
+GOOGLE_COLOUR_LABELS = [name for _code, name, _hex in GOOGLE_CALENDAR_COLOURS]
+GOOGLE_COLOUR_BY_LABEL = {name: {"code": code, "name": name, "hex": _hex} for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
+GOOGLE_COLOUR_BY_CODE_OR_NAME = {code.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
+GOOGLE_COLOUR_BY_CODE_OR_NAME.update({name.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS})
 
 ONLINE_THEMES = {
     "Default": {"accent": "#334E68", "soft": "#E7EEF4", "surface": "#FFFFFF", "background": "#F7F6F2"},
@@ -139,9 +139,33 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .connection-ok { color: #006B2E; font-weight: 760; }
 .connection-warn { color: #7A4E00; font-weight: 760; }
 .beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
-.stDownloadButton button, .stButton button { border-radius: .85rem !important; min-height: 3rem; font-weight: 700 !important; }
+/* High-contrast controls, especially on mobile. Streamlit can otherwise inherit low-contrast theme colours. */
+.stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {
+  border-radius: .85rem !important;
+  min-height: 3rem;
+  font-weight: 760 !important;
+  background: var(--accent) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(31,34,33,.18) !important;
+  box-shadow: 0 8px 22px var(--shadow);
+}
+.stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a * { color: #FFFFFF !important; }
+.stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover { filter: brightness(.96); color: #FFFFFF !important; }
+.stButton button:disabled, .stDownloadButton button:disabled {
+  background: #E2E5E3 !important;
+  color: #4B5350 !important;
+  border-color: #C9D0CC !important;
+  box-shadow: none !important;
+}
+.stButton button:disabled *, .stDownloadButton button:disabled * { color: #4B5350 !important; }
 .pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem; padding: .55rem .85rem; border-radius: .85rem; background: var(--accent); color: #FFFFFF !important; text-decoration: none !important; font-weight: 760; border: 1px solid rgba(31,34,33,.18); box-shadow: 0 8px 22px var(--shadow); }
-.pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; }
+.pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; color: #FFFFFF !important; }
+@media (max-width: 640px) {
+  .block-container { padding-left: 1rem; padding-right: 1rem; padding-top: 1.1rem; }
+  .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: clamp(3rem, 16vw, 4.6rem); }
+  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a { min-height: 3.2rem; font-size: 1rem !important; }
+}
 .guide-box { background: rgba(255,255,255,.82); border: 1px solid var(--line); border-left: 6px solid var(--accent); border-radius: 1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
 .guide-box strong { color: var(--ink); }
 .step-card { background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 1.15rem; padding: 1rem 1.1rem; margin: .45rem 0 1rem; box-shadow: 0 8px 20px var(--shadow); }
@@ -151,6 +175,11 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .swatch-row { display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; margin:.35rem 0 .85rem; }
 .swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:white; padding:.25rem .55rem; font-size:.85rem; }
 .swatch-dot { width:.8rem; height:.8rem; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.18); }
+.swatch-row { display:flex; flex-wrap:wrap; gap:.45rem; margin:.5rem 0 .8rem; }
+.process-card { background: rgba(255,255,255,.86); border:1px solid var(--line); border-radius:1rem; padding:1rem; margin:.55rem 0; }
+.process-card h4 { margin:.05rem 0 .35rem 0; color:var(--ink); }
+.process-card p { margin:0; color:var(--muted); }
+
 [data-testid="stHeader"] { background: transparent; }
 @media (max-width: 860px) { .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; } }
 </style>
@@ -557,11 +586,19 @@ def read_supabase_user(email: str) -> dict[str, str] | None:
     email = (email or "").strip().lower()
     if not email or not supabase_available():
         return None
-    query = "?" + urllib.parse.urlencode({"email": f"eq.{email}", "select": "email,role,status,created_at,updated_at,last_login,notes"})
+    # v0.5.90 adds theme_preference. During rolling deploys the database may not
+    # have the column for a moment, so fall back to the older select if needed.
+    query = "?" + urllib.parse.urlencode({"email": f"eq.{email}", "select": "email,role,status,created_at,updated_at,last_login,notes,theme_preference"})
     ok, payload = supabase_request("GET", "pathmark_users", query=query)
+    if not ok:
+        query = "?" + urllib.parse.urlencode({"email": f"eq.{email}", "select": "email,role,status,created_at,updated_at,last_login,notes"})
+        ok, payload = supabase_request("GET", "pathmark_users", query=query)
     if not ok or not isinstance(payload, list) or not payload:
         return None
     rec = payload[0]
+    theme = str(rec.get("theme_preference", "") or "Default")
+    if theme not in ONLINE_THEMES:
+        theme = "Default"
     return {
         "email": str(rec.get("email", "")).strip().lower(),
         "role": normalise_role(str(rec.get("role", "standard"))),
@@ -570,14 +607,18 @@ def read_supabase_user(email: str) -> dict[str, str] | None:
         "updated_at": str(rec.get("updated_at", "") or ""),
         "last_login": str(rec.get("last_login", "") or ""),
         "notes": str(rec.get("notes", "") or ""),
+        "theme_preference": theme,
     }
 
 
 def list_supabase_users() -> list[dict[str, str]]:
     if not supabase_available():
         return []
-    query = "?select=email,role,status,created_at,updated_at,last_login,notes&order=email.asc"
+    query = "?select=email,role,status,created_at,updated_at,last_login,notes,theme_preference&order=email.asc"
     ok, payload = supabase_request("GET", "pathmark_users", query=query)
+    if not ok:
+        query = "?select=email,role,status,created_at,updated_at,last_login,notes&order=email.asc"
+        ok, payload = supabase_request("GET", "pathmark_users", query=query)
     if not ok or not isinstance(payload, list):
         if not ok:
             st.warning(f"Could not read Supabase access table: {payload}")
@@ -587,6 +628,9 @@ def list_supabase_users() -> list[dict[str, str]]:
         email = str(rec.get("email", "")).strip().lower()
         if not email:
             continue
+        theme = str(rec.get("theme_preference", "") or "Default")
+        if theme not in ONLINE_THEMES:
+            theme = "Default"
         out.append({
             "email": email,
             "role": normalise_role(str(rec.get("role", "standard"))),
@@ -595,6 +639,7 @@ def list_supabase_users() -> list[dict[str, str]]:
             "updated_at": str(rec.get("updated_at", "") or ""),
             "last_login": str(rec.get("last_login", "") or ""),
             "notes": str(rec.get("notes", "") or ""),
+            "theme_preference": theme,
         })
     return out
 
@@ -641,6 +686,36 @@ def upsert_supabase_user(email: str, role: str, status: str = "active", notes: s
         return False, f"Could not save access record: {payload}"
     write_audit_log(actor_email, "upsert_user", email, {"role": role, "status": status, "update_login": update_login})
     return True, "User access saved."
+
+
+def update_supabase_user_theme(email: str, theme_name: str, actor_email: str = "") -> tuple[bool, str]:
+    """Persist the hosted theme with the user's Supabase access profile."""
+    email = (email or "").strip().lower()
+    theme_name = theme_name if theme_name in ONLINE_THEMES else "Default"
+    if not email:
+        return False, "No signed-in user."
+    if not supabase_available():
+        return False, "Supabase access management is not configured yet."
+    row = {"theme_preference": theme_name, "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    query = "?" + urllib.parse.urlencode({"email": f"eq.{email}"})
+    ok, payload = supabase_request("PATCH", "pathmark_users", query=query, body=row, prefer="return=minimal")
+    if not ok:
+        return False, "Could not save the theme to your Pathmark profile. The app will still use the theme in this session."
+    write_audit_log(actor_email or email, "update_theme", email, {"theme": theme_name})
+    return True, "Theme saved to your Pathmark profile."
+
+
+def theme_for_user(email: str) -> str:
+    """Return the user's hosted theme preference from session/Supabase."""
+    cached = st.session_state.get("hosted_theme_preference")
+    if cached in ONLINE_THEMES:
+        return str(cached)
+    rec = read_supabase_user(email) if email else None
+    theme = rec.get("theme_preference", "Default") if rec else "Default"
+    if theme not in ONLINE_THEMES:
+        theme = "Default"
+    st.session_state["hosted_theme_preference"] = theme
+    return theme
 
 
 def read_feature_flags() -> list[dict[str, Any]]:
@@ -705,6 +780,8 @@ def maybe_record_login(email: str, role: str, status: str) -> None:
         target_role = "developer" if email in configured_developer_emails() else (existing.get("role") if existing else role)
         target_status = existing.get("status") if existing else status
         notes = existing.get("notes", "") if existing else "Auto-created from Google login."
+        if existing and existing.get("theme_preference") in ONLINE_THEMES:
+            st.session_state["hosted_theme_preference"] = existing.get("theme_preference")
         upsert_supabase_user(email, str(target_role), str(target_status), notes=notes, actor_email="pathmark-system", update_login=True)
     st.session_state[key] = True
 
@@ -728,6 +805,7 @@ def clear_hosted_login_session() -> None:
         "on_the_go_connected_notice",
         "auto_create_sync_sheet_after_connect",
         "sync_sheet_ready_attempted",
+        "hosted_theme_preference",
     ]:
         st.session_state.pop(key, None)
 
@@ -1664,22 +1742,46 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
     return append_online_record(sheet_id, "settings", {"key": key, "value": value, "updated_at": utc_now_text(), "source": source})
 
 
-def apply_online_theme(sheet_id: str) -> None:
-    theme_name = online_setting(sheet_id, "theme", "Default") if sheet_id else "Default"
+def inject_theme_css(theme_name: str) -> None:
+    """Apply a Pathmark theme across the hosted page.
+
+    Streamlit theme changes are not dynamic at runtime, so Pathmark uses CSS
+    variables and a small set of overrides. These are deliberately applied to
+    the whole app container, not just the settings section.
+    """
+    theme_name = theme_name if theme_name in ONLINE_THEMES else "Default"
     theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Default"])
     st.markdown(
         f"""
         <style>
-        :root {{
-          --accent: {theme['accent']};
-          --accent-soft: {theme['soft']};
-          --surface: {theme['surface']};
-          --bg: {theme['background']};
+        :root, [data-testid="stAppViewContainer"] {{
+          --accent: {theme['accent']} !important;
+          --accent-soft: {theme['soft']} !important;
+          --surface: {theme['surface']} !important;
+          --bg: {theme['background']} !important;
         }}
+        [data-testid="stAppViewContainer"] {{
+          background: radial-gradient(circle at 12% 0%, color-mix(in srgb, {theme['accent']} 16%, transparent), transparent 26rem),
+                      radial-gradient(circle at 92% 8%, rgba(122,78,122,.12), transparent 24rem),
+                      linear-gradient(180deg, #FBFAF7 0%, {theme['background']} 100%) !important;
+        }}
+        .eyebrow, .pathmark-note {{ background: {theme['soft']} !important; color: {theme['accent']} !important; }}
+        .guide-box {{ border-left-color: {theme['accent']} !important; }}
+        .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{
+          background: {theme['accent']} !important;
+          color: #FFFFFF !important;
+          border-color: rgba(31,34,33,.18) !important;
+        }}
+        .stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a * {{ color: #FFFFFF !important; }}
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def apply_online_theme(sheet_id: str) -> None:
+    theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Default")) if sheet_id else st.session_state.get("hosted_theme_preference", "Default")
+    inject_theme_css(theme_name)
 
 
 def google_colour_label(value: str) -> str:
@@ -2090,8 +2192,8 @@ def load_starter_examples(sheet_id: str) -> tuple[bool, str]:
 def render_area_manager(sheet_id: str) -> None:
     st.subheader("Areas")
     st.markdown("""
-    <div class='guide-box'><strong>Areas are the broad parts of life Pathmark helps you protect.</strong><br>
-    Use Areas to group the routines that keep you well and the goals you want to progress. For example: Body and Stability, Food and Home, Work and Admin, Learning and Creativity.</div>
+    <div class='guide-box'><strong>Areas become your Google subcalendars.</strong><br>
+    Create broad Areas such as Body and Stability, Food and Home, Work and Admin, or Learning and Creativity. Pathmark uses each Area to group related routines and goals, and to keep calendar exports visually organised.</div>
     """, unsafe_allow_html=True)
     df = read_online_table(sheet_id, "areas")
     df = active_online_df(df)
@@ -2109,7 +2211,7 @@ def render_area_manager(sheet_id: str) -> None:
             with st.form("online_add_area", clear_on_submit=True):
                 name = st.text_input("Area name")
                 description = st.text_area("Description", height=90)
-                colour_label = st.selectbox("Google Calendar colour", GOOGLE_COLOUR_LABELS, index=0, help="Pathmark stores the Google Calendar colour number so exports can use consistent Area colours.")
+                colour_label = st.selectbox("Google Calendar colour", GOOGLE_COLOUR_LABELS, index=0, help="Choose the colour Pathmark should use for this Area in Google Calendar exports.")
                 render_google_colour_swatch(colour_label)
                 colour = google_colour_code(colour_label)
                 c1, c2 = st.columns(2)
@@ -2193,11 +2295,12 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         if is_routine_activity:
             activity_days = st.text_input("Activity days", value=str(action.get("activity_days", "") or ""), placeholder="Optional, for example Monday, Wednesday")
         st.markdown("**Tasklist and exports**")
+        st.caption("The Google Tasks prompt should be the tiny first step that makes the action easier to start, such as putting on running clothes, packing gym gear, opening the sketchbook, or showing up at the gym.")
         c6, c7, c8 = st.columns(3)
         include_tasklist = c6.checkbox("Include on tasklist", value=truthy_flag(action.get("include_tasklist", "1")))
         calendar_block = c7.checkbox("Prepare Google Calendar time", value=truthy_flag(action.get("calendar_block", "0")))
         reminder = c8.checkbox("Prepare Google Tasks first-action prompt", value=truthy_flag(action.get("reminder", "0")))
-        first_step = st.text_input("First action prompt for Google Tasks", value=str(action.get("first_step", "") or ""), placeholder="For example, Open the document and write the first sentence")
+        first_step = st.text_input("First-step prompt for Google Tasks", value=str(action.get("first_step", "") or ""), placeholder="For example, put on running clothes, pack gym gear, or open the sketchbook")
         c9, c10, c11 = st.columns(3)
         start_time = c9.text_input("Calendar start time", value=str(action.get("calendar_start_time", "09:00") or "09:00"))
         end_time = c10.text_input("Calendar end time", value=str(action.get("calendar_end_time", "10:00") or "10:00"))
@@ -2257,8 +2360,8 @@ def _render_action_list(sheet_id: str, actions: pd.DataFrame, *, goal_id: str = 
 def render_goal_manager(sheet_id: str) -> None:
     st.subheader("Goals and Projects")
     st.markdown("""
-    <div class='guide-box'><strong>Goals need a finish line and one or two next actions.</strong><br>
-    Define what closure looks like so you know when the goal is complete. Then add the next action blocks that can be placed in your calendar and turned into low-friction Google Tasks prompts.</div>
+    <div class='guide-box'><strong>Goals need a finish line and a next step.</strong><br>
+    It is easy for goals to pile up, compete for attention, or fade before they are finished. Define what “done” means, then choose the next one or two actions that would genuinely move the goal forward. Pathmark can place those actions in the calendar and create a first-step prompt for the moment you need to start.</div>
     """, unsafe_allow_html=True)
     goals = active_online_df(read_online_table(sheet_id, "goals"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
@@ -2347,8 +2450,8 @@ def render_goal_manager(sheet_id: str) -> None:
 def render_routine_manager(sheet_id: str) -> None:
     st.subheader("Routines")
     st.markdown("""
-    <div class='guide-box'><strong>Routines are healthy habits you repeat.</strong><br>
-    Use routines for the basics that maintain wellbeing and capacity: sleep, food, movement, practice, planning, and admin. A routine can create calendar time and a small Google Tasks prompt so the habit is easier to start.</div>
+    <div class='guide-box'><strong>Routines are the habits that keep you steady.</strong><br>
+    Use routines for sleep, meals, movement, practice, planning, admin, and other basics that protect your energy and capacity. A routine activity can create calendar time and a Google Tasks prompt for the first small step, such as putting on gym clothes or simply showing up.</div>
     """, unsafe_allow_html=True)
     routines = active_online_df(read_online_table(sheet_id, "routines"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
@@ -2491,7 +2594,7 @@ def render_review_queue_manager(sheet_id: str) -> None:
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Name the list, then select the goal actions and routine activities you want to work through. You can download a printable PDF tasklist.")
+    st.write("Use a printed tasklist as an alternative to Google Tasks prompts when you prefer ticking things off on paper. Select the goal actions and routine activities you want to work through, then download the PDF.")
     tasklist = staged_tasklist(sheet_id)
     title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
     notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
@@ -2597,7 +2700,7 @@ def write_google_tasks_export_tab(sheet_id: str, prompts: pd.DataFrame) -> tuple
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Export")
-    st.write("Google Tasks prompts are staged from goal actions and routine activities marked 'Prepare Google Tasks first-action prompt'.")
+    st.write("Google Tasks prompts are staged from goal actions and routine activities marked for a first-step prompt. These are intended to make the action easier to start and satisfying to tick off once complete.")
     prompts = staged_task_prompts(sheet_id)
     dataframe_preview(prompts, ["title", "area_name", "due_date", "reminder_time", "task_list", "linked_calendar_summary"])
     st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
@@ -2633,13 +2736,21 @@ def render_online_settings(sheet_id: str) -> None:
         clear_online_cache(sheet_id)
         st.rerun()
     st.markdown("### Theme")
-    current_theme = online_setting(sheet_id, "theme", "Default")
-    theme_name = st.selectbox("Online theme", list(ONLINE_THEMES.keys()), index=list(ONLINE_THEMES.keys()).index(current_theme) if current_theme in ONLINE_THEMES else 0)
+    st.write("Choose how Pathmark Online looks on this device. The theme is saved to your Pathmark profile so it follows your Google login.")
+    current_theme = st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Default")
+    if current_theme not in ONLINE_THEMES:
+        current_theme = "Default"
+    theme_name = st.selectbox("Online theme", list(ONLINE_THEMES.keys()), index=list(ONLINE_THEMES.keys()).index(current_theme))
     if st.button("Save theme", use_container_width=True):
-        ok, message = save_online_setting(sheet_id, "theme", theme_name)
-        st.success(message) if ok else st.warning(safe_user_message(message))
-        if ok:
+        ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
+        user = current_user()
+        ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
+        st.session_state["hosted_theme_preference"] = theme_name
+        if ok_sheet or ok_profile:
+            st.success("Theme saved.")
             st.rerun()
+        else:
+            st.warning(safe_user_message(message_profile or message_sheet))
 
 
 
@@ -2829,61 +2940,32 @@ def render_exports_manager(sheet_id: str) -> None:
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Pathmark Online")
     st.markdown("""
-    <div class='pathmark-note'>Pathmark turns routines and goals into calendar time, task prompts, and printable checklists. Start with the broad parts of your life, then build the next useful action rather than trying to plan everything at once.</div>
+    <div class='guide-box'><strong>Use the tabs above to build your system one piece at a time.</strong><br>
+    Start with Areas if this is your first visit, then add routines, goals, and the next actions you want to make time for. Each section includes its own guidance, so this Home page stays as a simple overview.</div>
     """, unsafe_allow_html=True)
-
-    guide_tabs = st.tabs(["1. Areas", "2. Routines", "3. Goals", "4. Actions", "5. Exports"])
-    with guide_tabs[0]:
-        st.markdown("""
-        <div class='step-card'><h3>Set up Areas</h3><p>Areas are the broad parts of life you want Pathmark to protect, such as body, food, home, work, learning, or creativity.</p><p>Use Areas to keep goals, routines, tasklists, and exports grouped in a way that still makes sense later.</p></div>
-        """, unsafe_allow_html=True)
-    with guide_tabs[1]:
-        st.markdown("""
-        <div class='step-card'><h3>Build routines first</h3><p>Routines are the healthy habits that keep your baseline steady: sleep, meals, exercise, practice, planning, and admin.</p><p>They help maintain the energy and capacity needed to commit to your goals. Add a routine, choose the repeat pattern, then add one or more activities that can appear on your tasklist and calendar.</p></div>
-        """, unsafe_allow_html=True)
-    with guide_tabs[2]:
-        st.markdown("""
-        <div class='step-card'><h3>Give each goal a finish line</h3><p>A goal should include closure criteria: how will you know it is complete?</p><p>Once the finish line is clear, Pathmark is designed to hold only the next one or two useful actions. This keeps the goal moving without turning planning into another project.</p></div>
-        """, unsafe_allow_html=True)
-    with guide_tabs[3]:
-        st.markdown("""
-        <div class='step-card'><h3>Define the next action</h3><p>Action rows are where the work becomes concrete. A good action is small enough to schedule and specific enough to start.</p><p>Use the first-action prompt to reduce activation energy: pack gym clothes, open the book, put running shoes by the door, or choose the recipe before the calendar block arrives.</p></div>
-        """, unsafe_allow_html=True)
-    with guide_tabs[4]:
-        st.markdown("""
-        <div class='step-card'><h3>Export what helps you act</h3><p>Calendar blocks make time for the work. Google Tasks prompts give you a satisfying checklist and reduce friction at the moment you need to begin.</p><p>The printable tasklist gives you a focused paper view of the actions and routine activities you choose for the week.</p></div>
-        """, unsafe_allow_html=True)
-
-    tables = load_online_tables(sheet_id)
-    counts = {table: len(active_online_df(tables.get(table, pd.DataFrame()))) if table in ["areas", "goals", "routines", "actions"] else len(tables.get(table, pd.DataFrame())) for table in ["areas", "goals", "routines", "actions"]}
-    derived_calendar = len(staged_calendar_blocks(sheet_id))
-    derived_prompts = len(staged_task_prompts(sheet_id))
-    tasklist_rows = len(staged_tasklist(sheet_id))
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Areas", counts["areas"])
-    c2.metric("Goals", counts["goals"])
-    c3.metric("Routines", counts["routines"])
-    c4, c5, c6 = st.columns(3)
-    c4.metric("Action rows", counts["actions"])
-    c5.metric("Calendar rows", derived_calendar)
-    c6.metric("Task prompts", derived_prompts)
-    st.metric("Tasklist rows", tasklist_rows)
-
-    if counts["areas"] == 0 and counts["goals"] == 0 and counts["routines"] == 0:
-        st.info("New to Pathmark? Load editable starter examples for ordinary routines and goals, then change or archive anything that does not fit your life.")
-        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_empty"):
+    data = read_online_tables(sheet_id)
+    counts = {name: len(active_online_df(df)) for name, df in data.items() if name in ["areas", "goals", "routines", "actions"]}
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Areas", counts.get("areas", 0))
+    c2.metric("Goals", counts.get("goals", 0))
+    c3.metric("Routines", counts.get("routines", 0))
+    c4.metric("Actions", counts.get("actions", 0))
+    st.markdown("""
+    <div class="grid-3">
+      <div class="process-card"><h4>Routines protect capacity</h4><p>Use routines for the repeating basics that help you have enough energy and steadiness for the rest of your life.</p></div>
+      <div class="process-card"><h4>Goals need closure criteria</h4><p>Write what done looks like, then define only the next one or two actions rather than trying to plan the whole journey at once.</p></div>
+      <div class="process-card"><h4>Prompts reduce friction</h4><p>Google Tasks prompts and paper tasklists are for the small first step: pack the bag, put on the shoes, open the file, or start the timer.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+    if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
+        st.info("New to Pathmark Online? Open Areas and load the optional starter examples, then edit or archive anything that does not fit your life.")
+    with st.expander("Optional starter examples", expanded=False):
+        st.write("Starter examples give you editable Areas, routines, goals and actions so you are not starting from a blank sheet.")
+        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_optional"):
             ok, message = load_starter_examples(sheet_id)
             st.success(message) if ok else st.warning(safe_user_message(message))
             if ok:
                 st.rerun()
-    elif not starter_examples_already_loaded(sheet_id):
-        with st.expander("Suggested starter examples", expanded=False):
-            st.write("Load editable examples for food, sleep, exercise, learning and planning. These are optional and can be renamed, paused or archived.")
-            if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_optional"):
-                ok, message = load_starter_examples(sheet_id)
-                st.success(message) if ok else st.warning(safe_user_message(message))
-                if ok:
-                    st.rerun()
 
 def download_tab() -> None:
     version = load_version()
@@ -2894,22 +2976,22 @@ def download_tab() -> None:
     <div class="hero">
       <div class="eyebrow">Routines. Prompts. Progress.</div>
       <h1>Pathmark</h1>
-      <p class="lead">Plan routines, goals, task prompts, and calendar blocks in one structured system.</p>
-      <p class="sublead">Pathmark helps you decide what you are working towards, make time for it in your calendar, and generate checkable task prompts for the moment the work is meant to happen.</p>
+      <p class="lead">Put routines and goal actions into your calendar, then reduce friction with first-step prompts and checkable tasklists.</p>
+      <p class="sublead">Pathmark helps you protect the habits that keep you steady, keep track of goals that might otherwise drift, and turn intentions into specific next actions.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Manage goals and routines</h3><p>Group related goals, routines, projects, and prompts under Areas so your planning system has a clear structure.</p></div>
-      <div class="card"><h3>Make time visible</h3><p>Create calendar blocks for routines, goals, and project work, then export them as Google Calendar-compatible ICS files.</p></div>
-      <div class="card"><h3>Export useful prompts</h3><p>Generate Google Tasks prompts and printable tasklists that describe the next action, not just the time it should happen.</p></div>
+      <div class="card"><h3>Make time for what matters</h3><p>Put routines and goal actions into your calendar so the work has an actual place in the week.</p></div>
+      <div class="card"><h3>Keep competing goals visible</h3><p>Hold multiple goals, interests, and routines in one place so they are easier to revisit instead of drifting out of sight.</p></div>
+      <div class="card"><h3>Reduce the first-step friction</h3><p>Create Google Tasks prompts or a printable checklist that tells you the first small step to take when the time block arrives.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>The signed-in web version uses a Google Sheet owned by you. It is being developed into a browser-based routine and goal management system without local Markdown generation.</p></div>
-      <div class="card"><h3>Pathmark Desktop</h3><p>The Windows app manages your local Workspace, creates files and folders, generates Markdown records, makes backups, and prepares local exports.</p></div>
+      <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage routines, goals, actions, tasklists, and exports from any browser. Your planning records are saved in a Google Sheet you own.</p></div>
+      <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want the local Workspace, Markdown records, backups, and the full desktop publishing workflow.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Download Pathmark")
@@ -2960,7 +3042,7 @@ def download_tab() -> None:
 
 def about_privacy_tab() -> None:
     st.header("About Pathmark")
-    st.write("Pathmark is a routine, goal, tasklist and calendar planning system. The signed-in online version stores structured planning records in a Google Sheet owned by you.")
+    st.write("Pathmark helps you make time for routines and goal actions, then gives you first-step prompts or printable checklists so the work is easier to start.")
     st.markdown("""
     <div class="grid-2">
       <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage Areas, goals, routines, action blocks, tasklists, Google Calendar exports and Google Tasks prompts from a Google Sheet you own.</p></div>
@@ -2994,7 +3076,7 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
         return
     if credentials and sheet_id:
         st.markdown(
-            "<div class='connection-card'><span class='connection-ok'>Pathmark Online is connected to your sync sheet.</span><br>Your web companion data is saved to a Google Sheet owned by you.</div>",
+            "<div class='connection-card'><span class='connection-ok'>Pathmark Online is connected to your sync sheet.</span><br>Your online planning records are saved to a Google Sheet owned by you.</div>",
             unsafe_allow_html=True,
         )
     elif credentials:
@@ -3067,12 +3149,13 @@ def on_the_go_tab() -> None:
 
     with st.expander("How to get the most out of Pathmark", expanded=False):
         st.markdown("""
-        Pathmark works best when you keep routines and goals distinct.
+        Pathmark works best when routines and goals do different jobs.
 
-        - **Routines** protect the repeating basics: sleep, meals, exercise, practice, planning and admin. They help maintain the energy and capacity needed for larger goals.
-        - **Goals** need a clear definition of done. Once the finish line is clear, Pathmark helps you choose the next one or two actions rather than trying to plan the whole journey at once.
-        - **Calendar blocks** make time for a specific action.
-        - **Google Tasks prompts** make that action easier to start and satisfying to check off. A good prompt reduces activation energy, such as "put gym clothes in bag" or "open the sketchbook and draw for five minutes".
+        - **Routines** protect the repeating basics: sleep, meals, movement, practice, planning and admin.
+        - **Goals** need a clear definition of done, then only the next one or two actions needed to move forward.
+        - **Calendar blocks** make time for one specific routine activity or goal action.
+        - **Google Tasks prompts** are for the first tiny step, such as putting gym clothes in your bag, putting on running shoes, opening the sketchbook, or starting a timer.
+        - **Printed tasklists** are the paper alternative if you prefer ticking things off by hand.
         """)
 
     with st.expander("Advanced settings and diagnostics", expanded=False):
@@ -3168,7 +3251,8 @@ def developer_tab() -> None:
               created_at timestamptz not null default now(),
               updated_at timestamptz not null default now(),
               last_login timestamptz,
-              notes text
+              notes text,
+              theme_preference text not null default 'Default'
             );
 
             create table if not exists pathmark_feature_flags (
@@ -3268,6 +3352,8 @@ def render_app() -> None:
         handle_google_oauth_redirect()
     user = current_user()
     role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
+    if user.get("email"):
+        inject_theme_css(theme_for_user(user.get("email", "")))
     maybe_record_login(user.get("email", ""), role, status)
     render_account_bar(role, user)
     if status == "disabled":
@@ -3296,4 +3382,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Pathmark Online beta and developer tools are visible only to signed-in accounts with the appropriate access level.")
+st.caption("Pathmark release hub. Sign in to use Pathmark Online when it is enabled for your account.")
