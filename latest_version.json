@@ -1,13 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.82",
+  "version": "0.5.83",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_82.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_83.zip",
   "mac_package": "",
   "notes": [
-    "Rewrote the hosted homepage to frame Pathmark as a routine, goal, calendar, and tasklist management system across Online and Desktop.",
-    "Added clearer public guidance about where Pathmark data is stored: local Workspace, user-owned Google Sheet, and Supabase access records.",
-    "Added privacy and permissions guidance explaining Google login, the narrow drive.file scope, Supabase role storage, GitHub release files, and the desktop Workspace boundary.",
-    "Pathmark Online remains backed by the user-owned Pathmark Sync sheet; Supabase remains limited to roles, status, feature flags, and audit logs."
+    "Renamed the beta workspace to Pathmark Online beta and moved it closer to the desktop planning model.",
+    "Added Google-Sheet-backed management screens for Areas, Goals and Projects, Routines, Calendar Blocks, Task Prompts, Tasklists, and Exports.",
+    "Expanded the Pathmark Sync sheet schema beyond pending_changes so online records can live in structured tabs owned by the user.",
+    "Added browser downloads for calendar .ics files, Google Tasks CSV, and printable tasklists generated from the user-owned sync sheet.",
+    "Kept Supabase limited to roles, status, feature flags, and audit logs; personal planning records remain in the user's Google Sheet or local Workspace."
   ]
 }

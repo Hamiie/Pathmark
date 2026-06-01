@@ -34,6 +34,16 @@ SYNC_COLUMNS = [
     "imported_at", "source",
 ]
 
+ONLINE_TABLES = {
+    "settings": ["key", "value", "updated_at", "source"],
+    "areas": ["area_id", "area_name", "description", "colour", "status", "created_at", "updated_at", "source"],
+    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "created_at", "updated_at", "source"],
+    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "created_at", "updated_at", "source"],
+    "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source"],
+    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "linked_record_id", "status", "created_at", "updated_at", "source"],
+    "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source"],
+}
+
 GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 LOGIN_SCOPES = ["openid", "email", "profile"] + GOOGLE_SHEETS_SCOPES
 SYNC_SHEET_TITLE = "Pathmark Sync"
@@ -1104,7 +1114,7 @@ def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
         if service is None:
             return False, "", "Google Sheets is not available for this session."
         try:
-            ensure_pending_changes_sheet(service, existing)
+            ensure_pathmark_online_schema(service, existing)
             return True, existing, f"https://docs.google.com/spreadsheets/d/{existing}"
         except Exception as exc:
             return False, "", f"Could not verify the selected Pathmark sync sheet: {exc}"
@@ -1113,7 +1123,7 @@ def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
     if found and sheet_id:
         service = sheets_service()
         if service is not None:
-            ensure_pending_changes_sheet(service, sheet_id)
+            ensure_pathmark_online_schema(service, sheet_id)
         return True, sheet_id, link_or_message
 
     return create_user_sync_sheet()
@@ -1150,7 +1160,7 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
             fields="spreadsheetId,spreadsheetUrl",
         ).execute()
         sheet_id = spreadsheet.get("spreadsheetId", "")
-        ensure_pending_changes_sheet(service, sheet_id)
+        ensure_pathmark_online_schema(service, sheet_id)
         st.session_state["sync_sheet_id"] = sheet_id
         return True, sheet_id, spreadsheet.get("spreadsheetUrl", "")
     except Exception as exc:
@@ -1165,7 +1175,7 @@ def append_to_user_oauth_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool
     if service is None:
         return False, "Connect Google Sheets before saving to a sync sheet."
     try:
-        ensure_pending_changes_sheet(service, sheet_id)
+        ensure_pathmark_online_schema(service, sheet_id)
         service.spreadsheets().values().append(
             spreadsheetId=sheet_id,
             range="pending_changes!A:O",
@@ -1177,6 +1187,415 @@ def append_to_user_oauth_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool
         return True, "Saved to your Google Sheet."
     except Exception as exc:
         return False, f"Could not write to the sync sheet: {exc}"
+
+
+def utc_now_text() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def sheet_col_letter(index: int) -> str:
+    """Convert a 1-based column index to an A1 notation column letter."""
+    letters = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return letters or "A"
+
+
+def ensure_sheet_with_header(service: Any, sheet_id: str, title: str, columns: list[str]) -> None:
+    metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    sheet_titles = [sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])]
+    if title not in sheet_titles:
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
+        ).execute()
+    end_col = sheet_col_letter(len(columns))
+    values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{title}!A1:{end_col}1").execute().get("values", [])
+    if not values or values[0] != columns:
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=f"{title}!A1:{end_col}1",
+            valueInputOption="RAW",
+            body={"values": [columns]},
+        ).execute()
+
+
+def ensure_pathmark_online_schema(service: Any, sheet_id: str) -> None:
+    """Prepare the user-owned Google Sheet for Pathmark Online records."""
+    ensure_pending_changes_sheet(service, sheet_id)
+    for title, columns in ONLINE_TABLES.items():
+        ensure_sheet_with_header(service, sheet_id, title, columns)
+
+
+def read_online_table(sheet_id: str, table: str) -> pd.DataFrame:
+    columns = ONLINE_TABLES.get(table)
+    if not columns:
+        return pd.DataFrame()
+    service = sheets_service()
+    if service is None:
+        return pd.DataFrame(columns=columns)
+    try:
+        ensure_sheet_with_header(service, sheet_id, table, columns)
+        end_col = sheet_col_letter(len(columns))
+        values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{table}!A1:{end_col}").execute().get("values", [])
+        if not values:
+            return pd.DataFrame(columns=columns)
+        rows = values[1:]
+        normalised = []
+        for row in rows:
+            padded = list(row) + [""] * (len(columns) - len(row))
+            normalised.append(padded[:len(columns)])
+        df = pd.DataFrame(normalised, columns=columns)
+        if "status" in df.columns:
+            df = df[df["status"].fillna("").str.lower().ne("archived")]
+        return df.reset_index(drop=True)
+    except Exception as exc:
+        st.warning(f"Could not read {table.replace('_', ' ')} from your Pathmark sync sheet: {exc}")
+        return pd.DataFrame(columns=columns)
+
+
+def append_online_record(sheet_id: str, table: str, record: dict[str, Any]) -> tuple[bool, str]:
+    columns = ONLINE_TABLES.get(table)
+    if not columns:
+        return False, "Unknown Pathmark table."
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session."
+    try:
+        ensure_sheet_with_header(service, sheet_id, table, columns)
+        now = utc_now_text()
+        row = {col: str(record.get(col, "") or "") for col in columns}
+        if "created_at" in columns and not row.get("created_at"):
+            row["created_at"] = now
+        if "updated_at" in columns:
+            row["updated_at"] = now
+        if "status" in columns and not row.get("status"):
+            row["status"] = "active"
+        if "source" in columns and not row.get("source"):
+            row["source"] = "pathmark_online"
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range=f"{table}!A:{sheet_col_letter(len(columns))}",
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [[row.get(col, "") for col in columns]]},
+        ).execute()
+        return True, "Saved to your Pathmark sync sheet."
+    except Exception as exc:
+        return False, f"Could not save to your Pathmark sync sheet: {exc}"
+
+
+def area_options(sheet_id: str) -> list[str]:
+    df = read_online_table(sheet_id, "areas") if sheet_id else pd.DataFrame()
+    if df.empty or "area_name" not in df.columns:
+        return []
+    return sorted({str(name).strip() for name in df["area_name"].tolist() if str(name).strip()})
+
+
+def find_area_id(sheet_id: str, area_name: str) -> str:
+    df = read_online_table(sheet_id, "areas") if sheet_id else pd.DataFrame()
+    if df.empty:
+        return ""
+    for _, row in df.iterrows():
+        if str(row.get("area_name", "")).strip().lower() == area_name.strip().lower():
+            return str(row.get("area_id", ""))
+    return ""
+
+
+def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
+    if df.empty:
+        st.info("No records yet.")
+    else:
+        show_cols = [col for col in columns if col in df.columns]
+        st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
+
+
+def render_area_manager(sheet_id: str) -> None:
+    st.subheader("Areas")
+    st.write("Use Areas to group related goals, routines, projects, prompts, and calendar blocks.")
+    df = read_online_table(sheet_id, "areas")
+    dataframe_preview(df, ["area_name", "description", "colour", "status", "updated_at"])
+    with st.form("online_add_area", clear_on_submit=True):
+        st.markdown("**Add an Area**")
+        name = st.text_input("Area name")
+        description = st.text_area("Description", height=90)
+        colour = st.text_input("Colour", placeholder="For example, blue, sage, #334E68")
+        submitted = st.form_submit_button("Save Area", use_container_width=True)
+        if submitted:
+            if not name.strip():
+                st.error("Add an Area name before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "areas", {
+                    "area_id": f"area-{uuid.uuid4().hex}",
+                    "area_name": name.strip(),
+                    "description": description.strip(),
+                    "colour": colour.strip(),
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def render_goal_manager(sheet_id: str) -> None:
+    st.subheader("Goals and Projects")
+    st.write("Create structured goal records online. The desktop app can later publish these into Workspace files and Markdown.")
+    df = read_online_table(sheet_id, "goals")
+    dataframe_preview(df, ["title", "area_name", "specific_area", "status", "target_date", "updated_at"])
+    areas = area_options(sheet_id)
+    with st.form("online_add_goal", clear_on_submit=True):
+        st.markdown("**Add a goal or project**")
+        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
+        title = st.text_input("Title")
+        specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
+        target_date = st.text_input("Target date", placeholder="Optional, for example 2026-09-30")
+        description = st.text_area("Description / next outcome", height=120)
+        status = st.selectbox("Status", ["active", "paused", "completed"])
+        submitted = st.form_submit_button("Save goal", use_container_width=True)
+        if submitted:
+            if not title.strip():
+                st.error("Add a title before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "goals", {
+                    "goal_id": f"goal-{uuid.uuid4().hex}",
+                    "area_id": find_area_id(sheet_id, str(area)),
+                    "area_name": str(area).strip(),
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "specific_area": specific.strip(),
+                    "status": status,
+                    "target_date": target_date.strip(),
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def render_routine_manager(sheet_id: str) -> None:
+    st.subheader("Routines")
+    st.write("Manage repeating routines that can later become calendar blocks and task prompts.")
+    df = read_online_table(sheet_id, "routines")
+    dataframe_preview(df, ["title", "area_name", "frequency", "preferred_days", "duration_minutes", "status", "updated_at"])
+    areas = area_options(sheet_id)
+    with st.form("online_add_routine", clear_on_submit=True):
+        st.markdown("**Add a routine**")
+        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="routine_area") if areas else st.text_input("Area", key="routine_area_text")
+        title = st.text_input("Routine title")
+        frequency = st.text_input("Frequency", placeholder="Daily, weekly, weekdays, 3x per week")
+        preferred_days = st.text_input("Preferred days", placeholder="Optional, for example Mon/Wed/Fri")
+        duration = st.text_input("Duration in minutes", placeholder="Optional")
+        description = st.text_area("Routine notes", height=120)
+        status = st.selectbox("Status", ["active", "paused"])
+        submitted = st.form_submit_button("Save routine", use_container_width=True)
+        if submitted:
+            if not title.strip():
+                st.error("Add a routine title before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "routines", {
+                    "routine_id": f"routine-{uuid.uuid4().hex}",
+                    "area_id": find_area_id(sheet_id, str(area)),
+                    "area_name": str(area).strip(),
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "frequency": frequency.strip(),
+                    "preferred_days": preferred_days.strip(),
+                    "duration_minutes": duration.strip(),
+                    "status": status,
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def render_calendar_block_manager(sheet_id: str) -> None:
+    st.subheader("Calendar Blocks")
+    st.write("Create blocks of time for routines, goals, and project work. Online exports can turn these into an .ics file.")
+    df = read_online_table(sheet_id, "calendar_blocks")
+    dataframe_preview(df, ["title", "area_name", "start", "end", "recurrence", "status", "updated_at"])
+    areas = area_options(sheet_id)
+    with st.form("online_add_calendar_block", clear_on_submit=True):
+        st.markdown("**Add a calendar block**")
+        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="calendar_area") if areas else st.text_input("Area", key="calendar_area_text")
+        title = st.text_input("Block title")
+        start = st.text_input("Start", placeholder="2026-06-01 09:00")
+        end = st.text_input("End", placeholder="2026-06-01 10:00")
+        recurrence = st.text_input("Recurrence", placeholder="Optional, for example weekly or RRULE:FREQ=WEEKLY")
+        description = st.text_area("Notes", height=100)
+        submitted = st.form_submit_button("Save calendar block", use_container_width=True)
+        if submitted:
+            if not title.strip():
+                st.error("Add a title before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "calendar_blocks", {
+                    "block_id": f"block-{uuid.uuid4().hex}",
+                    "area_name": str(area).strip(),
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "start": start.strip(),
+                    "end": end.strip(),
+                    "recurrence": recurrence.strip(),
+                    "status": "active",
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def render_task_prompt_manager(sheet_id: str) -> None:
+    st.subheader("Task Prompts")
+    st.write("Task prompts describe the action to take when a calendar block arrives.")
+    df = read_online_table(sheet_id, "task_prompts")
+    dataframe_preview(df, ["title", "area_name", "prompt_text", "status", "updated_at"])
+    areas = area_options(sheet_id)
+    with st.form("online_add_task_prompt", clear_on_submit=True):
+        st.markdown("**Add a task prompt**")
+        area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="prompt_area") if areas else st.text_input("Area", key="prompt_area_text")
+        title = st.text_input("Prompt title")
+        prompt_text = st.text_area("Prompt / checklist text", height=130)
+        submitted = st.form_submit_button("Save task prompt", use_container_width=True)
+        if submitted:
+            if not title.strip():
+                st.error("Add a prompt title before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "task_prompts", {
+                    "prompt_id": f"prompt-{uuid.uuid4().hex}",
+                    "area_name": str(area).strip(),
+                    "title": title.strip(),
+                    "prompt_text": prompt_text.strip(),
+                    "status": "active",
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def render_tasklist_manager(sheet_id: str) -> None:
+    st.subheader("Tasklist")
+    st.write("Build a simple printable tasklist from the web companion.")
+    df = read_online_table(sheet_id, "tasklists")
+    dataframe_preview(df, ["date", "title", "items", "status", "updated_at"])
+    with st.form("online_add_tasklist", clear_on_submit=True):
+        st.markdown("**Add a tasklist**")
+        date = st.text_input("Date", placeholder="Optional, for example 2026-06-01")
+        title = st.text_input("Tasklist title")
+        items = st.text_area("Items", placeholder="One item per line", height=160)
+        submitted = st.form_submit_button("Save tasklist", use_container_width=True)
+        if submitted:
+            if not title.strip() and not items.strip():
+                st.error("Add a title or at least one item before saving.")
+            else:
+                ok, message = append_online_record(sheet_id, "tasklists", {
+                    "tasklist_id": f"tasklist-{uuid.uuid4().hex}",
+                    "date": date.strip(),
+                    "title": title.strip() or "Tasklist",
+                    "items": items.strip(),
+                    "status": "active",
+                })
+                st.success(message) if ok else st.warning(message)
+                if ok:
+                    st.rerun()
+
+
+def parse_dt_for_ics(value: str) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"]:
+        try:
+            dt = datetime.strptime(text, fmt)
+            if fmt == "%Y-%m-%d":
+                return dt.strftime("%Y%m%d")
+            return dt.strftime("%Y%m%dT%H%M00")
+        except Exception:
+            pass
+    return re.sub(r"[^0-9T]", "", text)
+
+
+def build_ics_export(blocks: pd.DataFrame) -> bytes:
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Pathmark Online//EN"]
+    for _, row in blocks.iterrows():
+        title = str(row.get("title", "") or "Pathmark block").strip() or "Pathmark block"
+        start = parse_dt_for_ics(str(row.get("start", "")))
+        end = parse_dt_for_ics(str(row.get("end", "")))
+        if not start:
+            continue
+        lines.extend(["BEGIN:VEVENT", f"UID:{row.get('block_id') or uuid.uuid4().hex}@pathmark", f"SUMMARY:{title}", f"DTSTART:{start}"])
+        if end:
+            lines.append(f"DTEND:{end}")
+        description = str(row.get("description", "") or "").replace("\n", "\\n")
+        if description:
+            lines.append(f"DESCRIPTION:{description}")
+        recurrence = str(row.get("recurrence", "") or "").strip()
+        if recurrence.upper().startswith("RRULE:"):
+            lines.append(recurrence)
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def dataframe_to_csv_bytes(df: pd.DataFrame) -> bytes:
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def build_printable_tasklist(tasklists: pd.DataFrame, prompts: pd.DataFrame) -> bytes:
+    lines = ["Pathmark printable tasklist", ""]
+    if not tasklists.empty:
+        for _, row in tasklists.iterrows():
+            lines.append(str(row.get("title", "Tasklist") or "Tasklist"))
+            if str(row.get("date", "") or "").strip():
+                lines.append(f"Date: {row.get('date')}")
+            for item in str(row.get("items", "") or "").splitlines():
+                if item.strip():
+                    lines.append(f"[ ] {item.strip()}")
+            lines.append("")
+    if not prompts.empty:
+        lines.append("Task prompts")
+        for _, row in prompts.iterrows():
+            title = str(row.get("title", "") or "Untitled prompt").strip()
+            lines.append(f"[ ] {title}")
+            prompt = str(row.get("prompt_text", "") or "").strip()
+            if prompt:
+                for item in prompt.splitlines():
+                    lines.append(f"    {item.strip()}")
+        lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
+def render_exports_manager(sheet_id: str) -> None:
+    st.subheader("Exports")
+    st.write("Generate browser-downloadable exports from the records in your Pathmark sync sheet.")
+    blocks = read_online_table(sheet_id, "calendar_blocks")
+    prompts = read_online_table(sheet_id, "task_prompts")
+    tasklists = read_online_table(sheet_id, "tasklists")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
+    with c2:
+        st.download_button("Download Google Tasks CSV", data=dataframe_to_csv_bytes(prompts), file_name="pathmark_task_prompts.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
+    with c3:
+        st.download_button("Download printable tasklist", data=build_printable_tasklist(tasklists, prompts), file_name="pathmark_printable_tasklist.txt", mime="text/plain", use_container_width=True, disabled=(tasklists.empty and prompts.empty))
+    st.caption("These exports are generated in the hosted app for download. They are not saved to Supabase or GitHub.")
+
+
+def render_online_overview(sheet_id: str) -> None:
+    st.subheader("Pathmark Online")
+    st.write("Use the online version to manage the same planning model as the desktop app. The online version stores structured records in your own Google Sheet instead of creating local Markdown files.")
+    counts = {}
+    for table in ["areas", "goals", "routines", "calendar_blocks", "task_prompts", "tasklists"]:
+        counts[table] = len(read_online_table(sheet_id, table))
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Areas", counts["areas"])
+    c2.metric("Goals", counts["goals"])
+    c3.metric("Routines", counts["routines"])
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Calendar blocks", counts["calendar_blocks"])
+    c5.metric("Task prompts", counts["task_prompts"])
+    c6.metric("Tasklists", counts["tasklists"])
+    st.markdown("""
+    **What is different from the desktop app?**
+
+    Pathmark Online can manage structured planning records and generate downloadable exports. It does not create local folders, Markdown files, or local backups. The desktop app remains the place where your local Workspace is published and maintained.
+    """)
 
 def download_tab() -> None:
     version = load_version()
@@ -1293,13 +1712,13 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Web companion beta")
+    st.header("Pathmark Online beta")
     notice = st.session_state.pop("on_the_go_connected_notice", "")
     if notice:
         st.success(notice)
     st.markdown(
-        "<div class='beta-note'><strong>Beta feature.</strong> Manage quick goal, routine, task prompt, and calendar block updates while away from your main Workspace. "
-        "Updates are saved to your own Google Sheet and can be reviewed or imported by the desktop app later. Do not use this for sensitive information during testing.</div>",
+        "<div class='beta-note'><strong>Beta feature.</strong> Pathmark Online now uses your own Google Sheet as its structured planning file. "
+        "It can manage Areas, goals, routines, calendar blocks, task prompts, tasklists, and simple exports. The desktop app still handles local Workspace folders, Markdown generation, backups, and heavier publishing.</div>",
         unsafe_allow_html=True,
     )
 
@@ -1314,40 +1733,39 @@ def on_the_go_tab() -> None:
         else:
             st.warning(message)
 
-    sheet_url = st.session_state.get("sync_sheet_id", "")
-    st.subheader("1. Connection")
-    render_connection_summary(credentials, sheet_url, auth_ready)
+    sheet_id = st.session_state.get("sync_sheet_id", "")
+    render_connection_summary(credentials, sheet_id, auth_ready)
 
     if auth_ready and credentials:
         c1, c2 = st.columns(2)
         with c1:
-            if sheet_url:
-                st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_url}", use_container_width=True)
+            if sheet_id:
+                st.link_button("Open sync sheet", f"https://docs.google.com/spreadsheets/d/{sheet_id}", use_container_width=True)
             else:
                 if st.button("Find or create Pathmark sync sheet", use_container_width=True):
-                    ok, sheet_id, message = ensure_pathmark_sync_sheet_ready()
+                    ok, new_sheet_id, message = ensure_pathmark_sync_sheet_ready()
                     if ok:
                         st.success("Pathmark sync sheet is ready.")
                         st.link_button("Open sync sheet", message, use_container_width=True)
                     else:
                         st.warning(message)
         with c2:
-            if st.button("Disconnect Google Sheets", use_container_width=True):
+            if st.button("Disconnect Google access", use_container_width=True):
                 revoke_google_session_token()
                 st.rerun()
     elif auth_ready:
         auth_url = login_auth_url()
         if auth_url:
             st.link_button("Reconnect Google access", auth_url, use_container_width=True)
-        st.caption("Pathmark now requests the narrow Google drive.file permission during sign-in, so the web companion can create and update your Pathmark sync sheet without asking for access to all spreadsheets.")
+        st.caption("Pathmark requests the narrow Google drive.file permission during sign-in so online records can be saved to a Pathmark sync sheet owned by you.")
 
-    with st.expander("How the web companion works", expanded=False):
+    with st.expander("How Pathmark Online relates to the desktop app", expanded=False):
         st.markdown("""
-        Pathmark Online is moving towards the same routine and goal management model as the desktop app, but with a different storage layer. The online version stores structured records in a Google Sheet owned by you. The desktop version remains responsible for the local Workspace, Markdown generation, backups, and heavier publishing workflows.
+        Pathmark Online and Pathmark Desktop use the same planning idea: Areas, goals, routines, calendar blocks, task prompts, tasklists, review, and exports.
 
-        This is the intended long-term direction:
-        - **Online Pathmark:** Areas, goals, routines, task prompts, calendar blocks, tasklists, and exports backed by your Google Sheet.
-        - **Desktop Pathmark:** the same planning model plus local folders, Markdown files, backups, review/import, and local publishing/export workflows.
+        - **Pathmark Online** stores structured records in your own Google Sheet and can generate browser downloads.
+        - **Pathmark Desktop** stores your local Workspace, creates Markdown files, maintains local folders, makes backups, and can later import/export with the Google Sheet.
+        - **Supabase** is still only used for roles and feature access. It is not where your goals and routines are stored.
         """)
 
     with st.expander("Advanced settings and diagnostics", expanded=False):
@@ -1355,49 +1773,83 @@ def on_the_go_tab() -> None:
         sheet_url_input = st.text_input("Use an existing Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you have explicitly opened with the app.")
         if sheet_url_input:
             st.session_state["sync_sheet_id"] = extract_google_sheet_id(sheet_url_input)
-            sheet_url = st.session_state.get("sync_sheet_id", "")
+            sheet_id = st.session_state.get("sync_sheet_id", "")
 
-    st.subheader("2. Capture update")
-    c1, c2 = st.columns(2)
-    with c1:
-        record_type = st.selectbox("Update type", ["new_goal", "new_routine", "new_task_prompt", "new_calendar_block", "update_note"])
-        title = st.text_input("Title")
-        area = st.text_input("Area", placeholder="For example, Body and Stability")
-        specific = st.text_input("Specific area", placeholder="For example, Exercise")
-    with c2:
-        calendar_start = st.text_input("Optional start date/time", placeholder="2026-06-01 09:00")
-        calendar_end = st.text_input("Optional end date/time", placeholder="2026-06-01 10:00")
-        recurrence = st.text_input("Optional recurrence", placeholder="Weekly, daily, or RRULE text")
-    details = st.text_area("Details", height=160)
-    row = blank_sync_row()
-    row.update({
-        "record_type": record_type,
-        "title": title.strip(),
-        "area_name": area.strip(),
-        "specific_area": specific.strip(),
-        "details": details.strip(),
-        "calendar_start": calendar_start.strip(),
-        "calendar_end": calendar_end.strip(),
-        "recurrence": recurrence.strip(),
-    })
+    if not (credentials and sheet_id):
+        st.info("Sign in with Google and allow Pathmark's narrow Drive permission before using the online planning screens. You can still download the desktop app from the first tab.")
+        return
 
-    st.subheader("3. Save for desktop review")
-    save_col, dl_col = st.columns(2)
-    with save_col:
-        can_save_to_sheet = bool(credentials and st.session_state.get("sync_sheet_id"))
-        if st.button("Save to my Pathmark sync sheet", use_container_width=True, disabled=not can_save_to_sheet):
-            if not title.strip():
-                st.error("Add a title before saving.")
-            else:
-                ok, message = append_to_user_oauth_sheet(st.session_state.get("sync_sheet_id", ""), row)
-                if ok:
-                    st.success(message)
+    # Ensure the online schema exists before rendering the management screens.
+    service = sheets_service()
+    if service is not None:
+        try:
+            ensure_pathmark_online_schema(service, sheet_id)
+        except Exception as exc:
+            st.warning(f"Could not prepare the full Pathmark Online sheet structure: {exc}")
+
+    sections = st.tabs([
+        "Overview",
+        "Areas",
+        "Goals and Projects",
+        "Routines",
+        "Calendar Blocks",
+        "Task Prompts",
+        "Tasklist",
+        "Exports",
+        "Quick Capture",
+    ])
+    with sections[0]:
+        render_online_overview(sheet_id)
+    with sections[1]:
+        render_area_manager(sheet_id)
+    with sections[2]:
+        render_goal_manager(sheet_id)
+    with sections[3]:
+        render_routine_manager(sheet_id)
+    with sections[4]:
+        render_calendar_block_manager(sheet_id)
+    with sections[5]:
+        render_task_prompt_manager(sheet_id)
+    with sections[6]:
+        render_tasklist_manager(sheet_id)
+    with sections[7]:
+        render_exports_manager(sheet_id)
+    with sections[8]:
+        st.subheader("Quick Capture")
+        st.write("Use this as a simple inbox for ideas that are not ready to become full records yet.")
+        c1, c2 = st.columns(2)
+        with c1:
+            record_type = st.selectbox("Update type", ["new_goal", "new_routine", "new_task_prompt", "new_calendar_block", "update_note"])
+            title = st.text_input("Title")
+            area = st.text_input("Area", placeholder="For example, Body and Stability")
+            specific = st.text_input("Specific area", placeholder="For example, Exercise")
+        with c2:
+            calendar_start = st.text_input("Optional start date/time", placeholder="2026-06-01 09:00")
+            calendar_end = st.text_input("Optional end date/time", placeholder="2026-06-01 10:00")
+            recurrence = st.text_input("Optional recurrence", placeholder="Weekly, daily, or RRULE text")
+        details = st.text_area("Details", height=160)
+        row = blank_sync_row()
+        row.update({
+            "record_type": record_type,
+            "title": title.strip(),
+            "area_name": area.strip(),
+            "specific_area": specific.strip(),
+            "details": details.strip(),
+            "calendar_start": calendar_start.strip(),
+            "calendar_end": calendar_end.strip(),
+            "recurrence": recurrence.strip(),
+        })
+        save_col, dl_col = st.columns(2)
+        with save_col:
+            if st.button("Save quick capture", use_container_width=True):
+                if not title.strip():
+                    st.error("Add a title before saving.")
                 else:
-                    st.warning(message)
-        if not can_save_to_sheet:
-            st.caption("Connect Google Sheets and create/select a Pathmark sync sheet first, or use the CSV download.")
-    with dl_col:
-        st.download_button("Download pending update CSV", data=row_to_csv_bytes(row), file_name="pathmark_on_the_go_update.csv", mime="text/csv", use_container_width=True)
+                    ok, message = append_to_user_oauth_sheet(sheet_id, row)
+                    st.success(message) if ok else st.warning(message)
+        with dl_col:
+            st.download_button("Download capture CSV", data=row_to_csv_bytes(row), file_name="pathmark_quick_capture.csv", mime="text/csv", use_container_width=True)
+
 
 def developer_tab() -> None:
     st.header("Developer settings")
