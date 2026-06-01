@@ -300,18 +300,14 @@ def same_tab_link_button(label: str, url: str, help_text: str | None = None) -> 
 
 
 def same_tab_oauth_button(label: str, url: str) -> None:
-    """Redirect the top browser tab to Google OAuth without Streamlit link_button creating a new tab."""
-    safe_label = html.escape(label)
-    js_url = json.dumps(url)
-    html_snippet = f"""
-    <button onclick='window.top.location.href={js_url}' style='
-        width: 100%; min-height: 48px; border: 1px solid rgba(31,34,33,.18);
-        border-radius: 0.85rem; background: #334E68; color: white; font-weight: 760;
-        cursor: pointer; font-family: sans-serif; font-size: 0.98rem;
-        box-shadow: 0 8px 22px rgba(31,34,33,.10);
-    '>{safe_label}</button>
+    """Render a reliable Google OAuth launch control.
+
+    v0.5.87 attempted a custom same-tab HTML/JS button to reduce extra tabs,
+    but that could be blocked by Streamlit component iframe behaviour in the
+    deployed app. Streamlit's native link_button is less elegant because it may
+    open a new tab, but it is the most reliable option for Google OAuth.
     """
-    components.html(html_snippet, height=56)
+    st.link_button(label, url, use_container_width=True)
 
 def login_auth_url() -> str | None:
     cfg = login_config()

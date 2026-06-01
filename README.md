@@ -73,7 +73,7 @@ The hosted app is becoming a Google-Sheet-backed version of the Pathmark plannin
 - **Pathmark Online:** Areas, goals, projects, routines, calendar blocks, task prompts, tasklists, quick captures, and browser downloads backed by the user-owned Pathmark Sync sheet.
 - **Pathmark Desktop:** the same planning model plus local Workspace folders, Markdown generation, local backups, review/import, and heavier publishing workflows.
 
-v0.5.87 tightens the Pathmark Online foundation. The hosted app now avoids creating duplicate Pathmark Sync spreadsheets, tags new sync sheets so they can be re-found under the narrow drive.file permission, adds optional editable starter examples, validates date and time fields before saving, and makes the online Tasklist flow closer to the desktop version. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
+v0.5.88 restores a reliable Google login control after the v0.5.87 custom same-tab OAuth button proved unreliable in deployment. The hosted app keeps the Pathmark Online refinements from v0.5.87, including clearer guidance, Google Calendar colour selection, routine validation, PDF tasklist export, theme saving, and Google Tasks export-to-sheet support. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
 
 ## Supabase access layer
 
@@ -205,6 +205,11 @@ Pathmark Online is framed as a Google-Sheet-backed routine and goal management s
 - Supabase stores only access-control data such as email, role, status, feature flags, and audit logs;
 - GitHub stores code and release packages, not private planning data or secrets.
 
+
+
+## v0.5.88 Google login reliability fix
+
+The hosted app now uses Streamlit's native link button for Google OAuth again. This may open Google in a new tab, but it avoids the custom same-tab button behaviour that could be unclickable in deployment. The Pathmark Online feature set from v0.5.87 is otherwise preserved.
 
 ## v0.5.87 Pathmark Online refinements
 

@@ -1,16 +1,12 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.87",
+  "version": "0.5.88",
   "release_date": "2026-06-01",
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_87.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_88.zip",
   "mac_package": "",
   "notes": [
-    "Improved Pathmark Online guidance so routines are described as capacity-supporting habits and goals are framed around closure criteria plus the next one or two actions.",
-    "Changed the Google sign-in/reconnect controls to redirect in the current browser tab, reducing the extra-tab behaviour seen with Streamlit link buttons.",
-    "Added Google Calendar colour dropdowns and colour swatches for Areas.",
-    "Added stronger routine schedule validation so frequency and preferred days are compatible with task and calendar exports.",
-    "Added a printable PDF tasklist export alongside the plain text tasklist.",
-    "Added an online theme selector saved to the user's Pathmark Sync sheet.",
-    "Added an option to write the Google Tasks export into a google_tasks_export tab in the user's Pathmark Sync sheet."
+    "Restored Google OAuth launch controls to Streamlit's native link button because the v0.5.87 custom same-tab button could be unclickable in deployment.",
+    "Preserved the Pathmark Online refinements from v0.5.87, including guidance, Area colour selection, routine validation, PDF tasklist export, theme saving, and Google Tasks export-to-sheet support.",
+    "Removed cached Python bytecode from the release package."
   ]
 }
