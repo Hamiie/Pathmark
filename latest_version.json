@@ -1,6 +1,6 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "release_date": "2026-06-02",
   "notes": [
     "Polished Pathmark Online readiness messaging so Google/Sync status is shown in one compact banner.",
@@ -10,10 +10,12 @@
     "Improved setup parity by using the normal routine and goal managers during setup and allowing multiple routine activities.",
     "Tidied Google Calendar Export with a card preview and moved technical fields into an expander.",
     "Improved printable tasklist PDF sanitisation so HTML line breaks do not appear and checkbox rows use clean empty boxes.",
-    "Restored seasonal online themes with light and dark variants for Summer, Autumn, Winter and Spring.",
+    "Restored seasonal online themes while leaving light/dark appearance to Streamlit System, Light and Dark mode.",
     "Fixed button/link-button contrast, including the Open sync sheet button, and improved Area colour preview behaviour in setup.",
     "Removed redundant example guidance from Settings and refined user-facing privacy wording."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_3.zip",
-  "mac_package": ""
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_4.zip",
+  "mac_package": "",
+  "release": "v0.6.4 online parity completion polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_4.zip"
 }

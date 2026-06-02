@@ -65,23 +65,42 @@ GOOGLE_COLOUR_BY_LABEL = {name: {"code": code, "name": name, "hex": _hex} for co
 GOOGLE_COLOUR_BY_CODE_OR_NAME = {code.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
 GOOGLE_COLOUR_BY_CODE_OR_NAME.update({name.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS})
 
+ONLINE_THEME_OPTIONS = ["Summer", "Autumn", "Winter", "Spring"]
 ONLINE_THEMES = {
-    "Summer": {"accent": "#2F5D7C", "soft": "#FFF3C4", "surface": "#FFFFFF", "surface_2": "#EAF6FB", "background": "#FFF9E8", "ink": "#1F2221", "muted": "#626966", "line": "#E4D7A5", "button_text": "#FFFFFF", "seasonal_icon": "☀️ 🏖️"},
-    "Autumn": {"accent": "#8A5A34", "soft": "#F6E7D8", "surface": "#FFFFFF", "surface_2": "#F8EFE6", "background": "#FBF6EF", "ink": "#1F2221", "muted": "#6B5B4C", "line": "#E0C9B5", "button_text": "#FFFFFF", "seasonal_icon": "🍂"},
-    "Winter": {"accent": "#334E68", "soft": "#E7EEF4", "surface": "#FFFFFF", "surface_2": "#EFF5FA", "background": "#F7FAFC", "ink": "#1F2221", "muted": "#626966", "line": "#D8DEE6", "button_text": "#FFFFFF", "seasonal_icon": "❄️ ⛄"},
-    "Spring": {"accent": "#7A4E7A", "soft": "#F8EAF3", "surface": "#FFFFFF", "surface_2": "#FDEFF6", "background": "#FFF8FC", "ink": "#1F2221", "muted": "#626966", "line": "#E8CADB", "button_text": "#FFFFFF", "seasonal_icon": "🌸"},
-    "Summer dark": {"accent": "#7CC7E8", "soft": "#403A1E", "surface": "#111827", "surface_2": "#172033", "background": "#0B1117", "ink": "#F8FAFC", "muted": "#CBD5E1", "line": "#334155", "button_text": "#FFFFFF", "seasonal_icon": "☀️ 🏖️"},
-    "Autumn dark": {"accent": "#D69A5B", "soft": "#3A2418", "surface": "#111827", "surface_2": "#211A16", "background": "#0F0C0A", "ink": "#F8FAFC", "muted": "#D7C6B4", "line": "#4A3327", "button_text": "#FFFFFF", "seasonal_icon": "🍂"},
-    "Winter dark": {"accent": "#9CC5E8", "soft": "#1D3142", "surface": "#111827", "surface_2": "#1F2937", "background": "#0B1117", "ink": "#F8FAFC", "muted": "#CBD5E1", "line": "#334155", "button_text": "#FFFFFF", "seasonal_icon": "❄️ ⛄"},
-    "Spring dark": {"accent": "#D9A6C9", "soft": "#3A2132", "surface": "#111827", "surface_2": "#241827", "background": "#100B12", "ink": "#F8FAFC", "muted": "#E4C7DA", "line": "#4A2B42", "button_text": "#FFFFFF", "seasonal_icon": "🌸"},
-    # Compatibility aliases for existing saved preferences.
-    "Default": {"accent": "#334E68", "soft": "#E7EEF4", "surface": "#FFFFFF", "surface_2": "#EFEEE8", "background": "#F7F6F2", "ink": "#1F2221", "muted": "#626966", "line": "#D8D4CB", "button_text": "#FFFFFF", "seasonal_icon": "❄️ ⛄"},
-    "Sage": {"accent": "#3F6F5C", "soft": "#EAF3EE", "surface": "#FFFFFF", "surface_2": "#EEF3EE", "background": "#F7F8F3", "ink": "#1F2221", "muted": "#626966", "line": "#D8D4CB", "button_text": "#FFFFFF", "seasonal_icon": "🌸"},
-    "Blue": {"accent": "#2F5D7C", "soft": "#E8F0F6", "surface": "#FFFFFF", "surface_2": "#EDF3F8", "background": "#F6F8FA", "ink": "#1F2221", "muted": "#626966", "line": "#D8D4CB", "button_text": "#FFFFFF", "seasonal_icon": "❄️ ⛄"},
-    "Plum": {"accent": "#6B4E71", "soft": "#F0EAF2", "surface": "#FFFFFF", "surface_2": "#F4ECF4", "background": "#F8F5F8", "ink": "#1F2221", "muted": "#626966", "line": "#D8D4CB", "button_text": "#FFFFFF", "seasonal_icon": "🌸"},
-    "Warm": {"accent": "#8A5A34", "soft": "#F4EEE7", "surface": "#FFFFFF", "surface_2": "#F5EFE6", "background": "#FAF7F1", "ink": "#1F2221", "muted": "#626966", "line": "#D8D4CB", "button_text": "#FFFFFF", "seasonal_icon": "🍂"},
-    "Dark": {"accent": "#6EA4CF", "soft": "#1D3142", "surface": "#111827", "surface_2": "#1F2937", "background": "#0B1117", "ink": "#F8FAFC", "muted": "#CBD5E1", "line": "#334155", "button_text": "#FFFFFF", "seasonal_icon": "❄️ ⛄"},
+    # Seasonal choice controls Pathmark's accent, tint and icon. Light/dark mode
+    # is deliberately left to Streamlit's own Settings menu: System, Light or Dark.
+    "Summer": {"accent": "#2F5D7C", "soft_light": "#FFF3C4", "soft_dark": "#403A1E", "seasonal_icon": "☀️ 🏖️"},
+    "Autumn": {"accent": "#8A5A34", "soft_light": "#F6E7D8", "soft_dark": "#3A2418", "seasonal_icon": "🍂"},
+    "Winter": {"accent": "#334E68", "soft_light": "#E7EEF4", "soft_dark": "#1D3142", "seasonal_icon": "❄️ ⛄"},
+    "Spring": {"accent": "#7A4E7A", "soft_light": "#F8EAF3", "soft_dark": "#3A2132", "seasonal_icon": "🌸"},
+    # Compatibility aliases for existing saved preferences. These are normalised
+    # before display, so users no longer choose separate light/dark theme names.
+    "Default": {"alias_for": "Winter"},
+    "Sage": {"alias_for": "Spring"},
+    "Blue": {"alias_for": "Winter"},
+    "Plum": {"alias_for": "Spring"},
+    "Warm": {"alias_for": "Autumn"},
+    "Dark": {"alias_for": "Winter"},
+    "Summer dark": {"alias_for": "Summer"},
+    "Autumn dark": {"alias_for": "Autumn"},
+    "Winter dark": {"alias_for": "Winter"},
+    "Spring dark": {"alias_for": "Spring"},
 }
+
+
+def normalise_online_theme(theme_name: str | None) -> str:
+    """Return a seasonal Pathmark theme name.
+
+    The seasonal theme is separate from Streamlit's built-in appearance mode.
+    Streamlit controls System/Light/Dark; Pathmark controls Summer/Autumn/Winter/Spring.
+    """
+    name = str(theme_name or "").strip()
+    if name in ONLINE_THEME_OPTIONS:
+        return name
+    info = ONLINE_THEMES.get(name, {})
+    alias = str(info.get("alias_for", "") or "") if isinstance(info, dict) else ""
+    return alias if alias in ONLINE_THEME_OPTIONS else "Winter"
+
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 SETUP_STEPS = [
@@ -90,7 +109,7 @@ SETUP_STEPS = [
     ("areas", "Areas", "Create broad life systems so routines, goals and calendar groups have somewhere to belong."),
     ("routines", "Routines", "Add repeating habits and at least one activity so wellbeing and capacity are protected."),
     ("goals", "Goals and Projects", "Define what done looks like, then keep only the next one or two useful actions visible."),
-    ("actions", "Actions", "Turn goals into concrete next actions and first-step prompts that reduce friction."),
+    ("actions", "Goal activities", "Turn goals into concrete one-off activities and first-step prompts that reduce friction."),
     ("tasklist", "Tasklist", "Choose the saved actions and routine activities you want on a printable paper list."),
     ("calendar", "Google Calendar Export", "Preview how selected actions become calendar blocks."),
     ("tasks", "Google Tasks Export", "Preview first-step prompts for Google Tasks or the Google Tasks export tab."),
@@ -714,8 +733,7 @@ def read_supabase_user(email: str) -> dict[str, str] | None:
         return None
     rec = payload[0]
     theme = str(rec.get("theme_preference", "") or "Default")
-    if theme not in ONLINE_THEMES:
-        theme = "Default"
+    theme = normalise_online_theme(theme)
     return {
         "email": str(rec.get("email", "")).strip().lower(),
         "role": normalise_role(str(rec.get("role", "standard"))),
@@ -746,8 +764,7 @@ def list_supabase_users() -> list[dict[str, str]]:
         if not email:
             continue
         theme = str(rec.get("theme_preference", "") or "Default")
-        if theme not in ONLINE_THEMES:
-            theme = "Default"
+        theme = normalise_online_theme(theme)
         out.append({
             "email": email,
             "role": normalise_role(str(rec.get("role", "standard"))),
@@ -806,9 +823,9 @@ def upsert_supabase_user(email: str, role: str, status: str = "active", notes: s
 
 
 def update_supabase_user_theme(email: str, theme_name: str, actor_email: str = "") -> tuple[bool, str]:
-    """Persist the hosted theme with the user's Supabase access profile."""
+    """Persist the hosted seasonal theme with the user's Supabase access profile."""
     email = (email or "").strip().lower()
-    theme_name = theme_name if theme_name in ONLINE_THEMES else "Default"
+    theme_name = normalise_online_theme(theme_name)
     if not email:
         return False, "No signed-in user."
     if not supabase_available():
@@ -819,18 +836,17 @@ def update_supabase_user_theme(email: str, theme_name: str, actor_email: str = "
     if not ok:
         return False, "Could not save the theme to your Pathmark profile. The app will still use the theme in this session."
     write_audit_log(actor_email or email, "update_theme", email, {"theme": theme_name})
-    return True, "Theme saved to your Pathmark profile."
+    return True, "Seasonal theme saved to your Pathmark profile."
 
 
 def theme_for_user(email: str) -> str:
-    """Return the user's hosted theme preference from session/Supabase."""
+    """Return the user's hosted seasonal theme preference from session/Supabase."""
     cached = st.session_state.get("hosted_theme_preference")
-    if cached in ONLINE_THEMES:
-        return str(cached)
+    if cached:
+        return normalise_online_theme(cached)
     rec = read_supabase_user(email) if email else None
-    theme = rec.get("theme_preference", "Default") if rec else "Default"
-    if theme not in ONLINE_THEMES:
-        theme = "Default"
+    theme = rec.get("theme_preference", "Winter") if rec else "Winter"
+    theme = normalise_online_theme(theme)
     st.session_state["hosted_theme_preference"] = theme
     return theme
 
@@ -897,8 +913,8 @@ def maybe_record_login(email: str, role: str, status: str) -> None:
         target_role = "developer" if email in configured_developer_emails() else (existing.get("role") if existing else role)
         target_status = existing.get("status") if existing else status
         notes = existing.get("notes", "") if existing else "Auto-created from Google login."
-        if existing and existing.get("theme_preference") in ONLINE_THEMES:
-            st.session_state["hosted_theme_preference"] = existing.get("theme_preference")
+        if existing and existing.get("theme_preference"):
+            st.session_state["hosted_theme_preference"] = normalise_online_theme(existing.get("theme_preference"))
         upsert_supabase_user(email, str(target_role), str(target_status), notes=notes, actor_email="pathmark-system", update_login=True)
     st.session_state[key] = True
 
@@ -1962,9 +1978,32 @@ def record_title_map(df: pd.DataFrame, id_col: str) -> dict[str, str]:
 def safe_user_message(message: str) -> str:
     """Keep low-level API/code details out of the normal user interface."""
     text = str(message or "")
-    if "<HttpError" in text or "Traceback" in text or "returned \"" in text or "googleapis.com" in text:
-        return "Pathmark could not complete that action. Please refresh the online data or reconnect Google access, then try again."
+    low = text.lower()
+    raw_markers = [
+        "<httperror", "traceback", "nameerror", "keyerror", "valueerror",
+        "deltagenerator", "streamlit.runtime", "googleapis.com", "returned \"",
+        "quota exceeded", "rate limit", "refresh token", "access token",
+    ]
+    if any(marker in low for marker in raw_markers):
+        if "quota" in low or "rate" in low or "429" in low:
+            return "Pathmark could not refresh online data just now because Google Sheets is busy. Please wait a moment, then try Refresh online data."
+        return "Pathmark could not complete that action. Please refresh online data or reconnect Google access, then try again."
+    # Keep very long implementation messages out of the normal UI.
+    if len(text) > 500:
+        return "Pathmark could not complete that action. Please try again. Developer details are available in diagnostics."
     return text
+
+
+def render_safe_section(label: str, func, *args, **kwargs) -> None:
+    """Render a user-facing section without exposing raw tracebacks in the app."""
+    try:
+        func(*args, **kwargs)
+    except Exception as exc:
+        st.warning(f"Pathmark could not open {label} just now. Please refresh online data and try again.")
+        user = current_user() if 'current_user' in globals() else {}
+        if str(user.get('role', '')).lower() == 'developer':
+            with st.expander("Developer diagnostics", expanded=False):
+                st.code(repr(exc))
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
         st.info("No records yet.")
@@ -2030,79 +2069,100 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
 
 
 def inject_theme_css(theme_name: str) -> None:
-    """Apply a Pathmark theme across the hosted page."""
-    theme_name = theme_name if theme_name in ONLINE_THEMES else "Default"
-    theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Default"])
+    """Apply Pathmark's seasonal styling while leaving light/dark mode to Streamlit.
+
+    Streamlit's toolbar controls System, Light and Dark. Pathmark only supplies
+    seasonal accent tokens, then derives backgrounds and surfaces from
+    Streamlit's active CSS variables so every season has an automatic light and
+    dark variant.
+    """
+    theme_name = normalise_online_theme(theme_name)
+    theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
     accent = theme.get("accent", "#334E68")
-    soft = theme.get("soft", "#E7EEF4")
-    surface = theme.get("surface", "#FFFFFF")
-    surface_2 = theme.get("surface_2", "#EFEEE8")
-    background = theme.get("background", "#F7F6F2")
-    ink = theme.get("ink", "#1F2221")
-    muted = theme.get("muted", "#626966")
-    line = theme.get("line", "#D8D4CB")
-    button_text = theme.get("button_text", "#FFFFFF")
     seasonal_icon = theme.get("seasonal_icon", "")
     st.markdown(
         f"""
         <style>
         :root, [data-testid="stAppViewContainer"] {{
-          --accent: {accent} !important;
-          --accent-soft: {soft} !important;
-          --surface: {surface} !important;
-          --surface-2: {surface_2} !important;
-          --bg: {background} !important;
-          --ink: {ink} !important;
-          --muted: {muted} !important;
-          --line: {line} !important;
+          color-scheme: light dark;
+          --pathmark-accent: {accent};
+          --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
+          --pathmark-button-text: #FFFFFF;
+          --pathmark-bg: var(--st-background-color, var(--background-color, #F7F6F2));
+          --pathmark-surface: var(--st-secondary-background-color, var(--secondary-background-color, #FFFFFF));
+          --pathmark-ink: var(--st-text-color, var(--text-color, #1F2221));
+          --pathmark-muted: color-mix(in srgb, var(--pathmark-ink) 66%, var(--pathmark-bg));
+          --pathmark-line: var(--st-border-color, color-mix(in srgb, var(--pathmark-ink) 18%, var(--pathmark-bg)));
+          --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 15%, var(--pathmark-surface));
+          --pathmark-season-wash: color-mix(in srgb, var(--pathmark-accent) 8%, var(--pathmark-bg));
         }}
         [data-testid="stAppViewContainer"] {{
-          background: radial-gradient(circle at 12% 0%, color-mix(in srgb, {accent} 16%, transparent), transparent 26rem),
-                      radial-gradient(circle at 92% 8%, color-mix(in srgb, {soft} 45%, transparent), transparent 24rem),
-                      linear-gradient(180deg, {surface_2} 0%, {background} 100%) !important;
-          color: {ink} !important;
+          background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--pathmark-accent) 13%, transparent), transparent 26rem),
+                      radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--pathmark-accent) 9%, transparent), transparent 24rem),
+                      linear-gradient(180deg, var(--pathmark-season-wash) 0%, var(--pathmark-bg) 100%) !important;
+          color: var(--pathmark-ink) !important;
         }}
-        .card, .meta-card, .connection-card, .download-panel, .process-card, .step-card {{
-          background: {surface} !important;
-          color: {ink} !important;
-          border-color: {line} !important;
+        .card, .meta-card, .connection-card, .download-panel, .process-card, .step-card,
+        .pathmark-card, .issue-card, .setup-shell, .workspace-card {{
+          background: var(--pathmark-surface) !important;
+          color: var(--pathmark-ink) !important;
+          border: 1px solid var(--pathmark-line) !important;
+          border-radius: 14px !important;
         }}
-        .eyebrow, .pathmark-note, .pathmark-hint {{ background: {soft} !important; color: {ink} !important; border-color: {line} !important; }}
+        .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview {{
+          background: var(--pathmark-season-soft) !important;
+          color: var(--pathmark-ink) !important;
+          border-color: var(--pathmark-line) !important;
+        }}
         .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
-        .guide-box {{ border-left-color: {accent} !important; background: {surface} !important; color: {ink} !important; }}
-        .setup-example {{ background: {soft} !important; color: {ink} !important; border-left-color: {accent} !important; }}
-        .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a:visited, [data-testid="stLinkButton"] a:hover {{
-          background: {accent} !important;
-          color: {button_text} !important;
-          border-color: color-mix(in srgb, {accent} 65%, #000000) !important;
+        .guide-box {{
+          border-left: 5px solid var(--pathmark-accent) !important;
+          background: var(--pathmark-surface) !important;
+          color: var(--pathmark-ink) !important;
+        }}
+        .setup-progress-wrap {{ width: 100%; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--pathmark-muted) 20%, transparent); overflow: hidden; margin: 0.7rem 0 0.25rem; }}
+        .setup-progress-fill {{ height: 100%; background: var(--pathmark-accent-strong); border-radius: 999px; }}
+        .setup-step-label {{ display: inline-flex; gap: .3rem; padding: .25rem .6rem; border-radius: 999px; background: var(--pathmark-season-soft); color: var(--pathmark-ink); font-weight: 720; }}
+        .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a:visited, [data-testid="stLinkButton"] a:hover,
+        a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"] {{
+          background: var(--pathmark-accent-strong) !important;
+          color: var(--pathmark-button-text) !important;
+          border-color: color-mix(in srgb, var(--pathmark-accent-strong) 70%, #000000) !important;
+          text-decoration: none !important;
+          font-weight: 650 !important;
         }}
         .stButton button *, .stButton button p, .stButton button span,
         .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
-        [data-testid="stLinkButton"] a * {{ color: {button_text} !important; }}
+        [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a *,
+        a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] * {{ color: var(--pathmark-button-text) !important; }}
         .stButton button:disabled, .stDownloadButton button:disabled {{
-          background: color-mix(in srgb, {surface_2} 80%, #808080) !important;
-          color: {muted} !important;
-          border-color: {line} !important;
+          background: color-mix(in srgb, var(--pathmark-surface) 82%, var(--pathmark-muted)) !important;
+          color: var(--pathmark-muted) !important;
+          border-color: var(--pathmark-line) !important;
         }}
-        .stButton button:disabled *, .stDownloadButton button:disabled * {{ color: {muted} !important; }}
+        .stButton button:disabled *, .stDownloadButton button:disabled * {{ color: var(--pathmark-muted) !important; }}
         [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] *,
         [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *,
         [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {{
-          color: {ink} !important;
+          color: var(--pathmark-ink) !important;
           opacity: 1 !important;
         }}
         [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
         button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {{
-          color: #C93F47 !important;
+          color: var(--pathmark-accent) !important;
           font-weight: 760 !important;
         }}
         input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
         [data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {{
-          background: {surface} !important;
-          color: {ink} !important;
-          border-color: {line} !important;
+          background: var(--pathmark-surface) !important;
+          color: var(--pathmark-ink) !important;
+          border-color: var(--pathmark-line) !important;
         }}
-        [role="listbox"], [role="option"] {{ background: {surface} !important; color: {ink} !important; }}
+        [role="listbox"], [role="option"] {{ background: var(--pathmark-surface) !important; color: var(--pathmark-ink) !important; }}
+        .swatch-row {{ display: flex; flex-wrap: wrap; gap: .45rem; margin: .35rem 0 .65rem; }}
+        .swatch {{ display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .45rem; border: 1px solid var(--pathmark-line); border-radius: 999px; background: var(--pathmark-surface); }}
+        .swatch-dot, .area-colour-dot {{ width: .9rem; height: .9rem; border-radius: 999px; display: inline-block; border: 1px solid color-mix(in srgb, #000 22%, transparent); }}
+        .area-colour-preview {{ display:flex; align-items:center; gap:.6rem; padding:.75rem .85rem; border-left: 5px solid var(--pathmark-accent); border-radius: 12px; margin: .5rem 0 1rem; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -2110,7 +2170,7 @@ def inject_theme_css(theme_name: str) -> None:
 
 def apply_online_theme(sheet_id: str) -> None:
     theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Winter")) if sheet_id else st.session_state.get("hosted_theme_preference", "Winter")
-    inject_theme_css(theme_name)
+    inject_theme_css(normalise_online_theme(theme_name))
 
 
 def google_colour_label(value: str) -> str:
@@ -2166,8 +2226,6 @@ def validate_routine_schedule(frequency: str, preferred_days: str) -> list[str]:
         problems.append("Preferred days must use weekday names such as Monday, Wednesday, Friday.")
     if freq in {"Weekly", "Weekdays"} and not valid_days:
         problems.append("Weekly and Weekdays routines need preferred days for reliable exports.")
-    if freq == "Daily" and valid_days:
-        problems.append("Daily routines should usually leave preferred days blank, because they repeat every day.")
     if freq == "Weekdays":
         weekend = {"Saturday", "Sunday"}.intersection(valid_days)
         if weekend:
@@ -2689,14 +2747,22 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
             default_minutes = 30
         minutes = c3.number_input("Calendar duration / estimated minutes", min_value=0, step=5, value=default_minutes)
         c4, c5 = st.columns(2)
-        scheduled = c4.text_input("Calendar date", value=str(action.get("scheduled_date", "") or ""), placeholder="YYYY-MM-DD")
-        due = c5.text_input("Task due date", value=str(action.get("due_date", "") or ""), placeholder="YYYY-MM-DD")
+        scheduled = c4.text_input("Calendar date", value=str(action.get("scheduled_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        due = c5.text_input("Google Tasks due date", value=str(action.get("due_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD")
         activity_days = ""
         if is_routine_activity:
-            activity_days = st.text_input("Repeat days for this activity", value=str(action.get("activity_days", "") or ""), placeholder="For example Monday, Wednesday")
+            current_activity_days, _bad_activity_days = parse_days_text(str(action.get("activity_days", "")))
+            selected_activity_days = st.multiselect("Repeat this activity on", VALID_DAYS, default=current_activity_days, help="Use this when a routine has several activities on different days. It is used for calendar recurrence and date-based Google Tasks prompts.")
+            activity_days = ", ".join(selected_activity_days)
 
         st.markdown("**Where this activity can appear**")
-        st.caption("Calendar blocks use date, time, duration and repeat rules. Tasklist rows print on the weekly checklist. Google Tasks prompts are date-based first steps; Google Tasks export does not support duration, and due times are not preserved by the Tasks API.")
+        st.markdown("""
+        <div class='pathmark-note'>
+        <strong>Calendar block:</strong> use this for scheduled time, start/end times, duration and repeats.<br>
+        <strong>Weekly tasklist:</strong> use this when you want to tick the activity off by hand.<br>
+        <strong>Google Tasks prompt:</strong> use this for a date-based first step. Google Tasks export does not preserve duration or scheduled time, so time-blocked work belongs in Calendar.
+        </div>
+        """, unsafe_allow_html=True)
         c6, c7, c8 = st.columns(3)
         include_tasklist = c6.checkbox("Add this activity to the weekly tasklist", value=truthy_flag(action.get("include_tasklist", "1")))
         calendar_block = c7.checkbox("Create a Google Calendar time block", value=truthy_flag(action.get("calendar_block", "0")))
@@ -2714,7 +2780,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
             location = str(action.get("calendar_location", "") or "")
         if reminder:
             first_step = st.text_input("First-action prompt for Google Tasks", value=str(action.get("first_step", "") or ""), placeholder="For example, put on running shoes or open the sketchbook")
-            prompt_time = st.text_input("Reference time to include in the note", value=str(action.get("task_reminder_time", start_time or "09:00") or "09:00"), help="Stored as a note/reference only. Google Tasks export uses the due date, not a scheduled duration.")
+            prompt_time = st.text_input("Optional reference time to include in the Google Tasks note", value=str(action.get("task_reminder_time", start_time or "09:00") or "09:00"), help="This is written as note text only. Google Tasks export uses the due date, not a scheduled time or duration.")
         else:
             first_step = str(action.get("first_step", "") or "")
             prompt_time = str(action.get("task_reminder_time", "") or "")
@@ -2755,7 +2821,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
 
 def _render_action_list(sheet_id: str, actions: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
     if actions.empty:
-        st.info("No activities yet." if routine_id else "No actions yet.")
+        st.info("No routine activities yet." if routine_id else "No goal activities yet.")
     else:
         for _, a in actions.iterrows():
             state = str(a.get("status", "") or ("Included" if routine_id else "Planned"))
@@ -2764,7 +2830,7 @@ def _render_action_list(sheet_id: str, actions: pd.DataFrame, *, goal_id: str = 
             suffix = f" · {when}" if when else ""
             with st.expander(f"{title}{suffix} — {state}", expanded=False):
                 _action_form(sheet_id, goal_id=goal_id, routine_id=routine_id, default_area=default_area, form_key=f"action_{a.get('action_id')}", action=a.to_dict())
-                if st.button("Archive action" if not routine_id else "Archive activity", key=f"archive_action_{a.get('action_id')}"):
+                if st.button("Archive goal activity" if not routine_id else "Archive routine activity", key=f"archive_action_{a.get('action_id')}"):
                     ok, message = archive_online_record(sheet_id, "actions", str(a.get("action_id", "")), "Archived from Pathmark Online.")
                     st.success(message) if ok else st.warning(safe_user_message(message))
                     if ok:
@@ -3003,39 +3069,50 @@ def render_routine_manager(sheet_id: str) -> None:
 
 def render_review_queue_manager(sheet_id: str) -> None:
     st.subheader("Review Queue")
-    st.write("Use this before exporting. It looks for missing details that could stop routines, actions, calendar blocks, task prompts and tasklists from working together.")
-    goals = active_online_df(read_online_table(sheet_id, "goals"))
-    routines = active_online_df(read_online_table(sheet_id, "routines"))
-    actions = active_online_df(read_online_table(sheet_id, "actions"))
+    st.write("Review Queue checks whether the parts of your workspace are ready to work together before you export tasklists, calendar blocks or Google Tasks prompts.")
+    data = read_online_tables(sheet_id)
     issues = []
-    for _, g in goals.iterrows():
-        if not str(g.get("area_name", "") or "").strip():
-            issues.append({"Priority": "Medium", "Type": "Goal", "Item": g.get("title", "Untitled"), "Issue": "No Area is selected.", "Suggested action": "Choose where this goal belongs."})
-        if not str(g.get("closure_criteria", "") or g.get("desired_outcome", "") or g.get("description", "") or "").strip():
-            issues.append({"Priority": "Low", "Type": "Goal", "Item": g.get("title", "Untitled"), "Issue": "No definition of done is recorded.", "Suggested action": "Add closure criteria so you know when it is finished."})
+    areas = active_online_df(data.get("areas", pd.DataFrame()))
+    goals = active_online_df(data.get("goals", pd.DataFrame()))
+    routines = active_online_df(data.get("routines", pd.DataFrame()))
+    actions = active_online_df(data.get("actions", pd.DataFrame()))
+
+    if areas.empty:
+        issues.append({"priority": "High", "kind": "Area", "item": "No Areas yet", "issue": "Create at least one Area so routines, goals and exports have somewhere to belong.", "next": "Add an Area such as Body and Stability, Food and Home, Work and Admin, or Learning and Creativity."})
     for _, r in routines.iterrows():
-        if not str(r.get("frequency", "") or "").strip():
-            issues.append({"Priority": "Medium", "Type": "Routine", "Item": r.get("title", "Untitled"), "Issue": "No repeat pattern is recorded.", "Suggested action": "Add how often this routine should happen."})
-        linked = actions[actions["routine_id"].fillna("").astype(str).eq(str(r.get("routine_id", "")))] if not actions.empty and "routine_id" in actions.columns else pd.DataFrame()
+        rid = str(r.get("routine_id", "") or "")
+        linked = actions[actions["routine_id"].fillna("") == rid] if not actions.empty and "routine_id" in actions.columns else pd.DataFrame()
+        if str(r.get("frequency", "") or "").strip() == "":
+            issues.append({"priority": "Medium", "kind": "Routine", "item": r.get("title", "Untitled"), "issue": "This routine does not have a repeat pattern yet.", "next": "Open the routine and set how often it repeats."})
         if linked.empty:
-            issues.append({"Priority": "Medium", "Type": "Routine", "Item": r.get("title", "Untitled"), "Issue": "This routine has no activity yet.", "Suggested action": "Add the concrete activity that will appear on tasklists and exports."})
+            issues.append({"priority": "Medium", "kind": "Routine", "item": r.get("title", "Untitled"), "issue": "This routine does not have an activity yet.", "next": "Add at least one routine activity so Pathmark can place it on a tasklist, calendar export or Google Tasks prompt."})
+    for _, g in goals.iterrows():
+        gid = str(g.get("goal_id", "") or "")
+        linked = actions[actions["goal_id"].fillna("") == gid] if not actions.empty and "goal_id" in actions.columns else pd.DataFrame()
+        if not str(g.get("closure_criteria", "") or g.get("desired_outcome", "") or "").strip():
+            issues.append({"priority": "Medium", "kind": "Goal", "item": g.get("title", "Untitled"), "issue": "This goal does not yet say what done looks like.", "next": "Add a measure of success or definition of done."})
+        if linked.empty:
+            issues.append({"priority": "Medium", "kind": "Goal", "item": g.get("title", "Untitled"), "issue": "This goal does not have a next activity yet.", "next": "Add one or two concrete goal activities rather than a full project plan."})
     for _, a in actions.iterrows():
-        if truthy_flag(a.get("reminder")) and not str(a.get("first_step", "") or "").strip():
-            issues.append({"Priority": "High", "Type": "Action", "Item": a.get("title", "Untitled"), "Issue": "Google Tasks is ticked but no first-step prompt is recorded.", "Suggested action": "Add a short first action, such as putting on shoes or opening the sketchbook."})
-        if truthy_flag(a.get("calendar_block")) and not (str(a.get("scheduled_date", "") or a.get("due_date", "") or "").strip()):
-            issues.append({"Priority": "High", "Type": "Action", "Item": a.get("title", "Untitled"), "Issue": "Calendar export is ticked but there is no date.", "Suggested action": "Add a scheduled or due date before exporting."})
+        title = a.get("title", "Untitled")
+        if truthy_flag(a.get("calendar_block", "0")) and not str(a.get("scheduled_date", "") or "").strip():
+            issues.append({"priority": "High", "kind": "Calendar", "item": title, "issue": "This activity is marked for Google Calendar but does not have a date.", "next": "Add a calendar date and start/end time, or untick the Calendar block option."})
+        if truthy_flag(a.get("reminder", "0")) and not str(a.get("first_step", "") or "").strip():
+            issues.append({"priority": "Medium", "kind": "Google Tasks", "item": title, "issue": "This activity is marked for Google Tasks but does not have a first-action prompt.", "next": "Add a tiny first step such as 'put on running shoes' or untick the Google Tasks prompt option."})
+
     if not issues:
-        st.success("Everything obvious is ready. As you add more details, Pathmark will keep checking for missing links.")
+        st.success("No review issues found. Your active workspace has enough structure for tasklists and exports.")
         return
+    st.markdown("### Things to tidy")
     priority_order = {"High": 0, "Medium": 1, "Low": 2}
-    issues = sorted(issues, key=lambda x: (priority_order.get(x["Priority"], 9), x["Type"], x["Item"]))
-    for issue in issues:
+    for issue in sorted(issues, key=lambda x: priority_order.get(x.get("priority", "Medium"), 1)):
         st.markdown(
             f"""
-            <div class='step-card'>
-              <h3>{html.escape(issue['Priority'])}: {html.escape(issue['Item'])}</h3>
-              <p><strong>{html.escape(issue['Type'])}</strong> · {html.escape(issue['Issue'])}</p>
-              <p>{html.escape(issue['Suggested action'])}</p>
+            <div class='issue-card' style='padding: .85rem 1rem; margin: .65rem 0;'>
+              <div class='eyebrow'>{html.escape(str(issue.get('priority', 'Medium')))} · {html.escape(str(issue.get('kind', 'Review')))}</div>
+              <h3>{html.escape(str(issue.get('item', 'Item')))}</h3>
+              <p>{html.escape(str(issue.get('issue', '')))}</p>
+              <p><strong>Next:</strong> {html.escape(str(issue.get('next', '')))}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -3172,7 +3249,27 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Export")
     st.write("Google Tasks prompts are date-based first steps from goal activities and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
     prompts = staged_task_prompts(sheet_id)
-    dataframe_preview(prompts, ["title", "area_name", "due_date", "task_list", "linked_calendar_summary"])
+    if prompts.empty:
+        st.info("No Google Tasks prompts are staged yet. Tick 'Create a Google Tasks first-action prompt' on a goal activity or routine activity.")
+    else:
+        st.markdown("### Google Tasks prompts ready to export")
+        for _, row in prompts.iterrows():
+            title = html.escape(str(row.get("title", "Task prompt") or "Task prompt"))
+            due = human_calendar_datetime(str(row.get("due_date", "") or ""))
+            area = html.escape(str(row.get("area_name", "") or ""))
+            task_list = html.escape(str(row.get("task_list", "Pathmark") or "Pathmark"))
+            st.markdown(
+                f"""
+                <div class='step-card'>
+                  <h3>{title}</h3>
+                  <p><strong>{html.escape(due) if due else 'No due date yet'}</strong></p>
+                  <p>{'Area: ' + area + ' · ' if area else ''}Task list: {task_list}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with st.expander("Show Google Tasks export details", expanded=False):
+            dataframe_preview(prompts, ["title", "area_name", "due_date", "task_list", "linked_calendar_summary"])
     st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
     if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
         ok, message = write_google_tasks_export_tab(sheet_id, prompts)
@@ -3184,7 +3281,6 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
             ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=True)
             st.success(message) if ok else st.warning(safe_user_message(message))
             st.rerun()
-
 
 def render_archive_manager(sheet_id: str) -> None:
     st.subheader("Archive")
@@ -3223,7 +3319,7 @@ def render_online_settings(sheet_id: str) -> None:
     st.subheader("Settings")
     st.write("Manage your online workspace, seasonal theme, and Google Sheet connection.")
     if sheet_id:
-        st.caption(f"Sync sheet connected: …{sheet_id[-8:]}")
+        st.caption("Pathmark Sync sheet is connected for this session.")
     else:
         st.caption("No sync sheet selected.")
     c1, c2, c3 = st.columns(3)
@@ -3284,12 +3380,11 @@ def render_online_settings(sheet_id: str) -> None:
                 st.warning(safe_user_message(message))
             st.rerun()
     st.markdown("### Theme")
-    st.write("Choose a seasonal theme. Each seasonal theme has a light and dark variant; use Streamlit's top-right appearance menu if you want the browser chrome to match light or dark mode.")
-    current_theme = st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Winter")
-    if current_theme not in ONLINE_THEMES:
-        current_theme = "Winter"
-    theme_name = st.selectbox("Online theme", list(ONLINE_THEMES.keys()), index=list(ONLINE_THEMES.keys()).index(current_theme))
+    st.write("Choose the seasonal character of Pathmark. Light and dark mode are controlled separately through Streamlit's own Settings menu: System, Light or Dark.")
+    current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Winter"))
+    theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme))
     if st.button("Save theme", use_container_width=True):
+        theme_name = normalise_online_theme(theme_name)
         ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
         user = current_user()
         ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
@@ -3304,15 +3399,26 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
-    """Build a polished printable tasklist PDF with real checkbox symbols."""
+    """Build a polished printable tasklist PDF with clean checkbox cells."""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.graphics.shapes import Drawing, Rect
     except Exception:
         return build_printable_tasklist_from_rows(rows)
+
+    def checkbox_box() -> Drawing:
+        drawing = Drawing(9, 9)
+        drawing.add(Rect(0.75, 0.75, 7.5, 7.5, strokeColor=colors.HexColor("#7A827F"), fillColor=colors.white, strokeWidth=0.8))
+        return drawing
+
+    def clean_text(value: Any) -> str:
+        text = re.sub(r"<\s*br\s*/?\s*>", " · ", str(value or ""), flags=re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", "", text)
+        return html.escape(text.strip())
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=14*mm, bottomMargin=14*mm)
@@ -3324,7 +3430,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
     small = ParagraphStyle("PathmarkSmall", parent=styles["BodyText"], fontSize=8.4, leading=11, textColor=colors.HexColor("#626966"))
 
     story = [
-        Paragraph(html.escape(title or "Pathmark Tasklist"), title_style),
+        Paragraph(clean_text(title or "Pathmark Tasklist"), title_style),
         Paragraph(datetime.now().strftime("Created %d %B %Y"), sub_style),
         Spacer(1, 4),
     ]
@@ -3336,7 +3442,8 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
             if subset.empty:
                 continue
-            story.append(Paragraph(html.escape(source_type + "s"), h_style))
+            heading = "Goal activities" if source_type == "Goal action" else "Routine activities"
+            story.append(Paragraph(clean_text(heading), h_style))
             data = [["", "Task", "When / context", "First action prompt"]]
             for _, row in subset.iterrows():
                 context_bits = []
@@ -3348,10 +3455,10 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                         context_bits.append(f"{label}: {val}")
                 first = str(row.get("first_step", "") or "").strip()
                 data.append([
-                    "□",
-                    Paragraph(html.escape(str(row.get("title", "Untitled") or "Untitled")), body),
-                    Paragraph("<br/>".join(html.escape(bit) for bit in context_bits), small),
-                    Paragraph(html.escape(first), body),
+                    checkbox_box(),
+                    Paragraph(clean_text(row.get("title", "Untitled") or "Untitled"), body),
+                    Paragraph(clean_text(" · ".join(context_bits)), small),
+                    Paragraph(clean_text(first), body),
                 ])
             table = Table(data, colWidths=[8*mm, 60*mm, 52*mm, 58*mm], repeatRows=1)
             table.setStyle(TableStyle([
@@ -3362,7 +3469,6 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("ALIGN", (0, 1), (0, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8.5),
                 ("LEFTPADDING", (0, 0), (-1, -1), 5),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -3375,10 +3481,9 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
     if notes.strip():
         story.append(Paragraph("Notes", h_style))
         for line in notes.strip().splitlines():
-            story.append(Paragraph(html.escape(line), body))
+            story.append(Paragraph(clean_text(line), body))
     doc.build(story)
     return buffer.getvalue()
-
 
 def parse_dt_for_ics(value: str) -> str:
     text = (value or "").strip()
@@ -3675,51 +3780,21 @@ def render_setup_goal_step(sheet_id: str) -> None:
 
 def render_setup_action_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>Example goal activity:</strong> Purchase a beginner sketching guide. First-step prompt: search for one beginner guide and save two options.</div>
+    <div class='setup-example'><strong>Example goal activity:</strong> Purchase a beginner sketching guide. <strong>First-step prompt:</strong> search for one beginner guide and save two options.</div>
     """, unsafe_allow_html=True)
+    st.write("Goal activities are usually one-off steps. If the same work repeats, create it as a routine activity instead.")
     goal_options, goal_map = setup_goal_options(sheet_id)
     if not goal_options:
         st.info("Create at least one goal first, then add the next one or two goal activities that would move it forward.")
         return
-    with st.form("setup_action_form"):
-        goal_label = st.selectbox("Goal", goal_options)
-        title = st.text_input("Goal activity", placeholder="For example, purchase a beginner sketching guide")
-        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, search for one beginner guide and save two options")
-        minutes = st.number_input("Approximate minutes", min_value=0, max_value=480, value=30, step=5)
-        scheduled = st.text_input("Calendar date", placeholder="Optional, DD-MM-YYYY")
-        start_time = st.text_input("Calendar start time", placeholder="Optional, HH:MM")
-        end_time = st.text_input("Calendar end time", placeholder="Optional, HH:MM")
-        save = st.form_submit_button("Save this goal activity", use_container_width=True)
-    if save:
-        if not title.strip():
-            st.warning("Add an activity before saving.")
-        elif scheduled and not valid_online_date(scheduled):
-            st.warning("Use DD-MM-YYYY for the calendar date, or leave it blank.")
-        elif start_time and not valid_online_time(start_time):
-            st.warning("Use HH:MM for the start time, or leave it blank.")
-        elif end_time and not valid_online_time(end_time):
-            st.warning("Use HH:MM for the end time, or leave it blank.")
-        else:
-            goal = goal_map.get(goal_label, {})
-            ok, message = append_online_record(sheet_id, "actions", {
-                "action_id": f"action-{uuid.uuid4().hex}",
-                "goal_id": goal.get("goal_id", ""),
-                "area_id": goal.get("area_id", ""),
-                "area_name": goal.get("area_name", ""),
-                "title": title.strip(),
-                "description": title.strip(),
-                "status": "active",
-                "estimated_minutes": str(minutes),
-                "scheduled_date": normalise_online_date(scheduled),
-                "calendar_block": "1" if scheduled.strip() and start_time.strip() else "0",
-                "reminder": "1" if first_step.strip() else "0",
-                "include_tasklist": "1",
-                "first_step": first_step.strip(),
-                "calendar_start_time": start_time.strip(),
-                "calendar_end_time": end_time.strip(),
-            })
-            st.success("Goal activity saved. You can now review it and export it when ready.") if ok else st.warning(safe_user_message(message))
-
+    goal_label = st.selectbox("Choose the goal to add an activity to", goal_options, key="setup_goal_activity_parent")
+    goal = goal_map.get(goal_label, {})
+    _action_form(
+        sheet_id,
+        goal_id=str(goal.get("goal_id", "")),
+        default_area=str(goal.get("area_name", "")),
+        form_key=f"setup_goal_activity_{goal.get('goal_id', 'new')}",
+    )
 
 def render_setup_review_step(sheet_id: str) -> None:
     st.markdown("""
@@ -3760,6 +3835,16 @@ def render_setup_archive_step(sheet_id: str) -> None:
     st.write("Archive does not have to mean gone forever. Restore an item if you decide it belongs back in the active workspace.")
     render_archive_manager(sheet_id)
 
+
+def render_setup_step_safe(label: str, func, sheet_id: str) -> None:
+    try:
+        func(sheet_id)
+    except Exception as exc:
+        st.warning(f"Pathmark could not open this setup step just now. Please refresh online data and try again.")
+        if str(current_user().get('role', '')).lower() == 'developer':
+            with st.expander("Developer diagnostics", expanded=False):
+                st.code(repr(exc))
+
 def render_setup_pathway_primary(sheet_id: str) -> None:
     state = get_setup_state(sheet_id)
     current_idx = setup_step_index(state["current_step"])
@@ -3778,25 +3863,25 @@ def render_setup_pathway_primary(sheet_id: str) -> None:
     st.write(desc)
 
     if key == "focus":
-        render_setup_focus_step(sheet_id)
+        render_setup_step_safe("focus", render_setup_focus_step, sheet_id)
     elif key == "review":
-        render_setup_review_step(sheet_id)
+        render_setup_step_safe("review", render_setup_review_step, sheet_id)
     elif key == "areas":
-        render_setup_area_step(sheet_id)
+        render_setup_step_safe("areas", render_setup_area_step, sheet_id)
     elif key == "routines":
-        render_setup_routine_step(sheet_id)
+        render_setup_step_safe("routines", render_setup_routine_step, sheet_id)
     elif key == "goals":
-        render_setup_goal_step(sheet_id)
+        render_setup_step_safe("goals", render_setup_goal_step, sheet_id)
     elif key == "actions":
-        render_setup_action_step(sheet_id)
+        render_setup_step_safe("actions", render_setup_action_step, sheet_id)
     elif key == "tasklist":
-        render_setup_tasklist_step(sheet_id)
+        render_setup_step_safe("tasklist", render_setup_tasklist_step, sheet_id)
     elif key == "calendar":
-        render_setup_calendar_step(sheet_id)
+        render_setup_step_safe("calendar", render_setup_calendar_step, sheet_id)
     elif key == "tasks":
-        render_setup_tasks_step(sheet_id)
+        render_setup_step_safe("tasks", render_setup_tasks_step, sheet_id)
     elif key == "archive":
-        render_setup_archive_step(sheet_id)
+        render_setup_step_safe("archive", render_setup_archive_step, sheet_id)
 
     st.markdown("<div class='setup-nav-row'></div>", unsafe_allow_html=True)
     left, right = st.columns(2)
@@ -3848,7 +3933,7 @@ def render_online_overview(sheet_id: str) -> None:
 
     st.markdown("""
     <div class="guide-box"><strong>Your active workspace.</strong><br>
-    Pathmark is designed so you can duck in and out: keep active routines and goal actions visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
+    Pathmark is designed so you can duck in and out: keep active routines, routine activities and goal activities visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
         st.info("Use Settings to revisit guided setup, or start by creating an Area, then routines, then goals.")
@@ -3875,7 +3960,7 @@ def download_tab() -> None:
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Put it in the calendar</h3><p>Routines and goal actions become calendar blocks, so the work has a real place in the week.</p></div>
+      <div class="card"><h3>Put it in the calendar</h3><p>Routine activities and goal activities become calendar blocks, so the work has a real place in the week.</p></div>
       <div class="card"><h3>Keep goals from drifting</h3><p>Track competing goals and interests in one place, then define only the next one or two useful actions.</p></div>
       <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks prompts for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
     </div>
@@ -4088,25 +4173,25 @@ def on_the_go_tab() -> None:
         "Settings",
     ])
     with sections[0]:
-        render_online_overview(sheet_id)
+        render_safe_section("Home", render_online_overview, sheet_id)
     with sections[1]:
-        render_review_queue_manager(sheet_id)
+        render_safe_section("Review Queue", render_review_queue_manager, sheet_id)
     with sections[2]:
-        render_area_manager(sheet_id)
+        render_safe_section("Areas", render_area_manager, sheet_id)
     with sections[3]:
-        render_routine_manager(sheet_id)
+        render_safe_section("Routines", render_routine_manager, sheet_id)
     with sections[4]:
-        render_goal_manager(sheet_id)
+        render_safe_section("Goals and Projects", render_goal_manager, sheet_id)
     with sections[5]:
-        render_tasklist_manager(sheet_id)
+        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
     with sections[6]:
-        render_google_calendar_export_manager(sheet_id)
+        render_safe_section("Google Calendar Export", render_google_calendar_export_manager, sheet_id)
     with sections[7]:
-        render_google_tasks_export_manager(sheet_id)
+        render_safe_section("Google Tasks Export", render_google_tasks_export_manager, sheet_id)
     with sections[8]:
-        render_archive_manager(sheet_id)
+        render_safe_section("Archive", render_archive_manager, sheet_id)
     with sections[9]:
-        render_online_settings(sheet_id)
+        render_safe_section("Settings", render_online_settings, sheet_id)
 
 def developer_tab() -> None:
     st.header("Developer settings")
