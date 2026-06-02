@@ -1,13 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.95",
+  "version": "0.5.97",
   "release_date": "2026-06-02",
   "notes": [
-    "Added a guided setup pathway for Areas, Routines, Goals, Actions, Exports and Archive.",
-    "Pathmark Online now tracks setup status in the user-owned Pathmark Sync Google Sheet and lets users revisit setup without deleting data.",
-    "Added export metadata fields and post-export archive actions for calendar exports, Google Tasks exports and PDF tasklists.",
-    "Archive now supports restoring records back to the active workspace."
+    "Made guided setup the primary first-time Pathmark Online experience.",
+    "Changed setup navigation to a vertical step-by-step flow with Back, Next, Finish and Skip setup options.",
+    "Changed examples to non-committed placeholders inside setup forms rather than starter records loaded into the live sheet.",
+    "Removed setup from underneath the main Home dashboard and kept normal workspace navigation for returning users.",
+    "Kept setup progress in the user-owned Pathmark Sync Google Sheet and allowed users to revisit setup later without deleting data."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_95.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_97.zip",
   "mac_package": ""
 }

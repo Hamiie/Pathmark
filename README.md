@@ -145,12 +145,15 @@ Keep `[pathmark_access].developer_emails` in Streamlit secrets as an emergency b
 
 ## Privacy and storage model
 
-Pathmark deliberately separates personal planning data from hosted access management.
+Pathmark separates app code, deployment secrets, hosted access management, and personal planning data. This is important for beta testing and for user trust.
 
-- **Desktop Workspace:** the Windows app stores local planning files, exports, backups, database records, and generated Markdown in the Workspace folder selected by the user. Updating the app should replace only `Documents\Pathmark`, not the Workspace.
-- **User-owned Google Sheet:** Pathmark Online stores web companion records in a `Pathmark Sync` spreadsheet owned by the signed-in user. The app uses the narrow `drive.file` permission so it can create and update Pathmark files the user authorises without requesting broad access to all spreadsheets.
-- **Supabase:** Supabase stores access records only: email, role, status, feature flags, last-login data, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, Markdown, backups, or private planning content.
-- **GitHub:** the public repository stores the app code, release package, migration files, and documentation. It must not contain OAuth secrets, Supabase keys, tokens, user Workspace files, or personal planning data.
+- **User-owned Google Sheet:** Pathmark Online stores Areas, routines, goals, actions, setup progress, tasklist/export records, and archive status in a `Pathmark Sync` spreadsheet owned by the signed-in user. The app uses the narrow Google `drive.file` permission so it can create and update Pathmark files the user authorises without requesting broad access to all spreadsheets.
+- **Desktop Workspace:** the Windows app stores local Workspace folders, Markdown files, exports, tasklists, backups, database records, routines, goals, and Areas in the Workspace folder selected by the user.
+- **Supabase:** Supabase stores access/profile metadata only: email, role, account status, feature flags, last-login/audit records, and theme preference. It must not store goals, routines, task prompts, calendar plans, Workspace files, Markdown, backups, or private planning content.
+- **GitHub:** the public repository stores the app code, release packages, migration files, and documentation. It must not contain OAuth secrets, Supabase keys, tokens, user Workspace files, personal planning sheets, or private planning data.
+- **Streamlit secrets:** deployment credentials such as Google OAuth secrets and Supabase secret keys belong in Streamlit secrets, not in GitHub.
+
+The hosted **About & Privacy** tab explains this in user-facing language and identifies how Google, Streamlit, Supabase, and GitHub are used.
 
 ## Pathmark Online Google Sheet setup
 
@@ -289,3 +292,17 @@ The hosted app injects the manifest and icon links into the page head at runtime
 ## v0.5.95
 
 Adds the Pathmark Online guided setup pathway and export-to-archive workflow. Setup status and archive/export metadata are stored in the user-owned Pathmark Sync Google Sheet.
+
+## v0.5.96 About & Privacy user-facing revision
+
+This release revises the hosted About & Privacy page so it explains Pathmark's storage and access model in user-facing language rather than backend/developer language. It clarifies how Pathmark uses Google, Streamlit, Supabase and GitHub, and keeps the same privacy boundary: personal planning records belong in the user's Google Sheet or local Workspace, not in Supabase or GitHub.
+
+A release-package safety scan was also run for obvious secrets and private data patterns, including Supabase `sb_secret_...` keys, Google client secrets, Google API keys, private keys, OAuth access/refresh tokens, JWT-like service-role tokens, and the developer's email address. Only documented placeholder text for `sb_secret_...` remained in README/app setup guidance; no real secret values were found.
+
+## v0.5.97 Guided setup as primary first-time experience
+
+- Pathmark Online now greets users with guided setup when setup is not complete, rather than burying setup underneath the Home dashboard.
+- Guided setup uses a vertical step-by-step flow: Areas, Routines, Goals, Actions, Exports and Archive.
+- Users can go back, move to the next step, finish setup or skip setup for the current session.
+- Example text appears as placeholders and guidance only; it is not written to the user's Pathmark Sync Google Sheet unless the user types information and saves it.
+- The full Pathmark Online workspace remains available after setup, or for the current session if the user chooses to skip setup.

@@ -224,6 +224,12 @@ input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-basewe
   border-color: var(--line) !important;
 }
 input::placeholder, textarea::placeholder { color: var(--muted) !important; opacity: 1 !important; }
+
+.setup-shell { border: 1px solid #D8DEE6; border-radius: 18px; padding: 1.4rem; background: #FFFFFF; margin: 1rem 0 1.25rem 0; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05); }
+.setup-step-label { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+.setup-example { border-left: 4px solid var(--accent); background: var(--soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: #1F2933 !important; }
+.setup-example strong { color: #102A43 !important; }
+.setup-note { color: var(--muted); font-size: 0.94rem; margin-top: 0.35rem; }
 [role="listbox"], [role="option"] { background: var(--surface) !important; color: var(--ink) !important; }
 .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {
   border-radius: .85rem !important;
@@ -2946,8 +2952,9 @@ def render_online_settings(sheet_id: str) -> None:
         st.write(f"Current step: **{state['current_step'].title()}**")
         st.write("You can revisit the setup pathway without deleting any Areas, routines, goals or actions.")
         if st.button("Start setup pathway again", use_container_width=True, key="settings_reset_setup"):
+            st.session_state.pop("skip_online_setup_for_session", None)
             ok, message = save_setup_state(sheet_id, reset=True)
-            st.success(message) if ok else st.warning(message)
+            st.success("Guided setup is ready to revisit.") if ok else st.warning(safe_user_message(message))
             st.rerun()
     with st.expander("Advanced Google Sheet settings", expanded=False):
         render_google_sheets_oauth_diagnostics()
@@ -2961,13 +2968,8 @@ def render_online_settings(sheet_id: str) -> None:
             if ok:
                 clear_online_cache(new_sheet_id)
                 st.rerun()
-    with st.expander("Starter examples", expanded=False):
-        st.write("Starter examples give you editable Areas, routines, goals and actions so you are not starting from a blank sheet.")
-        if st.button("Load suggested starter examples", use_container_width=True, key="load_online_starter_examples_settings"):
-            ok, message = load_starter_examples(sheet_id)
-            st.success(message) if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+    with st.expander("Example guidance", expanded=False):
+        st.write("Examples now appear as placeholders inside guided setup and forms. They are not saved to your Pathmark Sync sheet unless you type details and choose Save.")
     st.markdown("### Theme")
     st.write("Choose how Pathmark Online looks on this device. The theme is saved to your Pathmark profile so it follows your Google login.")
     current_theme = st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Default")
@@ -3210,63 +3212,312 @@ def save_setup_state(sheet_id: str, *, status: str | None = None, current_step: 
     return ok, "Setup guide updated." if ok else safe_user_message(messages[-1] if messages else "Could not update setup guide.")
 
 
-def render_setup_pathway(sheet_id: str) -> None:
+
+def setup_step_index(step_key: str) -> int:
+    return SETUP_STEP_KEYS.index(step_key) if step_key in SETUP_STEP_KEYS else 0
+
+
+def setup_area_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
+    df = active_online_df(read_online_table(sheet_id, "areas"))
+    options: list[str] = []
+    mapping: dict[str, dict[str, str]] = {}
+    for _, row in df.iterrows():
+        label = str(row.get("area_name", "") or "").strip()
+        if not label:
+            continue
+        options.append(label)
+        mapping[label] = {"area_id": str(row.get("area_id", "") or ""), "area_name": label}
+    return options, mapping
+
+
+def setup_goal_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
+    df = active_online_df(read_online_table(sheet_id, "goals"))
+    options: list[str] = []
+    mapping: dict[str, dict[str, str]] = {}
+    for _, row in df.iterrows():
+        label = str(row.get("title", "") or "").strip()
+        if not label:
+            continue
+        options.append(label)
+        mapping[label] = {
+            "goal_id": str(row.get("goal_id", "") or ""),
+            "area_id": str(row.get("area_id", "") or ""),
+            "area_name": str(row.get("area_name", "") or ""),
+        }
+    return options, mapping
+
+
+def setup_routine_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
+    df = active_online_df(read_online_table(sheet_id, "routines"))
+    options: list[str] = []
+    mapping: dict[str, dict[str, str]] = {}
+    for _, row in df.iterrows():
+        label = str(row.get("title", "") or "").strip()
+        if not label:
+            continue
+        options.append(label)
+        mapping[label] = {
+            "routine_id": str(row.get("routine_id", "") or ""),
+            "area_id": str(row.get("area_id", "") or ""),
+            "area_name": str(row.get("area_name", "") or ""),
+        }
+    return options, mapping
+
+
+def setup_next_step(sheet_id: str, current_idx: int) -> None:
+    if current_idx >= len(SETUP_STEPS) - 1:
+        save_setup_state(sheet_id, completed=True, current_step=SETUP_STEPS[-1][0])
+    else:
+        save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx + 1][0])
+    st.rerun()
+
+
+def setup_back_step(sheet_id: str, current_idx: int) -> None:
+    if current_idx > 0:
+        save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx - 1][0])
+    st.rerun()
+
+
+def setup_skip_for_now() -> None:
+    st.session_state["skip_online_setup_for_session"] = True
+    st.rerun()
+
+
+def render_setup_area_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Example Area:</strong> Body and Stability — sleep, movement, health appointments and routines that support energy.</div>
+    """, unsafe_allow_html=True)
+    with st.form("setup_area_form"):
+        name = st.text_input("Area name", placeholder="For example, Body and Stability")
+        description = st.text_area("What belongs here?", placeholder="Sleep, movement, strength, mobility, health appointments and routines that support energy.", height=90)
+        colour_label = st.selectbox("Calendar colour", GOOGLE_COLOUR_LABELS, index=1, help="Areas form the basis for calendar grouping. Pathmark stores the Google Calendar colour code behind the scenes.")
+        save = st.form_submit_button("Save this Area", use_container_width=True)
+    if save:
+        if not name.strip():
+            st.warning("Add an Area name before saving.")
+        else:
+            colour = GOOGLE_COLOUR_BY_LABEL.get(colour_label, {}).get("code", colour_label)
+            ok, message = append_online_record(sheet_id, "areas", {
+                "area_id": f"area-{uuid.uuid4().hex}",
+                "area_name": name.strip(),
+                "description": description.strip(),
+                "colour": colour,
+                "status": "active",
+                "default_calendar": name.strip(),
+                "default_task_list": "Pathmark",
+            })
+            st.success("Area saved.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.rerun()
+
+
+def render_setup_routine_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Example Routine:</strong> Protect an 8-hour sleep block. First step prompt: start wind-down routine.</div>
+    """, unsafe_allow_html=True)
+    area_options, area_map = setup_area_options(sheet_id)
+    if not area_options:
+        st.info("Create at least one Area first, then add routines that belong inside it.")
+        return
+    with st.form("setup_routine_form"):
+        area_label = st.selectbox("Area", area_options)
+        title = st.text_input("Routine name", placeholder="For example, Protect an 8-hour sleep block")
+        purpose = st.text_area("Why this routine matters", placeholder="For example, protect sleep before adding more work to the system.", height=80)
+        frequency = st.selectbox("Frequency", VALID_FREQUENCIES, index=0)
+        preferred_days = st.multiselect("Preferred days", VALID_DAYS, default=VALID_DAYS if frequency == "Daily" else [])
+        duration = st.number_input("Approximate minutes", min_value=0, max_value=1440, value=30, step=5)
+        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, put on gym clothes, start wind-down, open the meal plan")
+        save = st.form_submit_button("Save this routine", use_container_width=True)
+    if save:
+        if not title.strip():
+            st.warning("Add a routine name before saving.")
+        elif frequency in {"Weekly", "Weekdays"} and not preferred_days:
+            st.warning("Choose preferred days so calendar and task exports know when this routine belongs.")
+        else:
+            area = area_map.get(area_label, {})
+            routine_id = f"routine-{uuid.uuid4().hex}"
+            ok, message = append_online_record(sheet_id, "routines", {
+                "routine_id": routine_id,
+                "area_id": area.get("area_id", ""),
+                "area_name": area.get("area_name", area_label),
+                "title": title.strip(),
+                "description": purpose.strip(),
+                "frequency": frequency,
+                "preferred_days": ", ".join(preferred_days) if preferred_days else ("Every day" if frequency == "Daily" else ""),
+                "duration_minutes": str(duration),
+                "status": "active",
+                "purpose": purpose.strip(),
+                "starting_prompt": first_step.strip(),
+            })
+            if ok and first_step.strip():
+                append_online_record(sheet_id, "actions", {
+                    "action_id": f"action-{uuid.uuid4().hex}",
+                    "routine_id": routine_id,
+                    "area_id": area.get("area_id", ""),
+                    "area_name": area.get("area_name", area_label),
+                    "title": title.strip(),
+                    "description": purpose.strip(),
+                    "status": "active",
+                    "estimated_minutes": str(duration),
+                    "calendar_block": "1",
+                    "reminder": "1",
+                    "include_tasklist": "1",
+                    "first_step": first_step.strip(),
+                    "activity_days": ", ".join(preferred_days),
+                })
+            st.success("Routine saved.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.rerun()
+
+
+def render_setup_goal_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Example Goal:</strong> Learn to sketch. Closure criteria: complete three beginner sketches and choose the next learning focus.</div>
+    """, unsafe_allow_html=True)
+    area_options, area_map = setup_area_options(sheet_id)
+    if not area_options:
+        st.info("Create at least one Area first, then add goals that belong inside it.")
+        return
+    with st.form("setup_goal_form"):
+        area_label = st.selectbox("Area", area_options)
+        title = st.text_input("Goal name", placeholder="For example, Learn to sketch")
+        purpose = st.text_area("Why this matters", placeholder="For example, build a creative practice that can fit into ordinary weeks.", height=80)
+        closure = st.text_area("How will you know this goal is done?", placeholder="For example, complete three beginner sketches and choose the next learning focus.", height=90)
+        target_date = st.text_input("Target date", placeholder="Optional, YYYY-MM-DD")
+        save = st.form_submit_button("Save this goal", use_container_width=True)
+    if save:
+        if not title.strip():
+            st.warning("Add a goal name before saving.")
+        elif target_date and not validate_iso_date(target_date):
+            st.warning("Use YYYY-MM-DD for the target date, or leave it blank.")
+        elif not closure.strip():
+            st.warning("Add closure criteria so you know when the goal has actually been achieved.")
+        else:
+            area = area_map.get(area_label, {})
+            ok, message = append_online_record(sheet_id, "goals", {
+                "goal_id": f"goal-{uuid.uuid4().hex}",
+                "area_id": area.get("area_id", ""),
+                "area_name": area.get("area_name", area_label),
+                "title": title.strip(),
+                "description": purpose.strip(),
+                "status": "active",
+                "target_date": target_date.strip(),
+                "purpose": purpose.strip(),
+                "closure_criteria": closure.strip(),
+            })
+            st.success("Goal saved.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.rerun()
+
+
+def render_setup_action_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Example Action:</strong> Purchase a beginner sketching guide. First-step prompt: search for one beginner guide.</div>
+    """, unsafe_allow_html=True)
+    goal_options, goal_map = setup_goal_options(sheet_id)
+    if not goal_options:
+        st.info("Create at least one goal first, then add the next one or two actions that would move it forward.")
+        return
+    with st.form("setup_action_form"):
+        goal_label = st.selectbox("Goal", goal_options)
+        title = st.text_input("Next action", placeholder="For example, purchase a beginner sketching guide")
+        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, search for one beginner guide")
+        minutes = st.number_input("Approximate minutes", min_value=0, max_value=480, value=30, step=5)
+        scheduled = st.text_input("Calendar date", placeholder="Optional, YYYY-MM-DD")
+        start_time = st.text_input("Calendar start time", placeholder="Optional, HH:MM")
+        end_time = st.text_input("Calendar end time", placeholder="Optional, HH:MM")
+        save = st.form_submit_button("Save this action", use_container_width=True)
+    if save:
+        if not title.strip():
+            st.warning("Add an action before saving.")
+        elif scheduled and not validate_iso_date(scheduled):
+            st.warning("Use YYYY-MM-DD for the calendar date, or leave it blank.")
+        elif start_time and not validate_hhmm(start_time):
+            st.warning("Use HH:MM for the start time, or leave it blank.")
+        elif end_time and not validate_hhmm(end_time):
+            st.warning("Use HH:MM for the end time, or leave it blank.")
+        else:
+            goal = goal_map.get(goal_label, {})
+            ok, message = append_online_record(sheet_id, "actions", {
+                "action_id": f"action-{uuid.uuid4().hex}",
+                "goal_id": goal.get("goal_id", ""),
+                "area_id": goal.get("area_id", ""),
+                "area_name": goal.get("area_name", ""),
+                "title": title.strip(),
+                "description": title.strip(),
+                "status": "active",
+                "estimated_minutes": str(minutes),
+                "scheduled_date": scheduled.strip(),
+                "calendar_block": "1" if scheduled.strip() else "0",
+                "reminder": "1" if first_step.strip() else "0",
+                "include_tasklist": "1",
+                "first_step": first_step.strip(),
+                "calendar_start_time": start_time.strip(),
+                "calendar_end_time": end_time.strip(),
+            })
+            st.success("Action saved.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.rerun()
+
+
+def render_setup_export_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>What exports do:</strong> Calendar exports make time, Google Tasks prompts reduce friction, and the PDF tasklist gives a paper checklist option.</div>
+    """, unsafe_allow_html=True)
+    st.write("Use the export tabs after setup to choose which actions and routine activities are ready to send to your calendar, Google Tasks sheet, or PDF tasklist.")
+
+
+def render_setup_archive_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Why Archive matters:</strong> Once an item has been exported or finished, move it out of the active workspace. You can restore it later if you change your mind.</div>
+    """, unsafe_allow_html=True)
+    st.write("Archive keeps Pathmark light enough to duck in and out of without being overwhelmed by old work.")
+
+
+def render_setup_pathway_primary(sheet_id: str) -> None:
     state = get_setup_state(sheet_id)
     status = state["status"]
-    current = state["current_step"]
-    current_idx = SETUP_STEP_KEYS.index(current) if current in SETUP_STEP_KEYS else 0
-    if status == "completed":
-        st.success("Pathmark setup is marked as complete. You can still revisit the pathway at any time.")
-    elif status == "in_progress":
-        st.info(f"Guided setup is in progress. You are up to: {SETUP_STEPS[current_idx][1]}.")
-    else:
-        st.info("Start with Areas, then add routines, define goals, prepare actions, create exports, and learn how Archive keeps the active space clear.")
+    current_idx = setup_step_index(state["current_step"])
+    key, name, desc = SETUP_STEPS[current_idx]
+    st.markdown("<div class='setup-shell'>", unsafe_allow_html=True)
+    st.markdown("<div class='setup-step-label'>Guided setup</div>", unsafe_allow_html=True)
+    st.markdown("## Set up Pathmark")
+    st.write("Work through this once to give your routines, goals, actions and exports a clear structure. You can skip it now or revisit it later without deleting anything.")
     progress = (current_idx + (1 if status == "completed" else 0)) / max(len(SETUP_STEPS), 1)
-    st.progress(min(max(progress, 0), 1))
-    step_tabs = st.tabs([name for _key, name, _desc in SETUP_STEPS])
-    for idx, (key, name, desc) in enumerate(SETUP_STEPS):
-        with step_tabs[idx]:
-            st.markdown(f"### {name}")
-            st.write(desc)
-            if key == "areas":
-                st.write("Create broad categories before filling the system with details. Areas help routines, goals and calendar exports stay organised.")
-            elif key == "routines":
-                st.write("Add a small number of repeatable routines that protect sleep, food, movement, planning or practice before adding too many goals.")
-            elif key == "goals":
-                st.write("For each goal, write what done looks like. Then define only the next one or two actions that would move it forward.")
-            elif key == "actions":
-                st.write("Actions and routine activities are the rows that become calendar blocks, Google Tasks prompts, or printable tasklist items.")
-            elif key == "exports":
-                st.write("Exports are where Pathmark becomes practical: make time in the calendar, create first-step prompts, or print a paper list.")
-            elif key == "archive":
-                st.write("Once something has been exported or finished, move it out of the active workspace. Restore it if you change your mind.")
-            c1, c2, c3 = st.columns(3)
-            if c1.button("Mark this as current step", key=f"setup_current_{key}", use_container_width=True):
-                ok, message = save_setup_state(sheet_id, status="in_progress", current_step=key)
-                st.success(message) if ok else st.warning(message)
+    st.progress(min(max(progress, 0), 1), text=f"Step {current_idx + 1} of {len(SETUP_STEPS)}: {name}")
+    st.markdown(f"### {name}")
+    st.write(desc)
+    if key == "areas":
+        render_setup_area_step(sheet_id)
+    elif key == "routines":
+        render_setup_routine_step(sheet_id)
+    elif key == "goals":
+        render_setup_goal_step(sheet_id)
+    elif key == "actions":
+        render_setup_action_step(sheet_id)
+    elif key == "exports":
+        render_setup_export_step(sheet_id)
+    elif key == "archive":
+        render_setup_archive_step(sheet_id)
+    st.markdown("</div>", unsafe_allow_html=True)
+    nav1, nav2, nav3 = st.columns([1, 1, 1])
+    with nav1:
+        st.button("Back", use_container_width=True, disabled=current_idx == 0, on_click=setup_back_step, args=(sheet_id, current_idx))
+    with nav2:
+        if current_idx < len(SETUP_STEPS) - 1:
+            st.button("Next step", use_container_width=True, on_click=setup_next_step, args=(sheet_id, current_idx))
+        else:
+            if st.button("Finish setup", use_container_width=True):
+                save_setup_state(sheet_id, completed=True, current_step=key)
                 st.rerun()
-            if idx < len(SETUP_STEPS) - 1:
-                if c2.button("Next step", key=f"setup_next_{key}", use_container_width=True):
-                    ok, message = save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[idx + 1][0])
-                    st.success(message) if ok else st.warning(message)
-                    st.rerun()
-            else:
-                if c2.button("Mark setup complete", key=f"setup_complete_{key}", use_container_width=True):
-                    ok, message = save_setup_state(sheet_id, completed=True, current_step=key)
-                    st.success(message) if ok else st.warning(message)
-                    st.rerun()
-            if idx > 0:
-                if c3.button("Back", key=f"setup_back_{key}", use_container_width=True):
-                    ok, message = save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[idx - 1][0])
-                    st.success(message) if ok else st.warning(message)
-                    st.rerun()
-    with st.expander("Revisit guided setup", expanded=False):
-        st.write("This will not delete your Areas, routines, goals or actions. It only marks the setup guide as incomplete so you can work through the pathway again.")
-        if st.button("Start setup pathway again", use_container_width=True):
-            ok, message = save_setup_state(sheet_id, reset=True)
-            st.success(message) if ok else st.warning(message)
-            st.rerun()
+    with nav3:
+        st.button("Skip setup for now", use_container_width=True, on_click=setup_skip_for_now)
+    st.caption("Example text is there to guide you. It is not saved unless you type into a form and choose Save.")
 
+
+def render_setup_pathway(sheet_id: str) -> None:
+    """Compatibility wrapper retained for older calls."""
+    render_setup_pathway_primary(sheet_id)
 
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Home")
@@ -3281,9 +3532,8 @@ def render_online_overview(sheet_id: str) -> None:
     <div class="guide-box"><strong>Your active workspace.</strong><br>
     Pathmark is designed so you can duck in and out: keep active routines and goal actions visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
-    render_setup_pathway(sheet_id)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("New to Pathmark Online? Start the guided setup pathway above, or load optional starter examples from Settings.")
+        st.info("Use Settings to revisit guided setup, or start by creating an Area, then routines, then goals.")
     st.markdown("""
     <div class="grid-3">
       <div class="process-card"><h4>Make time</h4><p>Calendar exports turn routines and goal actions into time blocks rather than leaving them as vague intentions.</p></div>
@@ -3367,34 +3617,86 @@ def download_tab() -> None:
 
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
-    st.write("Pathmark helps you make time for routines and goal actions, then gives you first-step prompts or printable checklists so the work is easier to start and finish.")
+    st.write(
+        "Pathmark is designed so your planning system stays under your control. "
+        "This page explains what Pathmark can access, where information is stored, "
+        "and how the different services behind the app are used."
+    )
+
+    st.subheader("The short version")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>Use the signed-in web version to manage routines, goals, actions, tasklists, Google Calendar exports and Google Tasks prompts from a Google Sheet you own.</p></div>
-      <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown generation, local backups, and file-based publishing.</p></div>
+      <div class="card"><h3>Your planning records</h3><p>Pathmark Online saves your Areas, routines, goals, actions, exports, setup progress and archive status in a <strong>Pathmark Sync</strong> Google Sheet that belongs to you.</p></div>
+      <div class="card"><h3>Your access level</h3><p>Pathmark stores only small access details in Supabase, such as your email, role, account status, theme preference and audit records.</p></div>
+      <div class="card"><h3>Your local files</h3><p>Pathmark Desktop stores Workspace folders, Markdown files, exports, tasklists and backups on your own computer, in the folder you choose.</p></div>
+      <div class="card"><h3>The code</h3><p>GitHub stores the Pathmark app code, release packages, documentation and database schema migrations. It should not contain your private planning records or secret keys.</p></div>
     </div>
     """, unsafe_allow_html=True)
-    st.header("What access you grant")
+
+    st.subheader("How Google access is used")
     st.markdown("""
-    <div class="safe-rule"><strong>Google access:</strong> Pathmark uses Google sign-in to identify you and asks for the narrow Google Drive permission needed to create or update Pathmark files you use with the app. Pathmark does not ask for your Google password.</div>
-    """, unsafe_allow_html=True)
-    st.write("Pathmark Online uses your permission to create or update a Pathmark Sync spreadsheet in your Google Drive. Your routines, goals, actions, tasklists and export records are saved there so you can inspect, copy, or delete them yourself.")
-    st.header("Where your information is stored")
+    When you sign in, Pathmark uses Google for two jobs:
+
+    1. **To identify you** so Pathmark knows which access role applies to your account.
+    2. **To create and update your Pathmark Sync sheet** so Pathmark Online can save your routines, goals, actions, tasklists and export history.
+
+    Pathmark asks for the limited Google Drive permission `drive.file`. This is used so Pathmark can create or update Pathmark files you use with the app. It is not intended to give Pathmark general access to every file in your Google Drive.
+    """)
     st.markdown("""
-    <div class="grid-3">
-      <div class="card"><h3>Your Google Sheet</h3><p>Pathmark Online planning records are saved to your Pathmark Sync spreadsheet in your own Google Drive.</p></div>
-      <div class="card"><h3>Your local Workspace</h3><p>Pathmark Desktop stores Workspace files, generated Markdown, exports, tasklists and backups in the folder you choose.</p></div>
-      <div class="card"><h3>Access settings</h3><p>Supabase stores hosted access information only: email, role, status, feature flags, audit logs and theme preference.</p></div>
-    </div>
+    <div class="safe-rule"><strong>Pathmark does not collect your Google password.</strong><br>You enter your Google password with Google, not with Pathmark.</div>
     """, unsafe_allow_html=True)
-    st.header("What Pathmark does not store")
+
+    st.subheader("Where your information goes")
     st.markdown("""
-    <div class="safe-rule"><strong>Privacy rule:</strong> Pathmark should not store your goals, routines, task prompts, calendar blocks, Workspace files, backups, or Markdown content in Supabase or GitHub. Personal planning data belongs in your local Workspace or in your user-owned Google Sheet.</div>
+    | Information | Where it is stored | Why |
+    |---|---|---|
+    | Areas, routines, goals, actions, setup progress, tasklists, export records and archive status | Your Pathmark Sync Google Sheet | So Pathmark Online can work across devices while keeping planning data in a file you own |
+    | Local Workspace folders, Markdown files, local exports, backups and desktop tasklists | Your chosen Workspace folder on your computer | So Pathmark Desktop can maintain the file-based Workspace |
+    | Email, access role, account status, feature flags, theme preference and audit records | Supabase | So Pathmark can control beta/developer access without storing personal planning content |
+    | App code, release files, public documentation and Supabase migration files | GitHub | So the Pathmark app can be deployed and versioned |
+    | Google OAuth client secrets, Supabase secret keys and deployment secrets | Streamlit secrets | So deployment credentials are not committed to GitHub |
+    """)
+
+    st.subheader("What Pathmark should not store in GitHub or Supabase")
+    st.markdown("""
+    <div class="safe-rule"><strong>Private planning content does not belong in GitHub or Supabase.</strong><br>Pathmark should not store your goals, routines, actions, Google Tasks prompts, calendar plans, Workspace files, backups, Markdown content, Google OAuth tokens or secret keys in the public repository. Supabase should remain the access layer only.</div>
     """, unsafe_allow_html=True)
-    st.header("Disconnecting")
-    st.write("You can disconnect Google access from Pathmark Online Settings. You can also remove Pathmark's access from your Google Account permissions page. Disconnecting stops Pathmark from writing to your Pathmark Sync sheet until you sign in again.")
-    st.header("GitHub and Streamlit secrets")
-    st.write("GitHub stores the app code and release packages. Streamlit secrets are used for deployment credentials. Secret keys, OAuth client secrets, Supabase keys, OAuth tokens and private planning records should not be committed to GitHub.")
+
+    st.subheader("Disconnecting or deleting")
+    st.markdown("""
+    - You can disconnect Google access from **Pathmark Online → Settings**.
+    - You can also remove Pathmark from your Google Account permissions.
+    - Disconnecting stops Pathmark from writing to your Pathmark Sync sheet until you sign in again.
+    - Your Pathmark Sync sheet is a Google Sheet in your Google Drive. You can open, copy, export or delete it from Google Drive.
+    - Deleting the sheet will remove the online planning records stored in that sheet. It will not delete local Workspace files on your computer.
+    """)
+
+    with st.expander("Service-by-service summary", expanded=False):
+        st.markdown("""
+        **Google**  
+        Used for sign-in and for the user-owned Pathmark Sync sheet. Pathmark requests the limited `drive.file` permission so it can work with Pathmark files the user authorises.
+
+        **Streamlit**  
+        Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets rather than being committed to the repository.
+
+        **Supabase**  
+        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Pathmark uses a server-side Supabase secret key from Streamlit secrets. Personal planning records should not be stored here.
+
+        **GitHub**  
+        Stores code, release packages, documentation and database migration files. It should not contain Streamlit secrets, Google client secrets, Supabase secret keys, OAuth tokens, Workspace folders, personal planning sheets or user data.
+        """)
+
+    with st.expander("Policy and documentation sources used for this summary", expanded=False):
+        st.markdown("""
+        This summary is based on how Pathmark currently uses each service, checked against the relevant provider documentation:
+
+        - Google API Services User Data Policy: apps must clearly disclose what Google user data they access, use, store, delete or share, and what actions they take on the user's behalf.
+        - Google Drive API scope guidance: `drive.file` is the limited Drive scope used for files the app creates or the user authorises for the app.
+        - Streamlit secrets management guidance: deployment secrets should be stored in Streamlit app settings or local `secrets.toml`, and not committed to the repository.
+        - Supabase API key guidance: secret keys are server-side keys and must be handled carefully; Pathmark uses them only from Streamlit secrets for access management.
+        """)
+
+    st.caption("This page explains the current Pathmark beta design. It is not a substitute for a formal legal privacy policy, but it should help beta testers understand what access they are granting and where their information is stored.")
 
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
@@ -3447,6 +3749,17 @@ def on_the_go_tab() -> None:
                 load_online_tables(sheet_id)
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
+
+    setup_state = get_setup_state(sheet_id)
+    if setup_state.get("status") != "completed" and not st.session_state.get("skip_online_setup_for_session"):
+        render_setup_pathway_primary(sheet_id)
+        st.divider()
+        with st.expander("Use Pathmark Online without finishing setup", expanded=False):
+            st.write("You can open the full workspace now. Guided setup will remain available from Settings.")
+            if st.button("Open full workspace for this session", use_container_width=True):
+                st.session_state["skip_online_setup_for_session"] = True
+                st.rerun()
+        return
 
     sections = st.tabs([
         "Home",
