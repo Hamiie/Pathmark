@@ -192,24 +192,50 @@ inject_pwa_metadata()
 
 CSS = """
 <style>
+/*
+Pathmark owns the seasonal accent. Streamlit owns appearance: System / Light / Dark.
+These tokens deliberately read Streamlit's active theme variables first. The media-query
+fallback keeps dark mode dark even in browsers or embedded webviews that do not expose
+Streamlit's variables in the same way.
+*/
 :root {
-  --bg: #F7F6F2;
-  --ink: #1F2221;
-  --muted: #626966;
-  --surface: #FFFFFF;
-  --surface-2: #EFEEE8;
-  --line: #D8D4CB;
+  color-scheme: light dark;
+  --bg: var(--background-color, #F7F6F2);
+  --ink: var(--text-color, #1F2221);
+  --muted: color-mix(in srgb, var(--ink) 64%, var(--bg));
+  --surface: var(--secondary-background-color, #FFFFFF);
+  --surface-2: color-mix(in srgb, var(--surface) 84%, var(--bg));
+  --line: var(--border-color, color-mix(in srgb, var(--ink) 16%, var(--bg)));
   --accent: #334E68;
   --accent-2: #7A4E7A;
-  --accent-soft: #E7EEF4;
-  --shadow: rgba(31,34,33,.10);
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  --shadow: color-mix(in srgb, #000000 13%, transparent);
+  --button-ink: #FFFFFF;
 }
-html, body, [data-testid="stAppViewContainer"] {
-  background: radial-gradient(circle at 12% 0%, rgba(51,78,104,.16), transparent 26rem), radial-gradient(circle at 92% 8%, rgba(122,78,122,.14), transparent 24rem), linear-gradient(180deg, #FBFAF7 0%, var(--bg) 100%);
-  color: var(--ink);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--background-color, #05080C);
+    --ink: var(--text-color, #F8FAFC);
+    --surface: var(--secondary-background-color, #111827);
+    --surface-2: color-mix(in srgb, var(--surface) 78%, #000000);
+    --line: var(--border-color, #334155);
+    --muted: color-mix(in srgb, var(--ink) 70%, var(--bg));
+    --accent-soft: color-mix(in srgb, var(--accent) 28%, var(--surface));
+    --shadow: rgba(0,0,0,.42);
+  }
+}
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {
+  background-color: var(--bg) !important;
+  color: var(--ink) !important;
+}
+[data-testid="stAppViewContainer"] {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 26rem),
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 24rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 18%, var(--bg)) 0%, var(--bg) 100%) !important;
 }
 .block-container { max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem; }
-h1, h2, h3 { letter-spacing: -0.035em; }
+h1, h2, h3 { letter-spacing: -0.035em; color: var(--ink) !important; }
 p, li { font-size: 1.02rem; line-height: 1.62; }
 .hero { padding: 2.6rem 0 1.2rem 0; }
 .eyebrow { display: inline-flex; padding: .42rem .72rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 760; font-size: .92rem; margin-bottom: 1.1rem; }
@@ -218,27 +244,32 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 .sublead { color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }
-.card { background: rgba(255,255,255,.88); border: 1px solid var(--line); border-radius: 1.35rem; padding: 1.25rem; box-shadow: 0 14px 34px var(--shadow); }
+.card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {
+  background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 14px 34px var(--shadow);
+}
+.card { border-radius: 1.35rem; padding: 1.25rem; }
 .card h3 { margin-top: 0; margin-bottom: .55rem; }
 .card p { margin-bottom: 0; color: var(--muted); }
 .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }
-.meta-card { background: rgba(255,255,255,.80); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.15rem; box-shadow: 0 10px 26px var(--shadow); }
+.meta-card { border-radius: 1.25rem; padding: 1rem 1.15rem; }
 .meta-label { color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }
 .meta-value { color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; letter-spacing: -.045em; }
-.download-panel { background: rgba(255,255,255,.70); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; }
+.download-panel { border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; }
 .safe-rule { background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }
-.profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: rgba(255,255,255,.78); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
-.account-card { background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 1rem; padding: .75rem .9rem; margin-bottom: 1rem; }
+.profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
+.account-card { border-radius: 1rem; padding: .75rem .9rem; margin-bottom: 1rem; }
 .account-title { color: var(--muted); font-size: .84rem; font-weight: 760; text-transform: uppercase; letter-spacing: .03em; margin-bottom: .2rem; }
 .account-value { color: var(--ink); font-weight: 720; }
-.connection-card { background: rgba(255,255,255,.78); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
-.connection-ok { color: #006B2E; font-weight: 760; }
-.connection-warn { color: #7A4E00; font-weight: 760; }
-.beta-note { background: #FFF8E6; border: 1px solid #E7D49B; border-radius: 1.1rem; padding: 1rem 1.1rem; color: #3B3325; }
-/* High-contrast controls, especially on mobile and in in-app browsers. Streamlit can otherwise inherit low-contrast dark-mode colours. */
+.connection-card { border-radius: 1.1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
+.connection-ok { color: #2EAD5B; font-weight: 760; }
+.connection-warn { color: #D89A2B; font-weight: 760; }
+.beta-note { background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }
 [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
 [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
-[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label * {
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *, .stMarkdown, .stMarkdown * {
   color: var(--ink) !important;
 }
 [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] * {
@@ -247,76 +278,73 @@ p, li { font-size: 1.02rem; line-height: 1.62; }
 }
 [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
 button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {
-  color: #C93F47 !important;
+  color: var(--accent) !important;
   font-weight: 760 !important;
 }
 input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
-[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {
+[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input, [data-baseweb="popover"] div {
   background: var(--surface) !important;
   color: var(--ink) !important;
   border-color: var(--line) !important;
 }
 input::placeholder, textarea::placeholder { color: var(--muted) !important; opacity: 1 !important; }
-
-.setup-shell { border: 1px solid #D8DEE6; border-radius: 18px; padding: 1.4rem; background: #FFFFFF; margin: 1rem 0 1.25rem 0; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05); }
+.setup-shell { border-radius: 18px; padding: 1.4rem; margin: 1rem 0 1.25rem 0; }
 .setup-step-label { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
 .setup-example { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: var(--ink) !important; }
 .setup-example strong { color: var(--ink) !important; }
 .setup-note { color: var(--muted); font-size: 0.94rem; margin-top: 0.35rem; }
-.setup-progress-wrap { width: 100%; height: 12px; border-radius: 999px; background: #E5E7EB; overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid #D1D5DB; }
+.setup-progress-wrap { width: 100%; max-width: 760px; height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 20%, transparent); overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid var(--line); }
 .setup-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; }
 .setup-step-list { margin: 0.35rem 0 1rem 0; padding-left: 0.2rem; }
 .setup-step-list div { margin: 0.25rem 0; }
 [role="listbox"], [role="option"] { background: var(--surface) !important; color: var(--ink) !important; }
-.stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {
+.stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {
   border-radius: .85rem !important;
   min-height: 3rem;
   font-weight: 760 !important;
   background: var(--accent) !important;
-  color: #FFFFFF !important;
-  border: 1px solid rgba(31,34,33,.18) !important;
+  color: var(--button-ink) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, #000000) !important;
   box-shadow: 0 8px 22px var(--shadow);
+  text-decoration: none !important;
 }
-.stButton button *, .stButton button p, .stButton button span, .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span, [data-testid="stLinkButton"] a * { color: #FFFFFF !important; }
-.stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover { filter: brightness(.96); color: #FFFFFF !important; }
+.stButton button *, .stButton button p, .stButton button span,
+.stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
+[data-testid="stLinkButton"] a *, a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * { color: var(--button-ink) !important; }
+.stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover, .pathmark-link-button:hover { filter: brightness(.96); color: var(--button-ink) !important; text-decoration: none !important; }
 .stButton button:disabled, .stDownloadButton button:disabled {
-  background: #E2E5E3 !important;
-  color: #4B5350 !important;
-  border-color: #C9D0CC !important;
+  background: color-mix(in srgb, var(--surface) 82%, var(--muted)) !important;
+  color: var(--muted) !important;
+  border-color: var(--line) !important;
   box-shadow: none !important;
 }
-.stButton button:disabled *, .stDownloadButton button:disabled * { color: #4B5350 !important; }
-.pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem; padding: .55rem .85rem; border-radius: .85rem; background: var(--accent); color: #FFFFFF !important; text-decoration: none !important; font-weight: 760; border: 1px solid rgba(31,34,33,.18); box-shadow: 0 8px 22px var(--shadow); }
-.pathmark-link-button:hover { filter: brightness(.96); text-decoration: none !important; color: #FFFFFF !important; }
-.pathmark-link-button * { color:#FFFFFF !important; }
+.stButton button:disabled *, .stDownloadButton button:disabled * { color: var(--muted) !important; }
+.pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: .55rem .85rem; }
 @media (max-width: 640px) {
   .block-container { padding-left: 1rem; padding-right: 1rem; padding-top: 1.1rem; }
   .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; }
   .hero h1 { font-size: clamp(3rem, 16vw, 4.6rem); }
   .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a { min-height: 3.2rem; font-size: 1rem !important; }
 }
-.guide-box { background: rgba(255,255,255,.82); border: 1px solid var(--line); border-left: 6px solid var(--accent); border-radius: 1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
+.guide-box { border-left: 6px solid var(--accent) !important; border-radius: 1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
 .guide-box strong { color: var(--ink); }
-.step-card { background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 1.15rem; padding: 1rem 1.1rem; margin: .45rem 0 1rem; box-shadow: 0 8px 20px var(--shadow); }
+.step-card { border-radius: 1.15rem; padding: 1rem 1.1rem; margin: .45rem 0 1rem; }
 .step-card h3 { margin-top: 0; margin-bottom: .35rem; }
 .step-card p { color: var(--muted); margin-bottom: .45rem; }
 .pathmark-note, .pathmark-hint { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; color: var(--ink); }
 .swatch-row { display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; margin:.35rem 0 .85rem; }
-.swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:white; padding:.25rem .55rem; font-size:.85rem; }
+.swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); padding:.25rem .55rem; font-size:.85rem; }
 .swatch-dot { width:.8rem; height:.8rem; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.18); }
-
-.area-colour-preview { display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:#FFFFFF; padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }
+.area-colour-preview { display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:var(--surface); padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }
 .area-colour-dot { width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }
-.setup-progress-wrap { max-width: 760px; }
 .setup-nav-row { margin-top:1.25rem; }
 .setup-skip { margin-top:.65rem; opacity:.96; }
 [data-testid="stIFrame"] { min-height:0 !important; }
-.swatch-row { display:flex; flex-wrap:wrap; gap:.45rem; margin:.5rem 0 .8rem; }
-.process-card { background: var(--surface); border:1px solid var(--line); border-radius:1rem; padding:1rem; margin:.55rem 0; }
+.process-card { border-radius:1rem; padding:1rem; margin:.55rem 0; }
 .process-card h4 { margin:.05rem 0 .35rem 0; color:var(--ink); }
 .process-card p { margin:0; color:var(--muted); }
-
-[data-testid="stHeader"] { background: transparent; }
+[data-testid="stHeader"] { background: transparent !important; }
+section[data-testid="stSidebar"] { background: var(--surface) !important; color: var(--ink) !important; }
 @media (max-width: 860px) { .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; } }
 </style>
 """
@@ -2085,18 +2113,29 @@ def inject_theme_css(theme_name: str) -> None:
         <style>
         :root, [data-testid="stAppViewContainer"] {{
           color-scheme: light dark;
+          --accent: {accent};
           --pathmark-accent: {accent};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
           --pathmark-button-text: #FFFFFF;
-          --pathmark-bg: var(--st-background-color, var(--background-color, #F7F6F2));
-          --pathmark-surface: var(--st-secondary-background-color, var(--secondary-background-color, #FFFFFF));
-          --pathmark-ink: var(--st-text-color, var(--text-color, #1F2221));
+          --pathmark-bg: var(--background-color, #F7F6F2);
+          --pathmark-surface: var(--secondary-background-color, #FFFFFF);
+          --pathmark-ink: var(--text-color, #1F2221);
           --pathmark-muted: color-mix(in srgb, var(--pathmark-ink) 66%, var(--pathmark-bg));
-          --pathmark-line: var(--st-border-color, color-mix(in srgb, var(--pathmark-ink) 18%, var(--pathmark-bg)));
+          --pathmark-line: var(--border-color, color-mix(in srgb, var(--pathmark-ink) 18%, var(--pathmark-bg)));
           --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 15%, var(--pathmark-surface));
           --pathmark-season-wash: color-mix(in srgb, var(--pathmark-accent) 8%, var(--pathmark-bg));
         }}
-        [data-testid="stAppViewContainer"] {{
+        @media (prefers-color-scheme: dark) {{
+          :root, [data-testid="stAppViewContainer"] {{
+            --pathmark-bg: var(--background-color, #05080C);
+            --pathmark-surface: var(--secondary-background-color, #111827);
+            --pathmark-ink: var(--text-color, #F8FAFC);
+            --pathmark-line: var(--border-color, #334155);
+            --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 24%, var(--pathmark-surface));
+            --pathmark-season-wash: color-mix(in srgb, var(--pathmark-accent) 14%, var(--pathmark-bg));
+          }}
+        }}
+        html, body, .stApp, [data-testid="stAppViewContainer"] {{
           background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--pathmark-accent) 13%, transparent), transparent 26rem),
                       radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--pathmark-accent) 9%, transparent), transparent 24rem),
                       linear-gradient(180deg, var(--pathmark-season-wash) 0%, var(--pathmark-bg) 100%) !important;
@@ -2297,6 +2336,36 @@ def valid_online_time(value: Any, *, allow_blank: bool = True) -> bool:
         return True
     except Exception:
         return False
+
+
+def time_to_text(value: time | None) -> str:
+    if value is None:
+        return ""
+    return f"{value.hour:02d}:{value.minute:02d}"
+
+
+def calculated_end_time(start_text: Any, minutes: int | float | str | None, *, fallback: str = "10:00") -> str:
+    """Calculate a calendar end time from a start time and duration.
+
+    The UI asks users for start time + duration rather than start + end, because
+    that is easier to understand and prevents accidental entries such as
+    22:30 to 06:30 when the user meant a short evening routine. Overnight
+    blocks can still be created by editing exported rows if that is deliberately
+    needed later.
+    """
+    try:
+        start_t = parse_online_time(start_text, "09:00")
+    except Exception:
+        start_t = parse_online_time(fallback, "10:00")
+    try:
+        mins = int(float(str(minutes or 0)))
+    except Exception:
+        mins = 0
+    if mins <= 0:
+        mins = 30
+    base = datetime.combine(date.today(), start_t)
+    return (base + timedelta(minutes=mins)).strftime("%H:%M")
+
 
 
 def validate_online_action_dates_and_times(*, scheduled: str = "", due: str = "", start_time: str = "", end_time: str = "", prompt_time: str = "") -> list[str]:
@@ -2719,78 +2788,144 @@ def render_area_manager(sheet_id: str) -> None:
 def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", default_area: str = "", form_key: str = "action", action: dict[str, Any] | None = None) -> None:
     """Add or edit a goal activity or routine activity.
 
-    Calendar export creates time blocks. Google Tasks export creates date-based
-    first-action prompts; the Google Tasks API does not preserve due times or durations.
+    The form is deliberately staged so the user first describes the activity,
+    then chooses where it should appear, then completes only the fields needed
+    for those selected outputs.
     """
     area_id = find_area_id(sheet_id, default_area) if default_area else ""
     is_routine_activity = bool(routine_id)
     action = action or {}
     record_id = str(action.get("action_id", "") or "")
     title_word = "Routine activity" if is_routine_activity else "Goal activity"
-    with st.form(f"online_{'edit' if record_id else 'add'}_{form_key}_{record_id or 'new'}", clear_on_submit=not bool(record_id)):
-        st.markdown(f"**{'Edit' if record_id else 'Add'} {title_word.lower()}**")
-        if not is_routine_activity:
-            st.caption("Goal activities are usually one-off steps. If the work repeats, add it as a routine activity instead.")
-        title = st.text_input("Activity title", value=str(action.get("title", "")), placeholder="For example, Run 6 km or Draft the first section")
-        description = st.text_area("Notes / description", value=str(action.get("description", action.get("notes", "")) or ""), height=90)
-        c1, c2, c3 = st.columns(3)
+    form_id = f"online_{'edit' if record_id else 'add'}_{form_key}_{record_id or 'new'}"
+
+    current_minutes = 30
+    try:
+        current_minutes = int(float(str(action.get("estimated_minutes", "30") or 30)))
+    except Exception:
+        current_minutes = 30
+    if current_minutes <= 0:
+        current_minutes = 30
+
+    with st.form(form_id, clear_on_submit=not bool(record_id)):
+        st.markdown(f"### {'Edit' if record_id else 'Add'} {title_word.lower()}")
+        if is_routine_activity:
+            st.caption("This is the activity inside the routine. The routine is the container; this row is what can appear on your tasklist, calendar export, and Google Tasks export.")
+        else:
+            st.caption("Goal activities are usually one-off next steps. If the work repeats, create it as a routine activity instead.")
+
+        st.markdown("#### 1. What is the activity?")
+        title = st.text_input("Activity title", value=str(action.get("title", "")), placeholder="For example, Wind-down routine, Strength training A, or Buy sketchbook")
+        description = st.text_area("Notes / description", value=str(action.get("description", action.get("notes", "")) or ""), height=80, placeholder="Optional context, checklist notes, or what 'done' looks like.")
+
+        c1, c2, c3 = st.columns([0.34, 0.33, 0.33])
         status_options = ["Next", "Scheduled", "Planned", "Waiting", "Done"] if not is_routine_activity else ["Included", "Paused", "Done"]
         current_status = str(action.get("status", status_options[0]) or status_options[0])
-        status_index = status_options.index(current_status) if current_status in status_options else 0
-        status = c1.selectbox("Status", status_options, index=status_index)
+        status = c1.selectbox("Status", status_options, index=status_options.index(current_status) if current_status in status_options else 0)
         priority_options = ["High", "Medium", "Low"]
         current_priority = str(action.get("priority", "Medium") or "Medium")
         priority = c2.selectbox("Priority", priority_options, index=priority_options.index(current_priority) if current_priority in priority_options else 1)
-        try:
-            default_minutes = int(float(str(action.get("estimated_minutes", "30") or 30)))
-        except Exception:
-            default_minutes = 30
-        minutes = c3.number_input("Calendar duration / estimated minutes", min_value=0, step=5, value=default_minutes)
+        minutes = c3.number_input("Duration / effort", min_value=5, step=5, value=current_minutes, help="Used to calculate the calendar end time and to show the effort on the tasklist.")
+
+        st.markdown("#### 2. When does it happen?")
         c4, c5 = st.columns(2)
-        scheduled = c4.text_input("Calendar date", value=str(action.get("scheduled_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD")
-        due = c5.text_input("Google Tasks due date", value=str(action.get("due_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        scheduled = c4.text_input("Calendar date", value=str(action.get("scheduled_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD", help="Used only when a Calendar block is created. For repeating routine activities, this is the first date.")
+        due = c5.text_input("Google Tasks due date", value=str(action.get("due_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD", help="Used only when a Google Tasks prompt is created. Google Tasks receives a date, not a duration.")
+
         activity_days = ""
         if is_routine_activity:
             current_activity_days, _bad_activity_days = parse_days_text(str(action.get("activity_days", "")))
-            selected_activity_days = st.multiselect("Repeat this activity on", VALID_DAYS, default=current_activity_days, help="Use this when a routine has several activities on different days. It is used for calendar recurrence and date-based Google Tasks prompts.")
+            selected_activity_days = st.multiselect(
+                "Repeat on these days",
+                VALID_DAYS,
+                default=current_activity_days,
+                help="Used for recurring Calendar blocks and date-based Google Tasks prompts. Leave blank only if this activity does not repeat on selected weekdays.",
+            )
             activity_days = ", ".join(selected_activity_days)
 
-        st.markdown("**Where this activity can appear**")
+        st.markdown("#### 3. Choose where Pathmark should put it")
         st.markdown("""
         <div class='pathmark-note'>
-        <strong>Calendar block:</strong> use this for scheduled time, start/end times, duration and repeats.<br>
-        <strong>Weekly tasklist:</strong> use this when you want to tick the activity off by hand.<br>
-        <strong>Google Tasks prompt:</strong> use this for a date-based first step. Google Tasks export does not preserve duration or scheduled time, so time-blocked work belongs in Calendar.
+        <strong>Calendar block</strong> creates scheduled time with a start, calculated end, duration and repeat pattern.<br>
+        <strong>Weekly tasklist</strong> prints the activity so you can tick it off by hand.<br>
+        <strong>Google Tasks prompt</strong> creates a date-based first step. Google Tasks does not preserve duration or scheduled time, so time-blocked work belongs in Calendar.
         </div>
         """, unsafe_allow_html=True)
         c6, c7, c8 = st.columns(3)
-        include_tasklist = c6.checkbox("Add this activity to the weekly tasklist", value=truthy_flag(action.get("include_tasklist", "1")))
-        calendar_block = c7.checkbox("Create a Google Calendar time block", value=truthy_flag(action.get("calendar_block", "0")))
-        reminder = c8.checkbox("Create a Google Tasks first-action prompt", value=truthy_flag(action.get("reminder", "0")))
+        include_tasklist = c6.checkbox("Put the activity on the weekly tasklist", value=truthy_flag(action.get("include_tasklist", "1")))
+        calendar_block = c7.checkbox("Make calendar time for it", value=truthy_flag(action.get("calendar_block", "0")))
+        reminder = c8.checkbox("Create a first-step task prompt", value=truthy_flag(action.get("reminder", "0")))
 
-        start_time = end_time = prompt_time = location = first_step = ""
+        start_time = str(action.get("calendar_start_time", "09:00") or "09:00")
+        end_time = str(action.get("calendar_end_time", "") or "")
+        prompt_time = str(action.get("task_reminder_time", "") or "")
+        location = str(action.get("calendar_location", "") or "")
+        first_step = str(action.get("first_step", "") or "")
+
         if calendar_block:
-            c9, c10 = st.columns(2)
-            start_time = c9.text_input("Calendar start time", value=str(action.get("calendar_start_time", "09:00") or "09:00"), placeholder="HH:MM")
-            end_time = c10.text_input("Calendar end time", value=str(action.get("calendar_end_time", "10:00") or "10:00"), placeholder="HH:MM")
-            location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
+            st.markdown("#### 4. Calendar block details")
+            c9, c10 = st.columns([0.42, 0.58])
+            start_time = c9.text_input("Start time", value=start_time, placeholder="HH:MM")
+            calculated_end = calculated_end_time(start_time, minutes)
+            end_time = calculated_end
+            c10.markdown(
+                f"<div class='pathmark-note'><strong>Calendar end:</strong> {html.escape(calculated_end)}<br>Calculated from the start time and {int(minutes)} minutes.</div>",
+                unsafe_allow_html=True,
+            )
+            location = st.text_input("Calendar location", value=location, placeholder="Optional")
+            if is_routine_activity and activity_days:
+                st.caption(f"Calendar export will repeat this activity on: {activity_days}.")
+            elif is_routine_activity:
+                st.caption("Choose repeat days above if this activity should recur in Calendar.")
         else:
-            start_time = str(action.get("calendar_start_time", "") or "")
             end_time = str(action.get("calendar_end_time", "") or "")
-            location = str(action.get("calendar_location", "") or "")
+
         if reminder:
-            first_step = st.text_input("First-action prompt for Google Tasks", value=str(action.get("first_step", "") or ""), placeholder="For example, put on running shoes or open the sketchbook")
-            prompt_time = st.text_input("Optional reference time to include in the Google Tasks note", value=str(action.get("task_reminder_time", start_time or "09:00") or "09:00"), help="This is written as note text only. Google Tasks export uses the due date, not a scheduled time or duration.")
+            st.markdown("#### 5. Google Tasks prompt")
+            first_step = st.text_input(
+                "First tiny step",
+                value=first_step,
+                placeholder="For example, put on running shoes, open the sketchbook, or start wind-down routine",
+                help="This becomes the Google Tasks title/prompt. It should be smaller and easier to start than the whole activity.",
+            )
+            default_reference = prompt_time or (start_time if calendar_block else "")
+            with st.expander("Optional: add a reference time to the task note", expanded=False):
+                prompt_time = st.text_input(
+                    "Reference time note",
+                    value=default_reference,
+                    placeholder="For example, 22:30",
+                    help="This is written into the task note only. Google Tasks import uses the due date, not a scheduled time or duration.",
+                )
         else:
-            first_step = str(action.get("first_step", "") or "")
             prompt_time = str(action.get("task_reminder_time", "") or "")
+
+        if include_tasklist or calendar_block or reminder:
+            preview_parts = []
+            if include_tasklist:
+                preview_parts.append("weekly tasklist")
+            if calendar_block:
+                preview_parts.append(f"Calendar from {start_time} to {end_time}")
+            if reminder:
+                preview_parts.append("Google Tasks first-step prompt")
+            st.caption("Pathmark will use this activity for: " + "; ".join(preview_parts) + ".")
+
         submitted = st.form_submit_button("Save changes" if record_id else f"Save {title_word.lower()}", use_container_width=True)
         if submitted:
+            if calendar_block:
+                end_time = calculated_end_time(start_time, minutes)
             problems = validate_online_action_dates_and_times(
-                scheduled=scheduled, due=due, start_time=start_time if calendar_block else "", end_time=end_time if calendar_block else "", prompt_time=prompt_time if reminder else ""
+                scheduled=scheduled,
+                due=due,
+                start_time=start_time if calendar_block else "",
+                end_time=end_time if calendar_block else "",
+                prompt_time=prompt_time if reminder and prompt_time else "",
             )
+            if calendar_block and not scheduled.strip():
+                problems.append("Add a Calendar date, or untick 'Make calendar time for it'.")
+            if reminder and not due.strip():
+                problems.append("Add a Google Tasks due date, or untick 'Create a first-step task prompt'.")
             if reminder and not first_step.strip():
-                problems.append("Add a first-action prompt, or untick the Google Tasks prompt option.")
+                problems.append("Add a first tiny step, or untick the Google Tasks prompt option.")
             if not title.strip():
                 st.error("Add an activity title before saving.")
             elif problems:
@@ -2802,12 +2937,23 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     "routine_id": routine_id or str(action.get("routine_id", "") or ""),
                     "area_id": area_id or str(action.get("area_id", "") or ""),
                     "area_name": default_area or str(action.get("area_name", "") or ""),
-                    "title": title.strip(), "description": description.strip(), "status": status, "priority": priority,
-                    "due_date": normalise_online_date(due) if due.strip() else "", "scheduled_date": normalise_online_date(scheduled) if scheduled.strip() else "", "activity_days": activity_days.strip(),
-                    "estimated_minutes": str(int(minutes or 0)) if minutes else "", "calendar_block": "1" if calendar_block else "0",
-                    "reminder": "1" if reminder else "0", "include_tasklist": "1" if include_tasklist else "0",
-                    "first_step": first_step.strip() if reminder else "", "task_reminder_time": prompt_time.strip() if reminder else "", "calendar_start_time": start_time.strip() if calendar_block else "",
-                    "calendar_end_time": end_time.strip() if calendar_block else "", "calendar_location": location.strip(), "notes": description.strip(),
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "status": status,
+                    "priority": priority,
+                    "due_date": normalise_online_date(due) if due.strip() else "",
+                    "scheduled_date": normalise_online_date(scheduled) if scheduled.strip() else "",
+                    "activity_days": activity_days.strip(),
+                    "estimated_minutes": str(int(minutes or 0)) if minutes else "",
+                    "calendar_block": "1" if calendar_block else "0",
+                    "reminder": "1" if reminder else "0",
+                    "include_tasklist": "1" if include_tasklist else "0",
+                    "first_step": first_step.strip() if reminder else "",
+                    "task_reminder_time": prompt_time.strip() if reminder else "",
+                    "calendar_start_time": start_time.strip() if calendar_block else "",
+                    "calendar_end_time": end_time.strip() if calendar_block else "",
+                    "calendar_location": location.strip() if calendar_block else "",
+                    "notes": description.strip(),
                 }
                 if record_id:
                     ok, message = update_online_record(sheet_id, "actions", record_id, payload)
@@ -2817,25 +2963,6 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                 st.success(message) if ok else st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
-
-
-def _render_action_list(sheet_id: str, actions: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
-    if actions.empty:
-        st.info("No routine activities yet." if routine_id else "No goal activities yet.")
-    else:
-        for _, a in actions.iterrows():
-            state = str(a.get("status", "") or ("Included" if routine_id else "Planned"))
-            title = str(a.get("title", "Untitled") or "Untitled")
-            when = str(a.get("scheduled_date", "") or a.get("due_date", "") or "")
-            suffix = f" · {when}" if when else ""
-            with st.expander(f"{title}{suffix} — {state}", expanded=False):
-                _action_form(sheet_id, goal_id=goal_id, routine_id=routine_id, default_area=default_area, form_key=f"action_{a.get('action_id')}", action=a.to_dict())
-                if st.button("Archive goal activity" if not routine_id else "Archive routine activity", key=f"archive_action_{a.get('action_id')}"):
-                    ok, message = archive_online_record(sheet_id, "actions", str(a.get("action_id", "")), "Archived from Pathmark Online.")
-                    st.success(message) if ok else st.warning(safe_user_message(message))
-                    if ok:
-                        st.rerun()
-
 
 def render_goal_manager(sheet_id: str) -> None:
     st.subheader("Goals and Projects")

@@ -1,21 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.4",
+  "version": "v0.6.6",
   "release_date": "2026-06-02",
   "notes": [
-    "Polished Pathmark Online readiness messaging so Google/Sync status is shown in one compact banner.",
-    "Reframed routines as containers with routine activities that drive tasklists, calendar blocks and Google Tasks prompts.",
-    "Clarified Calendar vs weekly tasklist vs Google Tasks behaviour, including date-only Google Tasks prompts and no duration support in the export.",
-    "Made goal/project forms more SMART-style and renamed goal actions as goal activities where they are exportable one-off steps.",
-    "Improved setup parity by using the normal routine and goal managers during setup and allowing multiple routine activities.",
-    "Tidied Google Calendar Export with a card preview and moved technical fields into an expander.",
-    "Improved printable tasklist PDF sanitisation so HTML line breaks do not appear and checkbox rows use clean empty boxes.",
-    "Restored seasonal online themes while leaving light/dark appearance to Streamlit System, Light and Dark mode.",
-    "Fixed button/link-button contrast, including the Open sync sheet button, and improved Area colour preview behaviour in setup.",
-    "Removed redundant example guidance from Settings and refined user-facing privacy wording."
+    "Reworked activity forms into guided sections: what the activity is, when it happens, where Pathmark should put it, Calendar details, and Google Tasks prompt details.",
+    "Changed Calendar scheduling to ask for start time plus duration, then calculate the end time automatically.",
+    "Kept Google Tasks as a date-based first-step prompt and moved optional reference time into a collapsed note-only section.",
+    "Made destination labels clearer: weekly tasklist, Calendar time block, and first-step task prompt.",
+    "Added validation that prompts users to add required dates only for the selected outputs."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_4.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_6.zip",
   "mac_package": "",
-  "release": "v0.6.4 online parity completion polish",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_4.zip"
+  "release": "v0.6.6 activity form guidance polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_6.zip",
+  "release_name": "Activity form guidance polish",
+  "release_notes": "Improves the activity form so the UI guides users through activity basics, timing, output destinations, Calendar block details, and Google Tasks first-step prompts. Calendar end time is now calculated from start time plus duration to reduce confusing start/end entries, and Google Tasks reference time is hidden as an optional note-only field.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_6.zip"
 }
