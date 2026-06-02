@@ -75,11 +75,12 @@ ONLINE_THEMES = {
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 SETUP_STEPS = [
-    ("areas", "Areas", "Give the main parts of your life somewhere to belong. These Areas also form the basis for calendar grouping."),
-    ("routines", "Routines", "Add the repeating habits that protect your wellbeing, energy and capacity."),
+    ("areas", "Areas", "Start with broad life systems so routines, goals and calendars have somewhere to belong."),
+    ("routines", "Routines", "Add the repeating habits that protect wellbeing, energy and capacity before piling on more goals."),
     ("goals", "Goals", "Define what done looks like, then keep only the next one or two useful actions visible."),
-    ("actions", "Actions", "Turn goals and routines into concrete working rows that can be scheduled or prompted."),
-    ("exports", "Exports", "Put actions into your calendar, create Google Tasks prompts, or print a paper tasklist."),
+    ("actions", "Actions", "Turn goals into concrete next actions and create first-step prompts that reduce friction."),
+    ("review", "Review Queue", "Check whether the pieces fit together before exporting them."),
+    ("exports", "Exports", "Learn how selected actions become calendar blocks, Google Tasks prompts, or a paper tasklist."),
     ("archive", "Archive", "Move exported or finished work out of the active space, and restore it if you change your mind."),
 ]
 SETUP_STEP_KEYS = [step[0] for step in SETUP_STEPS]
@@ -230,6 +231,10 @@ input::placeholder, textarea::placeholder { color: var(--muted) !important; opac
 .setup-example { border-left: 4px solid var(--accent); background: var(--soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: #1F2933 !important; }
 .setup-example strong { color: #102A43 !important; }
 .setup-note { color: var(--muted); font-size: 0.94rem; margin-top: 0.35rem; }
+.setup-progress-wrap { width: 100%; height: 12px; border-radius: 999px; background: #E5E7EB; overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid #D1D5DB; }
+.setup-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.setup-step-list { margin: 0.35rem 0 1rem 0; padding-left: 0.2rem; }
+.setup-step-list div { margin: 0.25rem 0; }
 [role="listbox"], [role="option"] { background: var(--surface) !important; color: var(--ink) !important; }
 .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {
   border-radius: .85rem !important;
@@ -2081,9 +2086,9 @@ def valid_online_time(value: Any, *, allow_blank: bool = True) -> bool:
 def validate_online_action_dates_and_times(*, scheduled: str = "", due: str = "", start_time: str = "", end_time: str = "", prompt_time: str = "") -> list[str]:
     problems: list[str] = []
     if not valid_online_date(scheduled):
-        problems.append("Scheduled date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+        problems.append("Scheduled date must be blank or a real date. Use DD-MM-YYYY, for example 08-06-2026.")
     if not valid_online_date(due):
-        problems.append("Due date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+        problems.append("Due date must be blank or a real date. Use DD-MM-YYYY, for example 08-06-2026.")
     for label, value in [("Calendar start time", start_time), ("Calendar end time", end_time), ("Prompt reference time", prompt_time)]:
         if not valid_online_time(value):
             problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
@@ -3264,23 +3269,20 @@ def setup_routine_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str,
     return options, mapping
 
 
-def setup_next_step(sheet_id: str, current_idx: int) -> None:
+def setup_next_step(sheet_id: str, current_idx: int) -> tuple[bool, str]:
     if current_idx >= len(SETUP_STEPS) - 1:
-        save_setup_state(sheet_id, completed=True, current_step=SETUP_STEPS[-1][0])
-    else:
-        save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx + 1][0])
-    st.rerun()
+        return save_setup_state(sheet_id, completed=True, current_step=SETUP_STEPS[-1][0])
+    return save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx + 1][0])
 
 
-def setup_back_step(sheet_id: str, current_idx: int) -> None:
+def setup_back_step(sheet_id: str, current_idx: int) -> tuple[bool, str]:
     if current_idx > 0:
-        save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx - 1][0])
-    st.rerun()
+        return save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx - 1][0])
+    return True, "Already at the first setup step."
 
 
 def setup_skip_for_now() -> None:
     st.session_state["skip_online_setup_for_session"] = True
-    st.rerun()
 
 
 def render_setup_area_step(sheet_id: str) -> None:
@@ -3306,9 +3308,7 @@ def render_setup_area_step(sheet_id: str) -> None:
                 "default_calendar": name.strip(),
                 "default_task_list": "Pathmark",
             })
-            st.success("Area saved.") if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+            st.success("Area saved. You can edit or delete it later from Areas.") if ok else st.warning(safe_user_message(message))
 
 
 def render_setup_routine_step(sheet_id: str) -> None:
@@ -3325,14 +3325,16 @@ def render_setup_routine_step(sheet_id: str) -> None:
         purpose = st.text_area("Why this routine matters", placeholder="For example, protect sleep before adding more work to the system.", height=80)
         frequency = st.selectbox("Frequency", VALID_FREQUENCIES, index=0)
         preferred_days = st.multiselect("Preferred days", VALID_DAYS, default=VALID_DAYS if frequency == "Daily" else [])
-        duration = st.number_input("Approximate minutes", min_value=0, max_value=1440, value=30, step=5)
-        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, put on gym clothes, start wind-down, open the meal plan")
+        duration = st.number_input("Approximate minutes", min_value=0, max_value=1440, value=480, step=5)
+        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, put phone away and start wind-down")
         save = st.form_submit_button("Save this routine", use_container_width=True)
     if save:
         if not title.strip():
             st.warning("Add a routine name before saving.")
         elif frequency in {"Weekly", "Weekdays"} and not preferred_days:
             st.warning("Choose preferred days so calendar and task exports know when this routine belongs.")
+        elif not first_step.strip():
+            st.warning("Add a first-step prompt so this routine creates an activity row for tasklists and exports.")
         else:
             area = area_map.get(area_label, {})
             routine_id = f"routine-{uuid.uuid4().hex}"
@@ -3365,14 +3367,12 @@ def render_setup_routine_step(sheet_id: str) -> None:
                     "first_step": first_step.strip(),
                     "activity_days": ", ".join(preferred_days),
                 })
-            st.success("Routine saved.") if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+            st.success("Routine saved. You can edit its activities later from Routines.") if ok else st.warning(safe_user_message(message))
 
 
 def render_setup_goal_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>Example Goal:</strong> Learn to sketch. Closure criteria: complete three beginner sketches and choose the next learning focus.</div>
+    <div class='setup-example'><strong>Example Goal:</strong> Learn basic sketching by 30-09-2026. Closure criteria: complete three beginner exercises and one simple still-life sketch, then choose the next practice focus.</div>
     """, unsafe_allow_html=True)
     area_options, area_map = setup_area_options(sheet_id)
     if not area_options:
@@ -3380,16 +3380,16 @@ def render_setup_goal_step(sheet_id: str) -> None:
         return
     with st.form("setup_goal_form"):
         area_label = st.selectbox("Area", area_options)
-        title = st.text_input("Goal name", placeholder="For example, Learn to sketch")
+        title = st.text_input("Goal name", placeholder="For example, Learn basic sketching by 30-09-2026")
         purpose = st.text_area("Why this matters", placeholder="For example, build a creative practice that can fit into ordinary weeks.", height=80)
-        closure = st.text_area("How will you know this goal is done?", placeholder="For example, complete three beginner sketches and choose the next learning focus.", height=90)
-        target_date = st.text_input("Target date", placeholder="Optional, YYYY-MM-DD")
+        closure = st.text_area("How will you know this goal is done?", placeholder="For example, complete three beginner exercises and one simple still-life sketch.", height=90)
+        target_date = st.text_input("Target date", placeholder="Optional, DD-MM-YYYY")
         save = st.form_submit_button("Save this goal", use_container_width=True)
     if save:
         if not title.strip():
             st.warning("Add a goal name before saving.")
-        elif target_date and not validate_iso_date(target_date):
-            st.warning("Use YYYY-MM-DD for the target date, or leave it blank.")
+        elif target_date and not valid_online_date(target_date):
+            st.warning("Use DD-MM-YYYY for the target date, or leave it blank.")
         elif not closure.strip():
             st.warning("Add closure criteria so you know when the goal has actually been achieved.")
         else:
@@ -3401,18 +3401,16 @@ def render_setup_goal_step(sheet_id: str) -> None:
                 "title": title.strip(),
                 "description": purpose.strip(),
                 "status": "active",
-                "target_date": target_date.strip(),
+                "target_date": normalise_online_date(target_date),
                 "purpose": purpose.strip(),
                 "closure_criteria": closure.strip(),
             })
-            st.success("Goal saved.") if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+            st.success("Goal saved. Add an action next so it can become calendar time, a prompt, or a tasklist item.") if ok else st.warning(safe_user_message(message))
 
 
 def render_setup_action_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>Example Action:</strong> Purchase a beginner sketching guide. First-step prompt: search for one beginner guide.</div>
+    <div class='setup-example'><strong>Example Action:</strong> Purchase a beginner sketching guide. First-step prompt: search for one beginner guide and save two options.</div>
     """, unsafe_allow_html=True)
     goal_options, goal_map = setup_goal_options(sheet_id)
     if not goal_options:
@@ -3421,20 +3419,20 @@ def render_setup_action_step(sheet_id: str) -> None:
     with st.form("setup_action_form"):
         goal_label = st.selectbox("Goal", goal_options)
         title = st.text_input("Next action", placeholder="For example, purchase a beginner sketching guide")
-        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, search for one beginner guide")
+        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, search for one beginner guide and save two options")
         minutes = st.number_input("Approximate minutes", min_value=0, max_value=480, value=30, step=5)
-        scheduled = st.text_input("Calendar date", placeholder="Optional, YYYY-MM-DD")
+        scheduled = st.text_input("Calendar date", placeholder="Optional, DD-MM-YYYY")
         start_time = st.text_input("Calendar start time", placeholder="Optional, HH:MM")
         end_time = st.text_input("Calendar end time", placeholder="Optional, HH:MM")
         save = st.form_submit_button("Save this action", use_container_width=True)
     if save:
         if not title.strip():
             st.warning("Add an action before saving.")
-        elif scheduled and not validate_iso_date(scheduled):
-            st.warning("Use YYYY-MM-DD for the calendar date, or leave it blank.")
-        elif start_time and not validate_hhmm(start_time):
+        elif scheduled and not valid_online_date(scheduled):
+            st.warning("Use DD-MM-YYYY for the calendar date, or leave it blank.")
+        elif start_time and not valid_online_time(start_time):
             st.warning("Use HH:MM for the start time, or leave it blank.")
-        elif end_time and not validate_hhmm(end_time):
+        elif end_time and not valid_online_time(end_time):
             st.warning("Use HH:MM for the end time, or leave it blank.")
         else:
             goal = goal_map.get(goal_label, {})
@@ -3447,7 +3445,7 @@ def render_setup_action_step(sheet_id: str) -> None:
                 "description": title.strip(),
                 "status": "active",
                 "estimated_minutes": str(minutes),
-                "scheduled_date": scheduled.strip(),
+                "scheduled_date": normalise_online_date(scheduled),
                 "calendar_block": "1" if scheduled.strip() else "0",
                 "reminder": "1" if first_step.strip() else "0",
                 "include_tasklist": "1",
@@ -3455,16 +3453,21 @@ def render_setup_action_step(sheet_id: str) -> None:
                 "calendar_start_time": start_time.strip(),
                 "calendar_end_time": end_time.strip(),
             })
-            st.success("Action saved.") if ok else st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
+            st.success("Action saved. You can now review it and export it when ready.") if ok else st.warning(safe_user_message(message))
+
+
+def render_setup_review_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>What the Review Queue does:</strong> It helps you check whether Areas, routines, goals and actions have the information needed for tasklists and exports.</div>
+    """, unsafe_allow_html=True)
+    st.write("Use Review Queue later when something does not quite export as expected, or when you want to check whether the parts of your system are linked correctly.")
 
 
 def render_setup_export_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>What exports do:</strong> Calendar exports make time, Google Tasks prompts reduce friction, and the PDF tasklist gives a paper checklist option.</div>
+    <div class='setup-example'><strong>What exports do:</strong> Calendar exports make time. Google Tasks prompts create the first tiny step. The PDF tasklist is the paper alternative if you prefer ticking things off by hand.</div>
     """, unsafe_allow_html=True)
-    st.write("Use the export tabs after setup to choose which actions and routine activities are ready to send to your calendar, Google Tasks sheet, or PDF tasklist.")
+    st.write("This is orientation rather than data entry. After setup, use the export tabs to choose which saved actions and routine activities are ready to send out of Pathmark.")
 
 
 def render_setup_archive_step(sheet_id: str) -> None:
@@ -3479,14 +3482,29 @@ def render_setup_pathway_primary(sheet_id: str) -> None:
     status = state["status"]
     current_idx = setup_step_index(state["current_step"])
     key, name, desc = SETUP_STEPS[current_idx]
+
     st.markdown("<div class='setup-shell'>", unsafe_allow_html=True)
     st.markdown("<div class='setup-step-label'>Guided setup</div>", unsafe_allow_html=True)
     st.markdown("## Set up Pathmark")
-    st.write("Work through this once to give your routines, goals, actions and exports a clear structure. You can skip it now or revisit it later without deleting anything.")
-    progress = (current_idx + (1 if status == "completed" else 0)) / max(len(SETUP_STEPS), 1)
-    st.progress(min(max(progress, 0), 1), text=f"Step {current_idx + 1} of {len(SETUP_STEPS)}: {name}")
+    st.write("Work through this once to learn the Pathmark flow. Examples are only prompts: they are not saved unless you type into a form and choose Save.")
+
+    progress = (current_idx + 1) / max(len(SETUP_STEPS), 1)
+    pct = round(min(max(progress, 0), 1) * 100)
+    st.markdown(f"<div class='setup-progress-wrap'><div class='setup-progress-fill' style='width:{pct}%'></div></div>", unsafe_allow_html=True)
+    st.caption(f"Step {current_idx + 1} of {len(SETUP_STEPS)}")
+
+    step_lines = ["<div class='setup-step-list'>"]
+    for idx, (_step_key, step_name, _step_desc) in enumerate(SETUP_STEPS):
+        marker = "●" if idx == current_idx else ("✓" if idx < current_idx else "○")
+        weight = "font-weight:800;" if idx == current_idx else ""
+        step_lines.append(f"<div style='{weight}'>{marker} {idx + 1}. {step_name}</div>")
+    step_lines.append("</div>")
+    st.markdown("".join(step_lines), unsafe_allow_html=True)
+
+    st.divider()
     st.markdown(f"### {name}")
     st.write(desc)
+
     if key == "areas":
         render_setup_area_step(sheet_id)
     elif key == "routines":
@@ -3495,24 +3513,32 @@ def render_setup_pathway_primary(sheet_id: str) -> None:
         render_setup_goal_step(sheet_id)
     elif key == "actions":
         render_setup_action_step(sheet_id)
+    elif key == "review":
+        render_setup_review_step(sheet_id)
     elif key == "exports":
         render_setup_export_step(sheet_id)
     elif key == "archive":
         render_setup_archive_step(sheet_id)
-    st.markdown("</div>", unsafe_allow_html=True)
-    nav1, nav2, nav3 = st.columns([1, 1, 1])
-    with nav1:
-        st.button("Back", use_container_width=True, disabled=current_idx == 0, on_click=setup_back_step, args=(sheet_id, current_idx))
-    with nav2:
-        if current_idx < len(SETUP_STEPS) - 1:
-            st.button("Next step", use_container_width=True, on_click=setup_next_step, args=(sheet_id, current_idx))
-        else:
-            if st.button("Finish setup", use_container_width=True):
+
+    st.divider()
+    if current_idx > 0:
+        if st.button("Back to previous setup step", use_container_width=True):
+            setup_back_step(sheet_id, current_idx)
+            st.rerun()
+    if current_idx < len(SETUP_STEPS) - 1:
+        if st.button("Next setup step", use_container_width=True):
+            setup_next_step(sheet_id, current_idx)
+            st.rerun()
+    else:
+        if st.button("Prepare my workspace", use_container_width=True):
+            with st.spinner("Preparing your workspace..."):
                 save_setup_state(sheet_id, completed=True, current_step=key)
-                st.rerun()
-    with nav3:
-        st.button("Skip setup for now", use_container_width=True, on_click=setup_skip_for_now)
-    st.caption("Example text is there to guide you. It is not saved unless you type into a form and choose Save.")
+            st.session_state["skip_online_setup_for_session"] = True
+            st.rerun()
+    if st.button("Skip setup for now", use_container_width=True):
+        setup_skip_for_now()
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_setup_pathway(sheet_id: str) -> None:
@@ -3753,12 +3779,6 @@ def on_the_go_tab() -> None:
     setup_state = get_setup_state(sheet_id)
     if setup_state.get("status") != "completed" and not st.session_state.get("skip_online_setup_for_session"):
         render_setup_pathway_primary(sheet_id)
-        st.divider()
-        with st.expander("Use Pathmark Online without finishing setup", expanded=False):
-            st.write("You can open the full workspace now. Guided setup will remain available from Settings.")
-            if st.button("Open full workspace for this session", use_container_width=True):
-                st.session_state["skip_online_setup_for_session"] = True
-                st.rerun()
         return
 
     sections = st.tabs([

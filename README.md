@@ -306,3 +306,14 @@ A release-package safety scan was also run for obvious secrets and private data 
 - Users can go back, move to the next step, finish setup or skip setup for the current session.
 - Example text appears as placeholders and guidance only; it is not written to the user's Pathmark Sync Google Sheet unless the user types information and saves it.
 - The full Pathmark Online workspace remains available after setup, or for the current session if the user chooses to skip setup.
+
+
+## v0.5.98 Guided setup polish and NZ validation
+
+- Fixed guided setup navigation so Next, Back and Skip do not call `st.rerun()` from callbacks.
+- Kept guided setup as the primary first-time Pathmark Online experience while removing the duplicate full-workspace skip expander.
+- Reworked setup progress into a cleaner vertical orientation flow.
+- Changed setup examples into placeholders/guidance only; examples are not written to the Pathmark Sync sheet unless the user saves them.
+- Updated setup date prompts to use DD-MM-YYYY for New Zealand users while storing normalised dates for export processing.
+- Improved routine setup so the example 8-hour sleep block uses 480 minutes and routine setup requires a first-step prompt/activity.
+- Added Review Queue orientation into setup and reframed Exports as orientation rather than a setup data-entry step.

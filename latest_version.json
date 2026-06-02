@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.97",
+  "version": "0.5.98",
   "release_date": "2026-06-02",
   "notes": [
-    "Made guided setup the primary first-time Pathmark Online experience.",
-    "Changed setup navigation to a vertical step-by-step flow with Back, Next, Finish and Skip setup options.",
-    "Changed examples to non-committed placeholders inside setup forms rather than starter records loaded into the live sheet.",
-    "Removed setup from underneath the main Home dashboard and kept normal workspace navigation for returning users.",
-    "Kept setup progress in the user-owned Pathmark Sync Google Sheet and allowed users to revisit setup later without deleting data."
+    "Fixed guided setup navigation so Next/Back/Skip no longer use Streamlit callbacks that can surface rerun warnings.",
+    "Made guided setup feel more like a primary orientation flow with vertical progress and a cleaner transition into the workspace.",
+    "Removed the duplicate full-workspace skip expander and kept one Skip setup for now action.",
+    "Changed setup examples into placeholders and guidance only, with no committed records unless the user saves a form.",
+    "Improved setup examples, routine duration defaults, first-step routine activity guidance, review/export/archive orientation, and DD-MM-YYYY date validation for NZ users."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_97.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_98.zip",
   "mac_package": ""
 }
