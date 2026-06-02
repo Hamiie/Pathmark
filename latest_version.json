@@ -1,14 +1,16 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "release_date": "2026-06-02",
   "notes": [
-    "Added a Settings danger-zone workflow to delete Pathmark Online Google Drive files that Pathmark can safely identify, then revoke Google access.",
-    "Added safeguards so Pathmark does not delete Drive folders merely because they are named Pathmark.",
-    "Added an optional Supabase profile removal step for users who want their Pathmark access/profile metadata removed as part of online data cleanup.",
-    "Updated About & Privacy wording to explain disconnecting, deleting, and the limits of Google Drive access more clearly.",
-    "Kept local Pathmark Desktop Workspace files separate from online deletion."
+    "Consolidated Google access, data deletion and revoke controls into one Settings section.",
+    "Improved Pathmark Online theme contrast and added a true dark theme with consistent button text.",
+    "Refined guided setup wording and button layout while keeping examples as user-facing prompts.",
+    "Updated Area colour controls so the selected Google Calendar colour preview updates immediately.",
+    "Made routine preferred-day controls clearer by hiding them for Daily routines.",
+    "Tidied Review Queue and Tasklist screens to reduce alarming tables and button clutter.",
+    "Removed redundant example-guidance and disembodied hint sections from the Online workspace."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_1.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_2.zip",
   "mac_package": ""
 }
