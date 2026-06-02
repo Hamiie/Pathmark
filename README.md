@@ -261,3 +261,31 @@ Pathmark Online now applies the selected theme across the hosted interface, incl
 
 - Improved mobile contrast for Pathmark Online, especially tab labels, field labels, select boxes, and button text in mobile or in-app browsers.
 - Kept the existing privacy, Google Sheets, Supabase, and Pathmark Online behaviour unchanged.
+
+
+## Mobile home-screen install metadata
+
+The hosted Pathmark app includes PWA-style metadata so mobile browsers can save the site with the Pathmark name and icon rather than the default Streamlit branding.
+
+Static files are served from `app/static/` and require:
+
+```toml
+[server]
+enableStaticServing = true
+```
+
+Included files:
+
+```text
+app/static/manifest.json
+app/static/pathmark-icon-192.png
+app/static/pathmark-icon-512.png
+app/static/apple-touch-icon.png
+```
+
+The hosted app injects the manifest and icon links into the page head at runtime. Browser and in-app-browser behaviour can vary, so users may need to remove an old saved shortcut and add Pathmark again after deployment.
+
+
+## v0.5.95
+
+Adds the Pathmark Online guided setup pathway and export-to-archive workflow. Setup status and archive/export metadata are stored in the user-owned Pathmark Sync Google Sheet.

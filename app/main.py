@@ -37,13 +37,13 @@ SYNC_COLUMNS = [
 
 ONLINE_TABLES = {
     "settings": ["key", "value", "updated_at", "source"],
-    "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source"],
-    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source"],
-    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "created_at", "updated_at", "source"],
-    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "notes", "created_at", "updated_at", "source"],
-    "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source"],
-    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "linked_record_id", "status", "created_at", "updated_at", "source"],
-    "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source"],
+    "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "archived_at", "archived_reason", "restored_at"],
+    "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
+    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
+    "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "google_tasks_export": ["Task ID", "Task List", "Title", "Notes", "Due Date", "Reminder Time", "Status", "Repeat Pattern", "Related Google Calendar Item", "exported_at"],
 }
 
@@ -74,6 +74,15 @@ ONLINE_THEMES = {
 }
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+SETUP_STEPS = [
+    ("areas", "Areas", "Give the main parts of your life somewhere to belong. These Areas also form the basis for calendar grouping."),
+    ("routines", "Routines", "Add the repeating habits that protect your wellbeing, energy and capacity."),
+    ("goals", "Goals", "Define what done looks like, then keep only the next one or two useful actions visible."),
+    ("actions", "Actions", "Turn goals and routines into concrete working rows that can be scheduled or prompted."),
+    ("exports", "Exports", "Put actions into your calendar, create Google Tasks prompts, or print a paper tasklist."),
+    ("archive", "Archive", "Move exported or finished work out of the active space, and restore it if you change your mind."),
+]
+SETUP_STEP_KEYS = [step[0] for step in SETUP_STEPS]
 DAY_ALIASES = {d.lower(): d for d in VALID_DAYS}
 DAY_ALIASES.update({d[:3].lower(): d for d in VALID_DAYS})
 
@@ -93,6 +102,60 @@ def page_icon():
 
 
 st.set_page_config(page_title="Pathmark", page_icon=page_icon(), layout="wide")
+
+
+def inject_pwa_metadata() -> None:
+    """Add Pathmark install metadata for mobile/desktop browser shortcuts.
+
+    Streamlit controls the base document head, so this small script updates the
+    parent document at runtime. Static files are served from app/static via
+    Streamlit's static file serving.
+    """
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          function setMeta(name, content) {
+            let el = doc.querySelector('meta[name="' + name + '"]');
+            if (!el) {
+              el = doc.createElement('meta');
+              el.setAttribute('name', name);
+              doc.head.appendChild(el);
+            }
+            el.setAttribute('content', content);
+          }
+          function setLink(rel, href, extraAttrs) {
+            let el = doc.querySelector('link[rel="' + rel + '"]');
+            if (!el) {
+              el = doc.createElement('link');
+              el.setAttribute('rel', rel);
+              doc.head.appendChild(el);
+            }
+            el.setAttribute('href', href);
+            if (extraAttrs) {
+              Object.keys(extraAttrs).forEach(function (key) {
+                el.setAttribute(key, extraAttrs[key]);
+              });
+            }
+          }
+          doc.title = 'Pathmark';
+          setMeta('application-name', 'Pathmark');
+          setMeta('apple-mobile-web-app-title', 'Pathmark');
+          setMeta('apple-mobile-web-app-capable', 'yes');
+          setMeta('mobile-web-app-capable', 'yes');
+          setMeta('theme-color', '#334E68');
+          setLink('manifest', '/app/static/manifest.json');
+          setLink('icon', '/app/static/pathmark-icon-192.png', {'type': 'image/png', 'sizes': '192x192'});
+          setLink('apple-touch-icon', '/app/static/apple-touch-icon.png', {'sizes': '180x180'});
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+inject_pwa_metadata()
 
 CSS = """
 <style>
@@ -1656,9 +1719,54 @@ def update_online_record(sheet_id: str, table: str, record_id: str, updates: dic
 
 def archive_online_record(sheet_id: str, table: str, record_id: str, reason: str = "") -> tuple[bool, str]:
     updates = {"status": "archived"}
-    if "notes" in ONLINE_TABLES.get(table, []):
+    columns = ONLINE_TABLES.get(table, [])
+    if "archived_at" in columns:
+        updates["archived_at"] = utc_now_text()
+    if "archived_reason" in columns:
+        updates["archived_reason"] = reason
+    if "notes" in columns and reason:
         updates["notes"] = reason
     return update_online_record(sheet_id, table, record_id, updates)
+
+
+def restore_online_record(sheet_id: str, table: str, record_id: str) -> tuple[bool, str]:
+    columns = ONLINE_TABLES.get(table, [])
+    updates = {"status": "active"}
+    if "restored_at" in columns:
+        updates["restored_at"] = utc_now_text()
+    if "archived_reason" in columns:
+        updates["archived_reason"] = ""
+    return update_online_record(sheet_id, table, record_id, updates)
+
+
+def mark_actions_exported(sheet_id: str, action_ids: list[str], export_type: str, *, archive: bool = True) -> tuple[bool, str]:
+    ids = [str(x).strip() for x in action_ids if str(x).strip()]
+    if not ids:
+        return False, "No exported items were available to move."
+    batch_id = f"export-{uuid.uuid4().hex[:12]}"
+    stamp = utc_now_text()
+    ok_count = 0
+    last_message = ""
+    for action_id in ids:
+        updates = {
+            "exported_at": stamp,
+            "export_type": export_type,
+            "export_batch_id": batch_id,
+        }
+        if archive:
+            updates.update({
+                "status": "archived",
+                "archived_at": stamp,
+                "archived_reason": f"Moved to Archive after {export_type} export.",
+            })
+        ok, message = update_online_record(sheet_id, "actions", action_id, updates)
+        last_message = message
+        if ok:
+            ok_count += 1
+    clear_online_cache(sheet_id)
+    if ok_count:
+        return True, f"Moved {ok_count} exported item(s) to Archive. Batch: {batch_id}."
+    return False, last_message or "Could not move the exported items to Archive."
 
 
 def active_online_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -2110,7 +2218,7 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
 def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
-        return pd.DataFrame(columns=["source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+        return pd.DataFrame(columns=["action_id", "source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
     goals, routines = parent_lookup(sheet_id)
     rows = []
     for _, action in actions.iterrows():
@@ -2123,6 +2231,7 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
         routine_id = str(action.get("routine_id", "") or "")
         parent = routines.get(routine_id, {}).get("title") or goals.get(goal_id, {}).get("title") or ""
         rows.append({
+            "action_id": action.get("action_id", ""),
             "source_type": "Routine activity" if routine_id else "Goal action",
             "title": action.get("title", ""),
             "area_name": action.get("area_name", "") or routines.get(routine_id, {}).get("area_name", "") or goals.get(goal_id, {}).get("area_name", ""),
@@ -2703,6 +2812,13 @@ def render_tasklist_manager(sheet_id: str) -> None:
         content += "\nNotes\n" + notes.strip() + "\n"
     pdf_bytes = build_tasklist_pdf(content_rows, title=title or "Pathmark Tasklist", notes=notes)
     st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
+    if not selected_rows.empty:
+        st.info("After printing or saving this tasklist, you can move the selected rows to Archive. Restore them later if you change your mind.")
+        if st.button("Move selected tasklist items to Archive", use_container_width=True):
+            ids = selected_rows.get("action_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
+            ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=True)
+            st.success(message) if ok else st.warning(safe_user_message(message))
+            st.rerun()
 
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Export")
@@ -2710,6 +2826,13 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
     blocks = staged_calendar_blocks(sheet_id)
     dataframe_preview(blocks, ["title", "area_name", "start", "end", "recurrence", "linked_record_id"])
     st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
+    if not blocks.empty:
+        st.info("After you have downloaded or imported the calendar file, you can move those exported rows to Archive so they leave the active workspace.")
+        if st.button("Move exported calendar items to Archive", use_container_width=True):
+            ids = blocks.get("linked_record_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
+            ok, message = mark_actions_exported(sheet_id, ids, "google_calendar", archive=True)
+            st.success(message) if ok else st.warning(safe_user_message(message))
+            st.rerun()
 
 
 
@@ -2759,19 +2882,46 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
         ok, message = write_google_tasks_export_tab(sheet_id, prompts)
         st.success(message) if ok else st.warning(safe_user_message(message))
+    if not prompts.empty:
+        st.info("After you have downloaded or written the Google Tasks export, you can move those exported rows to Archive so they leave the active workspace.")
+        if st.button("Move exported Google Tasks items to Archive", use_container_width=True):
+            ids = prompts.get("id", pd.Series(dtype=str)).dropna().astype(str).tolist()
+            ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=True)
+            st.success(message) if ok else st.warning(safe_user_message(message))
+            st.rerun()
 
 
 def render_archive_manager(sheet_id: str) -> None:
     st.subheader("Archive")
-    st.write("Archived online records remain in your Google Sheet with status 'archived'. They are hidden from active Pathmark Online views.")
-    for table, title, cols in [("areas", "Areas", ["area_name", "description", "updated_at"]), ("goals", "Goals", ["title", "area_name", "status", "updated_at"]), ("routines", "Routines", ["title", "area_name", "status", "updated_at"]), ("actions", "Actions and activities", ["title", "area_name", "status", "updated_at"])]:
+    st.write("Archive keeps exported, completed or paused records out of the active workspace without deleting them. Restore a record when you want to work with it again.")
+    table_specs = [
+        ("areas", "Areas", "area_id", "area_name", ["area_name", "description", "updated_at", "archived_at", "archived_reason"]),
+        ("goals", "Goals", "goal_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
+        ("routines", "Routines", "routine_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
+        ("actions", "Actions and activities", "action_id", "title", ["title", "area_name", "status", "export_type", "exported_at", "archived_at", "archived_reason"]),
+    ]
+    for table, title, id_col, label_col, cols in table_specs:
         df = read_online_table(sheet_id, table)
         if not df.empty and "status" in df.columns:
-            archived = df[df["status"].fillna("").str.lower().eq("archived")]
+            archived = df[df["status"].fillna("").str.lower().eq("archived")].reset_index(drop=True)
         else:
             archived = pd.DataFrame(columns=cols)
         with st.expander(title, expanded=False):
-            dataframe_preview(archived, cols)
+            if archived.empty:
+                st.caption("Nothing archived here yet.")
+                continue
+            dataframe_preview(archived, [c for c in cols if c in archived.columns])
+            choices = []
+            for _, row in archived.iterrows():
+                label = str(row.get(label_col, "Untitled") or "Untitled")
+                rid = str(row.get(id_col, "") or "")
+                choices.append((f"{label} — {rid[-8:] if rid else 'no id'}", rid))
+            choice_label = st.selectbox(f"Choose {title.lower()} record to restore", [c[0] for c in choices], key=f"restore_choice_{table}")
+            chosen_id = dict(choices).get(choice_label, "")
+            if st.button(f"Restore selected {title.lower()}", key=f"restore_button_{table}", use_container_width=True, disabled=not chosen_id):
+                ok, message = restore_online_record(sheet_id, table, chosen_id)
+                st.success("Restored to the active workspace.") if ok else st.warning(safe_user_message(message))
+                st.rerun()
 
 
 def render_online_settings(sheet_id: str) -> None:
@@ -2790,6 +2940,15 @@ def render_online_settings(sheet_id: str) -> None:
     if c3.button("Disconnect Google access", use_container_width=True):
         revoke_google_session_token()
         st.rerun()
+    with st.expander("Guided setup", expanded=False):
+        state = get_setup_state(sheet_id)
+        st.write(f"Current setup status: **{state['status'].replace('_', ' ').title()}**")
+        st.write(f"Current step: **{state['current_step'].title()}**")
+        st.write("You can revisit the setup pathway without deleting any Areas, routines, goals or actions.")
+        if st.button("Start setup pathway again", use_container_width=True, key="settings_reset_setup"):
+            ok, message = save_setup_state(sheet_id, reset=True)
+            st.success(message) if ok else st.warning(message)
+            st.rerun()
     with st.expander("Advanced Google Sheet settings", expanded=False):
         render_google_sheets_oauth_diagnostics()
         sheet_url_input = st.text_input("Use an existing Pathmark Sync Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark Sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you explicitly authorise.")
@@ -3011,6 +3170,104 @@ def render_exports_manager(sheet_id: str) -> None:
         render_google_tasks_export_manager(sheet_id)
 
 
+def get_setup_state(sheet_id: str) -> dict[str, str]:
+    status = online_setting(sheet_id, "setup_status", "not_started")
+    if status not in {"not_started", "in_progress", "completed"}:
+        status = "not_started"
+    current = online_setting(sheet_id, "setup_current_step", SETUP_STEP_KEYS[0])
+    if current not in SETUP_STEP_KEYS:
+        current = SETUP_STEP_KEYS[0]
+    return {
+        "status": status,
+        "current_step": current,
+        "completed_at": online_setting(sheet_id, "setup_completed_at", ""),
+        "reset_at": online_setting(sheet_id, "setup_reset_at", ""),
+    }
+
+
+def save_setup_state(sheet_id: str, *, status: str | None = None, current_step: str | None = None, completed: bool = False, reset: bool = False) -> tuple[bool, str]:
+    ok = True
+    messages: list[str] = []
+    if status:
+        step_ok, msg = save_online_setting(sheet_id, "setup_status", status)
+        ok = ok and step_ok; messages.append(msg)
+    if current_step:
+        step_ok, msg = save_online_setting(sheet_id, "setup_current_step", current_step)
+        ok = ok and step_ok; messages.append(msg)
+    if completed:
+        step_ok, msg = save_online_setting(sheet_id, "setup_status", "completed")
+        ok = ok and step_ok; messages.append(msg)
+        step_ok, msg = save_online_setting(sheet_id, "setup_completed_at", utc_now_text())
+        ok = ok and step_ok; messages.append(msg)
+    if reset:
+        step_ok, msg = save_online_setting(sheet_id, "setup_status", "in_progress")
+        ok = ok and step_ok; messages.append(msg)
+        step_ok, msg = save_online_setting(sheet_id, "setup_current_step", SETUP_STEP_KEYS[0])
+        ok = ok and step_ok; messages.append(msg)
+        step_ok, msg = save_online_setting(sheet_id, "setup_reset_at", utc_now_text())
+        ok = ok and step_ok; messages.append(msg)
+    clear_online_cache(sheet_id)
+    return ok, "Setup guide updated." if ok else safe_user_message(messages[-1] if messages else "Could not update setup guide.")
+
+
+def render_setup_pathway(sheet_id: str) -> None:
+    state = get_setup_state(sheet_id)
+    status = state["status"]
+    current = state["current_step"]
+    current_idx = SETUP_STEP_KEYS.index(current) if current in SETUP_STEP_KEYS else 0
+    if status == "completed":
+        st.success("Pathmark setup is marked as complete. You can still revisit the pathway at any time.")
+    elif status == "in_progress":
+        st.info(f"Guided setup is in progress. You are up to: {SETUP_STEPS[current_idx][1]}.")
+    else:
+        st.info("Start with Areas, then add routines, define goals, prepare actions, create exports, and learn how Archive keeps the active space clear.")
+    progress = (current_idx + (1 if status == "completed" else 0)) / max(len(SETUP_STEPS), 1)
+    st.progress(min(max(progress, 0), 1))
+    step_tabs = st.tabs([name for _key, name, _desc in SETUP_STEPS])
+    for idx, (key, name, desc) in enumerate(SETUP_STEPS):
+        with step_tabs[idx]:
+            st.markdown(f"### {name}")
+            st.write(desc)
+            if key == "areas":
+                st.write("Create broad categories before filling the system with details. Areas help routines, goals and calendar exports stay organised.")
+            elif key == "routines":
+                st.write("Add a small number of repeatable routines that protect sleep, food, movement, planning or practice before adding too many goals.")
+            elif key == "goals":
+                st.write("For each goal, write what done looks like. Then define only the next one or two actions that would move it forward.")
+            elif key == "actions":
+                st.write("Actions and routine activities are the rows that become calendar blocks, Google Tasks prompts, or printable tasklist items.")
+            elif key == "exports":
+                st.write("Exports are where Pathmark becomes practical: make time in the calendar, create first-step prompts, or print a paper list.")
+            elif key == "archive":
+                st.write("Once something has been exported or finished, move it out of the active workspace. Restore it if you change your mind.")
+            c1, c2, c3 = st.columns(3)
+            if c1.button("Mark this as current step", key=f"setup_current_{key}", use_container_width=True):
+                ok, message = save_setup_state(sheet_id, status="in_progress", current_step=key)
+                st.success(message) if ok else st.warning(message)
+                st.rerun()
+            if idx < len(SETUP_STEPS) - 1:
+                if c2.button("Next step", key=f"setup_next_{key}", use_container_width=True):
+                    ok, message = save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[idx + 1][0])
+                    st.success(message) if ok else st.warning(message)
+                    st.rerun()
+            else:
+                if c2.button("Mark setup complete", key=f"setup_complete_{key}", use_container_width=True):
+                    ok, message = save_setup_state(sheet_id, completed=True, current_step=key)
+                    st.success(message) if ok else st.warning(message)
+                    st.rerun()
+            if idx > 0:
+                if c3.button("Back", key=f"setup_back_{key}", use_container_width=True):
+                    ok, message = save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[idx - 1][0])
+                    st.success(message) if ok else st.warning(message)
+                    st.rerun()
+    with st.expander("Revisit guided setup", expanded=False):
+        st.write("This will not delete your Areas, routines, goals or actions. It only marks the setup guide as incomplete so you can work through the pathway again.")
+        if st.button("Start setup pathway again", use_container_width=True):
+            ok, message = save_setup_state(sheet_id, reset=True)
+            st.success(message) if ok else st.warning(message)
+            st.rerun()
+
+
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Home")
     data = read_online_tables(sheet_id)
@@ -3021,16 +3278,17 @@ def render_online_overview(sheet_id: str) -> None:
     c3.metric("Routines", counts.get("routines", 0))
     c4.metric("Actions", counts.get("actions", 0))
     st.markdown("""
-    <div class="guide-box"><strong>Your planning system at a glance.</strong><br>
-    Use the tabs below to create Areas, routines, goals, actions, tasklists and exports. Each section includes the guidance needed for that step, so Home stays as a simple dashboard.</div>
+    <div class="guide-box"><strong>Your active workspace.</strong><br>
+    Pathmark is designed so you can duck in and out: keep active routines and goal actions visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
+    render_setup_pathway(sheet_id)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("New to Pathmark Online? Start in Areas, then add routines and goals. You can load optional starter examples from Settings.")
+        st.info("New to Pathmark Online? Start the guided setup pathway above, or load optional starter examples from Settings.")
     st.markdown("""
     <div class="grid-3">
       <div class="process-card"><h4>Make time</h4><p>Calendar exports turn routines and goal actions into time blocks rather than leaving them as vague intentions.</p></div>
       <div class="process-card"><h4>Start smaller</h4><p>Google Tasks prompts can be written as the first tiny step, such as putting on running shoes or opening the sketchbook.</p></div>
-      <div class="process-card"><h4>Tick it off</h4><p>Use Google Tasks prompts or the printable PDF tasklist when you want a visible checklist for the day.</p></div>
+      <div class="process-card"><h4>Keep it clear</h4><p>Move exported or completed items to Archive, then restore them if you need them again.</p></div>
     </div>
     """, unsafe_allow_html=True)
 

@@ -17,3 +17,11 @@ supabase/
   README.md
   migrations/
     20260531000000_create_pathmark_access_tables.sql
+
+
+Added in v0.5.94:
+app/static/
+  manifest.json
+  pathmark-icon-192.png
+  pathmark-icon-512.png
+  apple-touch-icon.png

@@ -1,13 +1,13 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.93",
-  "release_date": "2026-06-01",
+  "version": "0.5.95",
+  "release_date": "2026-06-02",
   "notes": [
-    "Improved mobile contrast for Pathmark Online tabs, form labels, select boxes and controls, especially in mobile/in-app browsers.",
-    "Forced high-contrast text colours across hosted theme overrides so inactive tabs and field labels remain readable on light backgrounds.",
-    "Kept button text white on dark Pathmark buttons while preserving readable disabled states.",
-    "Kept v0.5.92 privacy and online tidy changes unchanged."
+    "Added a guided setup pathway for Areas, Routines, Goals, Actions, Exports and Archive.",
+    "Pathmark Online now tracks setup status in the user-owned Pathmark Sync Google Sheet and lets users revisit setup without deleting data.",
+    "Added export metadata fields and post-export archive actions for calendar exports, Google Tasks exports and PDF tasklists.",
+    "Archive now supports restoring records back to the active workspace."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_93.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_5_95.zip",
   "mac_package": ""
 }
