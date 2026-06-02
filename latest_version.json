@@ -1,16 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "release_date": "2026-06-02",
   "notes": [
-    "Consolidated Google access, data deletion and revoke controls into one Settings section.",
-    "Improved Pathmark Online theme contrast and added a true dark theme with consistent button text.",
-    "Refined guided setup wording and button layout while keeping examples as user-facing prompts.",
-    "Updated Area colour controls so the selected Google Calendar colour preview updates immediately.",
-    "Made routine preferred-day controls clearer by hiding them for Daily routines.",
-    "Tidied Review Queue and Tasklist screens to reduce alarming tables and button clutter.",
-    "Removed redundant example-guidance and disembodied hint sections from the Online workspace."
+    "Polished Pathmark Online readiness messaging so Google/Sync status is shown in one compact banner.",
+    "Reframed routines as containers with routine activities that drive tasklists, calendar blocks and Google Tasks prompts.",
+    "Clarified Calendar vs weekly tasklist vs Google Tasks behaviour, including date-only Google Tasks prompts and no duration support in the export.",
+    "Made goal/project forms more SMART-style and renamed goal actions as goal activities where they are exportable one-off steps.",
+    "Improved setup parity by using the normal routine and goal managers during setup and allowing multiple routine activities.",
+    "Tidied Google Calendar Export with a card preview and moved technical fields into an expander.",
+    "Improved printable tasklist PDF sanitisation so HTML line breaks do not appear and checkbox rows use clean empty boxes.",
+    "Restored seasonal online themes with light and dark variants for Summer, Autumn, Winter and Spring.",
+    "Fixed button/link-button contrast, including the Open sync sheet button, and improved Area colour preview behaviour in setup.",
+    "Removed redundant example guidance from Settings and refined user-facing privacy wording."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_2.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_3.zip",
   "mac_package": ""
 }

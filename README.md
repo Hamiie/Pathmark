@@ -11,7 +11,7 @@ app/
   main.py
   assets/pathmark.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_89.zip
+  Pathmark_Local_App_Windows_v0_6_3.zip
 supabase/
   migrations/
     20260531000000_create_pathmark_access_tables.sql
@@ -73,7 +73,7 @@ The hosted app is becoming a Google-Sheet-backed version of the Pathmark plannin
 - **Pathmark Online:** Areas, goals, projects, routines, calendar blocks, task prompts, tasklists, quick captures, and browser downloads backed by the user-owned Pathmark Sync sheet.
 - **Pathmark Desktop:** the same planning model plus local Workspace folders, Markdown generation, local backups, review/import, and heavier publishing workflows.
 
-v0.5.88 restores a reliable Google login control after the v0.5.87 custom same-tab OAuth button proved unreliable in deployment. The hosted app keeps the Pathmark Online refinements from v0.5.87, including clearer guidance, Google Calendar colour selection, routine validation, PDF tasklist export, theme saving, and Google Tasks export-to-sheet support. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
+v0.6.3 continues the Pathmark Online beta polish. It clarifies routines as containers with routine activities, separates Calendar blocks from weekly tasklist rows and Google Tasks date-based prompts, improves setup/workspace parity, restores seasonal themes with dark variants, and tidies Calendar Export and PDF tasklist output. Supabase remains limited to access control: users, roles, status, feature flags, and audit logs. It must not store goals, routines, task prompts, calendar blocks, Workspace files, or personal planning content.
 
 ## Supabase access layer
 

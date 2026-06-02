@@ -1,4 +1,4 @@
-Pathmark release hub v0.5.88
+Pathmark release hub v0.6.3
 
 .gitignore
 README.md
@@ -11,17 +11,16 @@ app/
   main.py
   assets/
     pathmark.png
+  static/
+    manifest.json
+    pathmark-icon-192.png
+    pathmark-icon-512.png
+    apple-touch-icon.png
 downloads/
-  Pathmark_Local_App_Windows_v0_5_89.zip
+  Pathmark_Local_App_Windows_v0_6_2.zip
+  Pathmark_Local_App_Windows_v0_6_3.zip
 supabase/
   README.md
   migrations/
     20260531000000_create_pathmark_access_tables.sql
-
-
-Added in v0.5.94:
-app/static/
-  manifest.json
-  pathmark-icon-192.png
-  pathmark-icon-512.png
-  apple-touch-icon.png
+    20260601000000_add_pathmark_user_theme_preference.sql
