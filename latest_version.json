@@ -1,14 +1,14 @@
 {
   "app_name": "Pathmark",
-  "version": "0.5.98",
+  "version": "0.6.1",
   "release_date": "2026-06-02",
   "notes": [
-    "Fixed guided setup navigation so Next/Back/Skip no longer use Streamlit callbacks that can surface rerun warnings.",
-    "Made guided setup feel more like a primary orientation flow with vertical progress and a cleaner transition into the workspace.",
-    "Removed the duplicate full-workspace skip expander and kept one Skip setup for now action.",
-    "Changed setup examples into placeholders and guidance only, with no committed records unless the user saves a form.",
-    "Improved setup examples, routine duration defaults, first-step routine activity guidance, review/export/archive orientation, and DD-MM-YYYY date validation for NZ users."
+    "Added a Settings danger-zone workflow to delete Pathmark Online Google Drive files that Pathmark can safely identify, then revoke Google access.",
+    "Added safeguards so Pathmark does not delete Drive folders merely because they are named Pathmark.",
+    "Added an optional Supabase profile removal step for users who want their Pathmark access/profile metadata removed as part of online data cleanup.",
+    "Updated About & Privacy wording to explain disconnecting, deleting, and the limits of Google Drive access more clearly.",
+    "Kept local Pathmark Desktop Workspace files separate from online deletion."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_5_98.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_1.zip",
   "mac_package": ""
 }

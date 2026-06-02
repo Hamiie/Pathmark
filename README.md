@@ -308,6 +308,12 @@ A release-package safety scan was also run for obvious secrets and private data 
 - The full Pathmark Online workspace remains available after setup, or for the current session if the user chooses to skip setup.
 
 
+## v0.6.0 Setup, privacy and weekly focus refinement
+- Refines guided setup so it starts with weekly focus, uses a cleaner progress bar, and keeps Back/Next navigation side by side.
+- Adds a weekly focus field and rotating hints to Pathmark Online Home.
+- Improves routine setup so the routine activity is created during setup.
+- Rewrites About & Privacy in direct user-facing language and confirms the current package has been checked for obvious secrets/private planning records.
+
 ## v0.5.98 Guided setup polish and NZ validation
 
 - Fixed guided setup navigation so Next, Back and Skip do not call `st.rerun()` from callbacks.
@@ -317,3 +323,20 @@ A release-package safety scan was also run for obvious secrets and private data 
 - Updated setup date prompts to use DD-MM-YYYY for New Zealand users while storing normalised dates for export processing.
 - Improved routine setup so the example 8-hour sleep block uses 480 minutes and routine setup requires a first-step prompt/activity.
 - Added Review Queue orientation into setup and reframed Exports as orientation rather than a setup data-entry step.
+
+
+## v0.6.0 guided setup polish
+
+Pathmark Online guided setup now follows the real workspace flow: Weekly Focus, Review Queue, Areas, Routines, Goals and Projects, Actions, Tasklist, Google Calendar Export, Google Tasks Export and Archive. Setup uses the same core managers where appropriate, with user-facing rationale added at each step.
+
+## v0.6.1 online data deletion and revoke access
+
+This release adds a careful Pathmark Online cleanup workflow for beta users who want to remove online Pathmark data and revoke Google access.
+
+- Pathmark Online Settings now includes a danger-zone cleanup section.
+- The cleanup workflow lists only Google Drive files Pathmark can identify as Pathmark files available to this app, such as the connected Pathmark Sync sheet or app-tagged Pathmark files.
+- Pathmark does not delete Google Drive folders simply because they are named Pathmark.
+- Users must type `DELETE PATHMARK` before the cleanup action is enabled.
+- Users can also remove their Pathmark access/profile metadata from Supabase as part of cleanup.
+- Local Pathmark Desktop Workspace files are not affected by the online cleanup workflow.
+

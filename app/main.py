@@ -75,12 +75,15 @@ ONLINE_THEMES = {
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 SETUP_STEPS = [
-    ("areas", "Areas", "Start with broad life systems so routines, goals and calendars have somewhere to belong."),
-    ("routines", "Routines", "Add the repeating habits that protect wellbeing, energy and capacity before piling on more goals."),
-    ("goals", "Goals", "Define what done looks like, then keep only the next one or two useful actions visible."),
-    ("actions", "Actions", "Turn goals into concrete next actions and create first-step prompts that reduce friction."),
-    ("review", "Review Queue", "Check whether the pieces fit together before exporting them."),
-    ("exports", "Exports", "Learn how selected actions become calendar blocks, Google Tasks prompts, or a paper tasklist."),
+    ("focus", "Weekly Focus", "Choose the main thing this week needs from you before adding more structure."),
+    ("review", "Review Queue", "See how Pathmark checks whether the parts of your system are ready to use."),
+    ("areas", "Areas", "Create broad life systems so routines, goals and calendar groups have somewhere to belong."),
+    ("routines", "Routines", "Add repeating habits and at least one activity so wellbeing and capacity are protected."),
+    ("goals", "Goals and Projects", "Define what done looks like, then keep only the next one or two useful actions visible."),
+    ("actions", "Actions", "Turn goals into concrete next actions and first-step prompts that reduce friction."),
+    ("tasklist", "Tasklist", "Choose the saved actions and routine activities you want on a printable paper list."),
+    ("calendar", "Google Calendar Export", "Preview how selected actions become calendar blocks."),
+    ("tasks", "Google Tasks Export", "Preview first-step prompts for Google Tasks or the Google Tasks export tab."),
     ("archive", "Archive", "Move exported or finished work out of the active space, and restore it if you change your mind."),
 ]
 SETUP_STEP_KEYS = [step[0] for step in SETUP_STEPS]
@@ -245,7 +248,7 @@ input::placeholder, textarea::placeholder { color: var(--muted) !important; opac
   border: 1px solid rgba(31,34,33,.18) !important;
   box-shadow: 0 8px 22px var(--shadow);
 }
-.stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a * { color: #FFFFFF !important; }
+.stButton button *, .stButton button p, .stButton button span, .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span, [data-testid="stLinkButton"] a * { color: #FFFFFF !important; }
 .stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover { filter: brightness(.96); color: #FFFFFF !important; }
 .stButton button:disabled, .stDownloadButton button:disabled {
   background: #E2E5E3 !important;
@@ -272,6 +275,13 @@ input::placeholder, textarea::placeholder { color: var(--muted) !important; opac
 .swatch-row { display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; margin:.35rem 0 .85rem; }
 .swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:white; padding:.25rem .55rem; font-size:.85rem; }
 .swatch-dot { width:.8rem; height:.8rem; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.18); }
+
+.area-colour-preview { display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:#FFFFFF; padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }
+.area-colour-dot { width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }
+.setup-progress-wrap { max-width: 760px; }
+.setup-nav-row { margin-top:1.25rem; }
+.setup-skip { margin-top:.65rem; opacity:.96; }
+[data-testid="stIFrame"] { min-height:0 !important; }
 .swatch-row { display:flex; flex-wrap:wrap; gap:.45rem; margin:.5rem 0 .8rem; }
 .process-card { background: rgba(255,255,255,.86); border:1px solid var(--line); border-radius:1rem; padding:1rem; margin:.55rem 0; }
 .process-card h4 { margin:.05rem 0 .35rem 0; color:var(--ink); }
@@ -1406,7 +1416,7 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
             if dservice is not None and sheet_id:
                 dservice.files().update(
                     fileId=sheet_id,
-                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.5.86"}},
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.1"}},
                     fields="id",
                 ).execute()
         except Exception:
@@ -1416,6 +1426,119 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
         return True, sheet_id, spreadsheet.get("spreadsheetUrl", "")
     except Exception as exc:
         return False, "", f"Could not create a Pathmark sync sheet: {exc}"
+
+
+
+def list_pathmark_drive_files_for_deletion(current_sheet_id: str = "") -> tuple[bool, list[dict[str, str]], str]:
+    """Return only Drive files Pathmark can identify as Pathmark-owned/authorised.
+
+    Pathmark uses the limited drive.file permission, so Drive only returns files
+    this app created or files the user explicitly authorised for this app. This
+    deletion list is deliberately stricter: it includes tagged Pathmark Sync
+    spreadsheets and the current connected sync sheet. It also includes folders
+    only when they carry Pathmark's appProperties tag. It does not delete Drive
+    folders simply because they are named "Pathmark".
+    """
+    service = drive_service()
+    if service is None:
+        return False, [], "Google Drive is not available for this session."
+    found: list[dict[str, str]] = []
+
+    def add_file(file: dict[str, Any]) -> None:
+        fid = str(file.get("id", "") or "")
+        if not fid or any(existing.get("id") == fid for existing in found):
+            return
+        found.append({
+            "id": fid,
+            "name": str(file.get("name", "") or "Untitled Pathmark file"),
+            "mimeType": str(file.get("mimeType", "") or ""),
+            "modifiedTime": str(file.get("modifiedTime", "") or ""),
+            "webViewLink": str(file.get("webViewLink", "") or ""),
+        })
+
+    try:
+        queries = [
+            "appProperties has { key='pathmark_sync' and value='true' } and trashed=false",
+            "appProperties has { key='pathmark_folder' and value='true' } and mimeType='application/vnd.google-apps.folder' and trashed=false",
+        ]
+        for query in queries:
+            result = service.files().list(
+                q=query,
+                spaces="drive",
+                fields="files(id,name,mimeType,modifiedTime,webViewLink,appProperties)",
+                orderBy="modifiedTime desc",
+                pageSize=50,
+            ).execute()
+            for file in result.get("files", []):
+                add_file(file)
+        if current_sheet_id:
+            try:
+                file = service.files().get(
+                    fileId=current_sheet_id,
+                    fields="id,name,mimeType,modifiedTime,webViewLink,appProperties",
+                ).execute()
+                is_sheet = file.get("mimeType") == "application/vnd.google-apps.spreadsheet"
+                props = file.get("appProperties", {}) or {}
+                is_pathmark = props.get("pathmark_sync") == "true" or file.get("name") == SYNC_SHEET_TITLE
+                if is_sheet and is_pathmark:
+                    add_file(file)
+            except Exception:
+                pass
+        return True, found, f"Found {len(found)} Pathmark file(s) available to this app."
+    except Exception as exc:
+        return False, [], f"Could not check Google Drive for Pathmark files: {exc}"
+
+
+def delete_pathmark_drive_files(file_ids: list[str]) -> tuple[bool, str]:
+    service = drive_service()
+    if service is None:
+        return False, "Google Drive is not available for this session."
+    deleted = 0
+    failed = 0
+    for fid in file_ids:
+        fid = str(fid or "").strip()
+        if not fid:
+            continue
+        try:
+            service.files().delete(fileId=fid).execute()
+            deleted += 1
+        except Exception:
+            failed += 1
+    if failed:
+        return False, f"Deleted {deleted} Pathmark file(s), but {failed} file(s) could not be deleted. You can remove remaining files from Google Drive."
+    return True, f"Deleted {deleted} Pathmark file(s) from Google Drive."
+
+
+def delete_supabase_profile_data(email: str) -> tuple[bool, str]:
+    """Remove the signed-in user's Pathmark Online profile metadata from Supabase."""
+    email = (email or "").strip().lower()
+    if not email:
+        return False, "No signed-in email was found."
+    if not supabase_available():
+        return True, "No Supabase profile store is configured."
+    encoded_email = urllib.parse.quote(email, safe="")
+    audit_query = f"?or=(actor_email.eq.{encoded_email},target_email.eq.{encoded_email})"
+    supabase_request("DELETE", "pathmark_audit_log", query=audit_query, prefer="return=minimal")
+    user_query = "?" + urllib.parse.urlencode({"email": f"eq.{email}"})
+    ok, payload = supabase_request("DELETE", "pathmark_users", query=user_query, prefer="return=minimal")
+    if not ok:
+        return False, "Could not remove the Pathmark access profile from Supabase."
+    return True, "Removed the Pathmark access/profile record from Supabase."
+
+
+def full_google_disconnect_and_data_removal(sheet_id: str, email: str, remove_supabase_profile: bool = True) -> tuple[bool, str]:
+    ok_list, files, message = list_pathmark_drive_files_for_deletion(sheet_id)
+    if not ok_list:
+        return False, safe_user_message(message)
+    file_ids = [f["id"] for f in files]
+    ok_delete, delete_message = delete_pathmark_drive_files(file_ids) if file_ids else (True, "No Pathmark Google Drive files were found for this app to delete.")
+    ok_profile, profile_message = (True, "Supabase profile was not removed.")
+    if remove_supabase_profile:
+        ok_profile, profile_message = delete_supabase_profile_data(email)
+    revoke_google_session_token()
+    clear_hosted_login_session()
+    combined = f"{delete_message} {profile_message} Google access has been disconnected for this browser session."
+    return ok_delete and ok_profile, combined
 
 
 def append_to_user_oauth_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool, str]:
@@ -1926,7 +2049,7 @@ def inject_theme_css(theme_name: str) -> None:
           color: #FFFFFF !important;
           border-color: rgba(31,34,33,.18) !important;
         }}
-        .stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a * {{ color: #FFFFFF !important; }}
+        .stButton button *, .stButton button p, .stButton button span, .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span, [data-testid="stLinkButton"] a * {{ color: #FFFFFF !important; }}
         [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] *,
         [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *,
         [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {{
@@ -2973,6 +3096,32 @@ def render_online_settings(sheet_id: str) -> None:
             if ok:
                 clear_online_cache(new_sheet_id)
                 st.rerun()
+    with st.expander("Delete Pathmark Online data and revoke access", expanded=False):
+        st.warning("This is a permanent cleanup action for Pathmark Online. It does not delete files from your local Pathmark Desktop Workspace.")
+        st.write("Pathmark will only list Google Drive files it can identify as Pathmark files available to this app. It will not delete Drive folders just because they are named Pathmark.")
+        ok_files, files, files_message = list_pathmark_drive_files_for_deletion(sheet_id) if sheet_id else (True, [], "No sync sheet is currently selected.")
+        if ok_files and files:
+            rows = []
+            for f in files:
+                kind = "Google Sheet" if f.get("mimeType") == "application/vnd.google-apps.spreadsheet" else ("Folder" if f.get("mimeType") == "application/vnd.google-apps.folder" else "Drive file")
+                rows.append({"Name": f.get("name", ""), "Type": kind, "Modified": f.get("modifiedTime", "")})
+            st.write("Pathmark can delete these identified files:")
+            dataframe_preview(pd.DataFrame(rows), ["Name", "Type", "Modified"])
+        elif ok_files:
+            st.info("No Pathmark Google Drive files were found for this app to delete.")
+        else:
+            st.warning(safe_user_message(files_message))
+        remove_profile = st.checkbox("Also remove my Pathmark access/profile record from Supabase", value=True, help="This removes your email, role/status row, theme preference and matching audit records from Pathmark's access system. If your email is still listed in deployment bootstrap settings, that bootstrap access may be recreated next time you sign in.")
+        confirm_text = st.text_input("Type DELETE PATHMARK to confirm", value="", key="confirm_delete_pathmark_online")
+        delete_disabled = confirm_text.strip() != "DELETE PATHMARK"
+        if st.button("Delete Pathmark Online data and revoke Google access", use_container_width=True, disabled=delete_disabled):
+            user = current_user()
+            ok, message = full_google_disconnect_and_data_removal(sheet_id, user.get("email", ""), remove_supabase_profile=remove_profile)
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
+            st.rerun()
     with st.expander("Example guidance", expanded=False):
         st.write("Examples now appear as placeholders inside guided setup and forms. They are not saved to your Pathmark Sync sheet unless you type details and choose Save.")
     st.markdown("### Theme")
@@ -3219,6 +3368,8 @@ def save_setup_state(sheet_id: str, *, status: str | None = None, current_step: 
 
 
 def setup_step_index(step_key: str) -> int:
+    legacy = {"exports": "calendar", "google_calendar": "calendar", "google_tasks": "tasks"}
+    step_key = legacy.get(step_key, step_key)
     return SETUP_STEP_KEYS.index(step_key) if step_key in SETUP_STEP_KEYS else 0
 
 
@@ -3285,6 +3436,40 @@ def setup_skip_for_now() -> None:
     st.session_state["skip_online_setup_for_session"] = True
 
 
+def display_first_of_next_month() -> str:
+    today = date.today()
+    year = today.year + (1 if today.month == 12 else 0)
+    month = 1 if today.month == 12 else today.month + 1
+    return date(year, month, 1).strftime("%d-%m-%Y")
+
+
+def render_colour_preview(label: str) -> None:
+    colour = GOOGLE_COLOUR_BY_LABEL.get(label, {"hex": "#7986CB", "name": label})
+    safe_name = html.escape(str(colour.get("name", label)))
+    safe_hex = html.escape(str(colour.get("hex", "#7986CB")))
+    st.markdown(
+        f"<div class='area-colour-preview' style='border-left-color:{safe_hex}'><span class='area-colour-dot' style='background:{safe_hex}'></span><span>Selected calendar colour: <strong>{safe_name}</strong></span></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_setup_focus_step(sheet_id: str) -> None:
+    current_focus = online_setting(sheet_id, "weekly_focus", "")
+    st.markdown("""
+    <div class='setup-example'><strong>Example:</strong> This week, protect sleep and make time for one small sketching action.</div>
+    """, unsafe_allow_html=True)
+    st.write("Choose a simple focus for the week. It helps you decide what belongs in the calendar first, before the system fills with details.")
+    with st.form("setup_focus_form"):
+        focus = st.text_area("Main focus for this week", value=current_focus, placeholder="For example, protect sleep and make time for one sketching action.", height=90)
+        save = st.form_submit_button("Save weekly focus", use_container_width=True)
+    if save:
+        if not focus.strip():
+            st.warning("Add a short weekly focus before saving, or move to the next step and come back later.")
+        else:
+            ok, message = save_online_setting(sheet_id, "weekly_focus", focus.strip())
+            st.success("Weekly focus saved.") if ok else st.warning(safe_user_message(message))
+
+
 def render_setup_area_step(sheet_id: str) -> None:
     st.markdown("""
     <div class='setup-example'><strong>Example Area:</strong> Body and Stability — sleep, movement, health appointments and routines that support energy.</div>
@@ -3292,7 +3477,8 @@ def render_setup_area_step(sheet_id: str) -> None:
     with st.form("setup_area_form"):
         name = st.text_input("Area name", placeholder="For example, Body and Stability")
         description = st.text_area("What belongs here?", placeholder="Sleep, movement, strength, mobility, health appointments and routines that support energy.", height=90)
-        colour_label = st.selectbox("Calendar colour", GOOGLE_COLOUR_LABELS, index=1, help="Areas form the basis for calendar grouping. Pathmark stores the Google Calendar colour code behind the scenes.")
+        colour_label = st.selectbox("Calendar colour", GOOGLE_COLOUR_LABELS, index=1, help="Areas form the basis for calendar grouping.")
+        render_colour_preview(colour_label)
         save = st.form_submit_button("Save this Area", use_container_width=True)
     if save:
         if not name.strip():
@@ -3310,31 +3496,42 @@ def render_setup_area_step(sheet_id: str) -> None:
             })
             st.success("Area saved. You can edit or delete it later from Areas.") if ok else st.warning(safe_user_message(message))
 
-
 def render_setup_routine_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>Example Routine:</strong> Protect an 8-hour sleep block. First step prompt: start wind-down routine.</div>
+    <div class='setup-example'><strong>Example Routine:</strong> Protect an 8-hour sleep block. Activity: start wind-down routine. First-step prompt: put phone away and start getting ready for bed.</div>
     """, unsafe_allow_html=True)
     area_options, area_map = setup_area_options(sheet_id)
     if not area_options:
         st.info("Create at least one Area first, then add routines that belong inside it.")
         return
     with st.form("setup_routine_form"):
+        st.markdown("#### Routine")
         area_label = st.selectbox("Area", area_options)
         title = st.text_input("Routine name", placeholder="For example, Protect an 8-hour sleep block")
         purpose = st.text_area("Why this routine matters", placeholder="For example, protect sleep before adding more work to the system.", height=80)
         frequency = st.selectbox("Frequency", VALID_FREQUENCIES, index=0)
-        preferred_days = st.multiselect("Preferred days", VALID_DAYS, default=VALID_DAYS if frequency == "Daily" else [])
+        preferred_default = VALID_DAYS if frequency == "Daily" else []
+        preferred_days = st.multiselect("Preferred days", VALID_DAYS, default=preferred_default)
         duration = st.number_input("Approximate minutes", min_value=0, max_value=1440, value=480, step=5)
-        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, put phone away and start wind-down")
-        save = st.form_submit_button("Save this routine", use_container_width=True)
+        st.markdown("#### First routine activity")
+        activity_title = st.text_input("Activity name", placeholder="For example, Wind down for bed")
+        first_step = st.text_input("First-step Google Tasks prompt", placeholder="For example, put phone away")
+        start_time = st.text_input("Usual calendar start time", placeholder="Optional, HH:MM")
+        end_time = st.text_input("Usual calendar end time", placeholder="Optional, HH:MM")
+        save = st.form_submit_button("Save this routine and activity", use_container_width=True)
     if save:
         if not title.strip():
             st.warning("Add a routine name before saving.")
         elif frequency in {"Weekly", "Weekdays"} and not preferred_days:
             st.warning("Choose preferred days so calendar and task exports know when this routine belongs.")
+        elif start_time and not valid_online_time(start_time):
+            st.warning("Use HH:MM for the start time, or leave it blank.")
+        elif end_time and not valid_online_time(end_time):
+            st.warning("Use HH:MM for the end time, or leave it blank.")
+        elif not activity_title.strip():
+            st.warning("Add one routine activity so the routine can appear in tasklists and exports.")
         elif not first_step.strip():
-            st.warning("Add a first-step prompt so this routine creates an activity row for tasklists and exports.")
+            st.warning("Add a first-step prompt so this routine has a clear starting cue.")
         else:
             area = area_map.get(area_label, {})
             routine_id = f"routine-{uuid.uuid4().hex}"
@@ -3350,14 +3547,18 @@ def render_setup_routine_step(sheet_id: str) -> None:
                 "status": "active",
                 "purpose": purpose.strip(),
                 "starting_prompt": first_step.strip(),
+                "calendar_block": "1",
+                "reminder": "1",
+                "calendar_start_time": start_time.strip(),
+                "calendar_end_time": end_time.strip(),
             })
-            if ok and first_step.strip():
-                append_online_record(sheet_id, "actions", {
+            if ok:
+                action_ok, action_message = append_online_record(sheet_id, "actions", {
                     "action_id": f"action-{uuid.uuid4().hex}",
                     "routine_id": routine_id,
                     "area_id": area.get("area_id", ""),
                     "area_name": area.get("area_name", area_label),
-                    "title": title.strip(),
+                    "title": activity_title.strip(),
                     "description": purpose.strip(),
                     "status": "active",
                     "estimated_minutes": str(duration),
@@ -3366,13 +3567,17 @@ def render_setup_routine_step(sheet_id: str) -> None:
                     "include_tasklist": "1",
                     "first_step": first_step.strip(),
                     "activity_days": ", ".join(preferred_days),
+                    "calendar_start_time": start_time.strip(),
+                    "calendar_end_time": end_time.strip(),
                 })
-            st.success("Routine saved. You can edit its activities later from Routines.") if ok else st.warning(safe_user_message(message))
-
+                if not action_ok:
+                    st.warning(safe_user_message(action_message))
+            st.success("Routine and activity saved. You can edit both later from Routines.") if ok else st.warning(safe_user_message(message))
 
 def render_setup_goal_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Example Goal:</strong> Learn basic sketching by 30-09-2026. Closure criteria: complete three beginner exercises and one simple still-life sketch, then choose the next practice focus.</div>
+    target_example = display_first_of_next_month()
+    st.markdown(f"""
+    <div class='setup-example'><strong>Example Goal:</strong> Learn basic sketching by the first of next month. Closure criteria: complete three beginner exercises and one simple still-life sketch, then choose the next practice focus.</div>
     """, unsafe_allow_html=True)
     area_options, area_map = setup_area_options(sheet_id)
     if not area_options:
@@ -3380,10 +3585,10 @@ def render_setup_goal_step(sheet_id: str) -> None:
         return
     with st.form("setup_goal_form"):
         area_label = st.selectbox("Area", area_options)
-        title = st.text_input("Goal name", placeholder="For example, Learn basic sketching by 30-09-2026")
+        title = st.text_input("Goal name", placeholder="For example, Learn basic sketching")
         purpose = st.text_area("Why this matters", placeholder="For example, build a creative practice that can fit into ordinary weeks.", height=80)
         closure = st.text_area("How will you know this goal is done?", placeholder="For example, complete three beginner exercises and one simple still-life sketch.", height=90)
-        target_date = st.text_input("Target date", placeholder="Optional, DD-MM-YYYY")
+        target_date = st.text_input("Target date", placeholder=f"Optional, DD-MM-YYYY, for example {target_example}")
         save = st.form_submit_button("Save this goal", use_container_width=True)
     if save:
         if not title.strip():
@@ -3406,7 +3611,6 @@ def render_setup_goal_step(sheet_id: str) -> None:
                 "closure_criteria": closure.strip(),
             })
             st.success("Goal saved. Add an action next so it can become calendar time, a prompt, or a tasklist item.") if ok else st.warning(safe_user_message(message))
-
 
 def render_setup_action_step(sheet_id: str) -> None:
     st.markdown("""
@@ -3458,54 +3662,65 @@ def render_setup_action_step(sheet_id: str) -> None:
 
 def render_setup_review_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>What the Review Queue does:</strong> It helps you check whether Areas, routines, goals and actions have the information needed for tasklists and exports.</div>
+    <div class='setup-example'><strong>Why this comes early:</strong> The Review Queue is Pathmark's safety check. It helps you spot missing links before you export anything.</div>
     """, unsafe_allow_html=True)
-    st.write("Use Review Queue later when something does not quite export as expected, or when you want to check whether the parts of your system are linked correctly.")
+    st.write("As you add Areas, routines, goals and actions, this page checks whether they have enough information to work together.")
+    render_review_queue_manager(sheet_id)
 
 
-def render_setup_export_step(sheet_id: str) -> None:
+def render_setup_tasklist_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>What exports do:</strong> Calendar exports make time. Google Tasks prompts create the first tiny step. The PDF tasklist is the paper alternative if you prefer ticking things off by hand.</div>
+    <div class='setup-example'><strong>Paper option:</strong> Use the tasklist when you prefer ticking things off by hand instead of using Google Tasks.</div>
     """, unsafe_allow_html=True)
-    st.write("This is orientation rather than data entry. After setup, use the export tabs to choose which saved actions and routine activities are ready to send out of Pathmark.")
+    st.write("Select saved routine activities and goal actions. This uses the same tasklist builder you will use later.")
+    render_tasklist_manager(sheet_id)
+
+
+def render_setup_calendar_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Make time:</strong> Calendar export is how routines and goal actions become time blocks, rather than staying as intentions.</div>
+    """, unsafe_allow_html=True)
+    st.write("Preview and export the actions that are ready for your calendar. Exported items can then move to Archive so the active workspace stays clear.")
+    render_google_calendar_export_manager(sheet_id)
+
+
+def render_setup_tasks_step(sheet_id: str) -> None:
+    st.markdown("""
+    <div class='setup-example'><strong>Start smaller:</strong> Google Tasks prompts are for the first tiny step: put on running shoes, open the sketchbook, or pack gym clothes.</div>
+    """, unsafe_allow_html=True)
+    st.write("Preview prompts from your saved routine activities and goal actions. These use the same Google Tasks export flow you will use later.")
+    render_google_tasks_export_manager(sheet_id)
 
 
 def render_setup_archive_step(sheet_id: str) -> None:
     st.markdown("""
-    <div class='setup-example'><strong>Why Archive matters:</strong> Once an item has been exported or finished, move it out of the active workspace. You can restore it later if you change your mind.</div>
+    <div class='setup-example'><strong>Keep the workspace clear:</strong> Archive exported, completed or paused work so active Pathmark stays light enough to duck in and out of.</div>
     """, unsafe_allow_html=True)
-    st.write("Archive keeps Pathmark light enough to duck in and out of without being overwhelmed by old work.")
-
+    st.write("Archive does not have to mean gone forever. Restore an item if you decide it belongs back in the active workspace.")
+    render_archive_manager(sheet_id)
 
 def render_setup_pathway_primary(sheet_id: str) -> None:
     state = get_setup_state(sheet_id)
-    status = state["status"]
     current_idx = setup_step_index(state["current_step"])
     key, name, desc = SETUP_STEPS[current_idx]
 
-    st.markdown("<div class='setup-shell'>", unsafe_allow_html=True)
     st.markdown("<div class='setup-step-label'>Guided setup</div>", unsafe_allow_html=True)
     st.markdown("## Set up Pathmark")
-    st.write("Work through this once to learn the Pathmark flow. Examples are only prompts: they are not saved unless you type into a form and choose Save.")
+    st.write("Work through the real Pathmark flow once. You can edit anything later, skip for now, or return to this guide from Settings.")
 
     progress = (current_idx + 1) / max(len(SETUP_STEPS), 1)
     pct = round(min(max(progress, 0), 1) * 100)
     st.markdown(f"<div class='setup-progress-wrap'><div class='setup-progress-fill' style='width:{pct}%'></div></div>", unsafe_allow_html=True)
-    st.caption(f"Step {current_idx + 1} of {len(SETUP_STEPS)}")
+    st.caption(f"Step {current_idx + 1} of {len(SETUP_STEPS)} · {name}")
 
-    step_lines = ["<div class='setup-step-list'>"]
-    for idx, (_step_key, step_name, _step_desc) in enumerate(SETUP_STEPS):
-        marker = "●" if idx == current_idx else ("✓" if idx < current_idx else "○")
-        weight = "font-weight:800;" if idx == current_idx else ""
-        step_lines.append(f"<div style='{weight}'>{marker} {idx + 1}. {step_name}</div>")
-    step_lines.append("</div>")
-    st.markdown("".join(step_lines), unsafe_allow_html=True)
-
-    st.divider()
     st.markdown(f"### {name}")
     st.write(desc)
 
-    if key == "areas":
+    if key == "focus":
+        render_setup_focus_step(sheet_id)
+    elif key == "review":
+        render_setup_review_step(sheet_id)
+    elif key == "areas":
         render_setup_area_step(sheet_id)
     elif key == "routines":
         render_setup_routine_step(sheet_id)
@@ -3513,33 +3728,39 @@ def render_setup_pathway_primary(sheet_id: str) -> None:
         render_setup_goal_step(sheet_id)
     elif key == "actions":
         render_setup_action_step(sheet_id)
-    elif key == "review":
-        render_setup_review_step(sheet_id)
-    elif key == "exports":
-        render_setup_export_step(sheet_id)
+    elif key == "tasklist":
+        render_setup_tasklist_step(sheet_id)
+    elif key == "calendar":
+        render_setup_calendar_step(sheet_id)
+    elif key == "tasks":
+        render_setup_tasks_step(sheet_id)
     elif key == "archive":
         render_setup_archive_step(sheet_id)
 
-    st.divider()
-    if current_idx > 0:
-        if st.button("Back to previous setup step", use_container_width=True):
-            setup_back_step(sheet_id, current_idx)
-            st.rerun()
-    if current_idx < len(SETUP_STEPS) - 1:
-        if st.button("Next setup step", use_container_width=True):
-            setup_next_step(sheet_id, current_idx)
-            st.rerun()
-    else:
-        if st.button("Prepare my workspace", use_container_width=True):
-            with st.spinner("Preparing your workspace..."):
-                save_setup_state(sheet_id, completed=True, current_step=key)
-            st.session_state["skip_online_setup_for_session"] = True
-            st.rerun()
-    if st.button("Skip setup for now", use_container_width=True):
+    st.markdown("<div class='setup-nav-row'></div>", unsafe_allow_html=True)
+    left, right = st.columns(2)
+    with left:
+        if current_idx > 0:
+            if st.button("Back", use_container_width=True, key=f"setup_back_{key}"):
+                setup_back_step(sheet_id, current_idx)
+                st.rerun()
+        else:
+            st.button("Back", use_container_width=True, disabled=True, key=f"setup_back_disabled_{key}")
+    with right:
+        if current_idx < len(SETUP_STEPS) - 1:
+            if st.button("Next", use_container_width=True, key=f"setup_next_{key}"):
+                setup_next_step(sheet_id, current_idx)
+                st.rerun()
+        else:
+            if st.button("Continue to workspace", use_container_width=True, key="setup_continue_workspace"):
+                with st.spinner("Opening your workspace..."):
+                    save_setup_state(sheet_id, completed=True, current_step=key)
+                st.session_state["skip_online_setup_for_session"] = True
+                st.rerun()
+    st.markdown("<div class='setup-skip'></div>", unsafe_allow_html=True)
+    if st.button("Skip setup for now", use_container_width=True, key=f"setup_skip_{key}"):
         setup_skip_for_now()
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
 
 def render_setup_pathway(sheet_id: str) -> None:
     """Compatibility wrapper retained for older calls."""
@@ -3554,9 +3775,29 @@ def render_online_overview(sheet_id: str) -> None:
     c2.metric("Goals", counts.get("goals", 0))
     c3.metric("Routines", counts.get("routines", 0))
     c4.metric("Actions", counts.get("actions", 0))
+
+    focus = online_setting(sheet_id, "weekly_focus", "")
+    st.markdown("### Main focus this week")
+    with st.form("weekly_focus_home_form"):
+        new_focus = st.text_area("What should Pathmark protect or move forward this week?", value=focus, placeholder="For example, protect sleep and schedule one sketching action.", height=90)
+        save_focus = st.form_submit_button("Save weekly focus", use_container_width=True)
+    if save_focus:
+        ok, message = save_online_setting(sheet_id, "weekly_focus", new_focus.strip())
+        st.success("Weekly focus saved.") if ok else st.warning(safe_user_message(message))
+
+    hints = [
+        "Pathmark is designed so you can duck in and out: keep the active workspace clear, then archive exported work.",
+        "Calendar blocks make time for the work. Google Tasks prompts make the first step easier to start.",
+        "Routines protect energy and capacity. Goals define what you want to move forward next.",
+        "A useful goal action is small enough to put in the calendar, not a whole project disguised as a task.",
+        "The PDF tasklist is the paper alternative if ticking things off by hand works better for you.",
+    ]
+    hint_index = datetime.now().day % len(hints)
+    st.markdown(f"<div class='pathmark-hint'><strong>Pathmark hint:</strong> {html.escape(hints[hint_index])}</div>", unsafe_allow_html=True)
+
     st.markdown("""
     <div class="guide-box"><strong>Your active workspace.</strong><br>
-    Pathmark is designed so you can duck in and out: keep active routines and goal actions visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
+    Keep active routines and goal actions visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
         st.info("Use Settings to revisit guided setup, or start by creating an Area, then routines, then goals.")
@@ -3644,85 +3885,91 @@ def download_tab() -> None:
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
     st.write(
-        "Pathmark is designed so your planning system stays under your control. "
-        "This page explains what Pathmark can access, where information is stored, "
-        "and how the different services behind the app are used."
+        "Pathmark uses a small number of services so the online app can run in a browser while keeping your planning records in a file you own. "
+        "This page explains what Pathmark accesses and where each kind of information is stored."
     )
 
     st.subheader("The short version")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Your planning records</h3><p>Pathmark Online saves your Areas, routines, goals, actions, exports, setup progress and archive status in a <strong>Pathmark Sync</strong> Google Sheet that belongs to you.</p></div>
-      <div class="card"><h3>Your access level</h3><p>Pathmark stores only small access details in Supabase, such as your email, role, account status, theme preference and audit records.</p></div>
-      <div class="card"><h3>Your local files</h3><p>Pathmark Desktop stores Workspace folders, Markdown files, exports, tasklists and backups on your own computer, in the folder you choose.</p></div>
-      <div class="card"><h3>The code</h3><p>GitHub stores the Pathmark app code, release packages, documentation and database schema migrations. It should not contain your private planning records or secret keys.</p></div>
+      <div class="card"><h3>Your planning records</h3><p>Pathmark Online saves your Areas, routines, goals, actions, setup progress, tasklists, export records and archive status in your <strong>Pathmark Sync</strong> Google Sheet.</p></div>
+      <div class="card"><h3>Your Google Drive</h3><p>Pathmark uses Google's limited <strong>drive.file</strong> permission. It can create and update Pathmark files you use with the app; it is not given broad access to every file in your Drive.</p></div>
+      <div class="card"><h3>Your access profile</h3><p>Supabase stores only small access/profile details: email, role, account status, feature flags, theme preference and audit records.</p></div>
+      <div class="card"><h3>The app code</h3><p>GitHub stores the Pathmark code, release packages, documentation and database migrations. The current release package has been checked for obvious secrets and private planning records.</p></div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.subheader("How Google access is used")
+    st.subheader("What Google access lets Pathmark do")
     st.markdown("""
     When you sign in, Pathmark uses Google for two jobs:
 
-    1. **To identify you** so Pathmark knows which access role applies to your account.
-    2. **To create and update your Pathmark Sync sheet** so Pathmark Online can save your routines, goals, actions, tasklists and export history.
+    1. **Sign-in** — Google confirms your email address so Pathmark can apply the correct access level.
+    2. **Your Pathmark Sync sheet** — Pathmark creates or updates the Google Sheet that stores your online planning records.
 
-    Pathmark asks for the limited Google Drive permission `drive.file`. This is used so Pathmark can create or update Pathmark files you use with the app. It is not intended to give Pathmark general access to every file in your Google Drive.
+    Pathmark uses the limited `drive.file` permission. In practical terms, Pathmark works with Pathmark files it creates or files you explicitly use with Pathmark. It does **not** request the broader Google Drive permission that would allow general access to all Drive files.
     """)
     st.markdown("""
-    <div class="safe-rule"><strong>Pathmark does not collect your Google password.</strong><br>You enter your Google password with Google, not with Pathmark.</div>
+    <div class="safe-rule"><strong>Pathmark does not collect your Google password.</strong><br>You sign in on Google's page. Pathmark receives confirmation from Google after you approve access.</div>
     """, unsafe_allow_html=True)
 
-    st.subheader("Where your information goes")
+    st.subheader("Where information is stored")
     st.markdown("""
-    | Information | Where it is stored | Why |
+    | Information | Where it is stored | What that means |
     |---|---|---|
-    | Areas, routines, goals, actions, setup progress, tasklists, export records and archive status | Your Pathmark Sync Google Sheet | So Pathmark Online can work across devices while keeping planning data in a file you own |
-    | Local Workspace folders, Markdown files, local exports, backups and desktop tasklists | Your chosen Workspace folder on your computer | So Pathmark Desktop can maintain the file-based Workspace |
-    | Email, access role, account status, feature flags, theme preference and audit records | Supabase | So Pathmark can control beta/developer access without storing personal planning content |
-    | App code, release files, public documentation and Supabase migration files | GitHub | So the Pathmark app can be deployed and versioned |
-    | Google OAuth client secrets, Supabase secret keys and deployment secrets | Streamlit secrets | So deployment credentials are not committed to GitHub |
+    | Areas, routines, goals, actions, setup progress, tasklists, export records and archive status | Your Pathmark Sync Google Sheet | This is your online Pathmark workspace. It sits in your Google Drive and is visible to you. |
+    | Local Workspace folders, Markdown files, local exports, backups and desktop tasklists | Your chosen Workspace folder on your computer | These are created by Pathmark Desktop, not by Pathmark Online. |
+    | Email, access role, account status, feature flags, theme preference and audit records | Supabase | This controls beta/developer access and basic profile behaviour. It does not contain your planning records. |
+    | App code, release files, public documentation and Supabase migration files | GitHub | This is the public/deployment codebase. The current package does not contain Google OAuth tokens, Supabase secret keys, client secrets or private planning records. |
+    | Google OAuth client secrets, Supabase secret keys and deployment secrets | Streamlit secrets | These are deployment credentials held outside the GitHub repository. |
     """)
 
-    st.subheader("What Pathmark should not store in GitHub or Supabase")
+    st.subheader("What Pathmark stores in each service")
     st.markdown("""
-    <div class="safe-rule"><strong>Private planning content does not belong in GitHub or Supabase.</strong><br>Pathmark should not store your goals, routines, actions, Google Tasks prompts, calendar plans, Workspace files, backups, Markdown content, Google OAuth tokens or secret keys in the public repository. Supabase should remain the access layer only.</div>
-    """, unsafe_allow_html=True)
+    **Google Sheet** stores your online Pathmark records.  
+    **Supabase** stores access/profile metadata only.  
+    **GitHub** stores code and release files only.  
+    **Streamlit** hosts the app and stores deployment secrets outside the repository.
+
+    The current release package has been checked for obvious secret patterns and private planning records before packaging. No real Supabase secret key, Google client secret, OAuth token, private key or private planning sheet was found in the release package.
+    """)
 
     st.subheader("Disconnecting or deleting")
     st.markdown("""
-    - You can disconnect Google access from **Pathmark Online → Settings**.
+    - You can disconnect Google access from **Pathmark Online → Settings**. This revokes the current Google token and stops Pathmark from writing to your Pathmark Sync sheet until you sign in again.
     - You can also remove Pathmark from your Google Account permissions.
-    - Disconnecting stops Pathmark from writing to your Pathmark Sync sheet until you sign in again.
-    - Your Pathmark Sync sheet is a Google Sheet in your Google Drive. You can open, copy, export or delete it from Google Drive.
-    - Deleting the sheet will remove the online planning records stored in that sheet. It will not delete local Workspace files on your computer.
+    - Pathmark Online now includes a deletion option in **Settings** for users who want to remove their online Pathmark data from Google Drive and disconnect access.
+    - That deletion workflow only lists files Pathmark can identify as Pathmark files available to this app, such as the connected **Pathmark Sync** sheet or app-tagged Pathmark files. Pathmark does not delete Drive folders simply because they are named Pathmark.
+    - You can also open, copy, export or delete your Pathmark Sync sheet directly from Google Drive.
+    - Deleting online Pathmark data does not delete local Workspace files on your computer.
     """)
 
     with st.expander("Service-by-service summary", expanded=False):
         st.markdown("""
         **Google**  
-        Used for sign-in and for the user-owned Pathmark Sync sheet. Pathmark requests the limited `drive.file` permission so it can work with Pathmark files the user authorises.
+        Used for sign-in and for the user-owned Pathmark Sync sheet. Pathmark requests `drive.file`, which is the limited Drive permission for Pathmark-created or user-authorised files.
 
         **Streamlit**  
-        Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets rather than being committed to the repository.
+        Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets, outside the GitHub repository.
 
         **Supabase**  
-        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Pathmark uses a server-side Supabase secret key from Streamlit secrets. Personal planning records should not be stored here.
+        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Pathmark uses a server-side Supabase secret key from Streamlit secrets for access management.
 
         **GitHub**  
-        Stores code, release packages, documentation and database migration files. It should not contain Streamlit secrets, Google client secrets, Supabase secret keys, OAuth tokens, Workspace folders, personal planning sheets or user data.
+        Stores code, release packages, documentation and database migration files. The release package has been checked so it does not contain private planning sheets, Workspace folders, Google OAuth tokens, Supabase secret keys or Google client secrets.
         """)
 
-    with st.expander("Policy and documentation sources used for this summary", expanded=False):
+    with st.expander("Sources behind this explanation", expanded=False):
         st.markdown("""
-        This summary is based on how Pathmark currently uses each service, checked against the relevant provider documentation:
+        This explanation is based on how Pathmark currently uses each service and on the relevant provider documentation:
 
-        - Google API Services User Data Policy: apps must clearly disclose what Google user data they access, use, store, delete or share, and what actions they take on the user's behalf.
-        - Google Drive API scope guidance: `drive.file` is the limited Drive scope used for files the app creates or the user authorises for the app.
-        - Streamlit secrets management guidance: deployment secrets should be stored in Streamlit app settings or local `secrets.toml`, and not committed to the repository.
-        - Supabase API key guidance: secret keys are server-side keys and must be handled carefully; Pathmark uses them only from Streamlit secrets for access management.
+        - Google API Services User Data Policy: apps need to clearly explain what Google user data they access, use, store, delete or share.
+        - Google Drive API scope guidance: `drive.file` is the limited Drive scope for files the app creates or the user authorises for the app.
+        - Streamlit secrets management guidance: secrets should be stored in Streamlit's secrets system or another secrets manager rather than committed to the repository.
+        - Supabase API key guidance: secret keys are server-side keys and must not be exposed publicly.
+        - GitHub secret scanning guidance: repositories should be monitored for hardcoded credentials and tokens.
         """)
 
-    st.caption("This page explains the current Pathmark beta design. It is not a substitute for a formal legal privacy policy, but it should help beta testers understand what access they are granting and where their information is stored.")
+    st.caption("This page explains the current Pathmark beta design. It is not a formal legal privacy policy, but it is intended to help beta testers understand what access they are granting and where their information is stored.")
 
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
