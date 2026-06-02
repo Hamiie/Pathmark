@@ -2267,6 +2267,62 @@ def online_event_bounds(date_text: Any, start_text: Any, end_text: Any) -> tuple
     return start_dt.strftime("%Y-%m-%d %H:%M"), end_dt.strftime("%Y-%m-%d %H:%M")
 
 
+
+
+def human_calendar_datetime(value: Any) -> str:
+    """Return a friendly NZ-style date/time label for staged calendar rows.
+
+    Staged calendar rows are stored internally in export-friendly formats such
+    as ``YYYY-MM-DD HH:MM``. This helper keeps the UI preview readable and,
+    importantly, prevents raw export values or helper errors from appearing in
+    the Streamlit interface.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    normalised = text.replace("T", " ").replace("Z", "").strip()
+    normalised = re.sub(r"([+-]\d{2}:?\d{2})$", "", normalised).strip()
+    formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d-%m-%Y %H:%M:%S",
+        "%d-%m-%Y %H:%M",
+        "%d-%m-%Y",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+    ]
+    dt: datetime | None = None
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(normalised, fmt)
+            break
+        except Exception:
+            pass
+    if dt is None:
+        try:
+            parsed = pd.to_datetime(text, errors="coerce")
+            if pd.notna(parsed):
+                dt = parsed.to_pydatetime()
+        except Exception:
+            dt = None
+    if dt is None:
+        return text
+    has_time = bool(re.search(r"\d{1,2}:\d{2}", text))
+    try:
+        date_part = dt.strftime("%A %-d %B %Y")
+    except Exception:
+        date_part = dt.strftime("%A %d %B %Y").replace(" 0", " ")
+    if not has_time:
+        return date_part
+    try:
+        time_part = dt.strftime("%-I:%M%p").lower()
+    except Exception:
+        time_part = dt.strftime("%I:%M%p").lstrip("0").lower()
+    return f"{date_part}, {time_part}"
+
+
 def simple_rrule(frequency: str | None, activity_days: str | None = "") -> str:
     freq = str(frequency or "").strip()
     days = str(activity_days or "").strip()
