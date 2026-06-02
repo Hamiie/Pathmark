@@ -1,19 +1,18 @@
 {
   "app_name": "Pathmark",
-  "version": "v0.6.6",
+  "version": "0.6.8",
   "release_date": "2026-06-02",
   "notes": [
-    "Reworked activity forms into guided sections: what the activity is, when it happens, where Pathmark should put it, Calendar details, and Google Tasks prompt details.",
-    "Changed Calendar scheduling to ask for start time plus duration, then calculate the end time automatically.",
-    "Kept Google Tasks as a date-based first-step prompt and moved optional reference time into a collapsed note-only section.",
-    "Made destination labels clearer: weekly tasklist, Calendar time block, and first-step task prompt.",
-    "Added validation that prompts users to add required dates only for the selected outputs."
+    "Restored the saved activity list used by Goals and Routines so those tabs do not fail when a saved goal or routine is selected.",
+    "Converted Calendar export preview recurrence labels into plain English while leaving the hidden export details and .ics RRULE values in Google-compatible format.",
+    "Removed a nested optional expander from the activity form and replaced it with a simple optional reference-time checkbox for Google Tasks notes.",
+    "Moved guided setup navigation to side arrows beside the working content, leaving Skip setup for now as the only bottom button."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_6.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_8.zip",
   "mac_package": "",
-  "release": "v0.6.6 activity form guidance polish",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_6.zip",
-  "release_name": "Activity form guidance polish",
-  "release_notes": "Improves the activity form so the UI guides users through activity basics, timing, output destinations, Calendar block details, and Google Tasks first-step prompts. Calendar end time is now calculated from start time plus duration to reduce confusing start/end entries, and Google Tasks reference time is hidden as an optional note-only field.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_6.zip"
+  "release": "v0.6.8 setup navigation and export preview repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_8.zip",
+  "release_name": "Setup navigation and export preview repair",
+  "release_notes": "Repairs the Goals and Routines tabs by restoring the saved activity list renderer, makes Calendar export preview recurrence text user-facing while preserving RRULE export format, removes the nested expander from the activity form, and moves setup navigation to side arrows with Skip setup as the only bottom button.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_8.zip"
 }

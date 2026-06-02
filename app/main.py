@@ -190,162 +190,178 @@ def inject_pwa_metadata() -> None:
 
 inject_pwa_metadata()
 
-CSS = """
+def streamlit_appearance_mode() -> str:
+    """Return Streamlit's active appearance mode when available.
+
+    Streamlit's Settings menu controls Light/Dark/System. In recent Streamlit
+    versions, st.context.theme.type exposes the resolved active theme as
+    "light" or "dark". Older versions simply fall back to light. The CSS
+    still avoids forcing a light page so Streamlit can take over natively.
+    """
+    try:
+        theme = getattr(st.context, "theme", None)
+        value = ""
+        if theme is not None:
+            if hasattr(theme, "type"):
+                value = str(theme.type or "").lower()
+            elif isinstance(theme, dict):
+                value = str(theme.get("type", "") or "").lower()
+        return "dark" if value == "dark" else "light"
+    except Exception:
+        return "light"
+
+
+def pathmark_theme_tokens_css(mode: str = "") -> str:
+    """Return CSS variables for the resolved Streamlit appearance.
+
+    The important design rule is that Pathmark no longer paints the app shell
+    white. Streamlit owns the base page background; Pathmark only supplies
+    readable fallback tokens for custom cards and seasonal accents.
+    """
+    mode = (mode or streamlit_appearance_mode()).lower()
+    if mode == "dark":
+        return """
+          --bg: #05080C;
+          --ink: #F8FAFC;
+          --muted: #CBD5E1;
+          --surface: #111827;
+          --surface-2: #0B1220;
+          --line: #334155;
+          --shadow: rgba(0,0,0,.45);
+          --accent-soft: color-mix(in srgb, var(--accent) 24%, var(--surface));
+        """
+    return """
+          --bg: #F7F6F2;
+          --ink: #1F2221;
+          --muted: #5B6268;
+          --surface: #FFFFFF;
+          --surface-2: #F2F1EC;
+          --line: #D8D4CB;
+          --shadow: rgba(0,0,0,.13);
+          --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
+        """
+
+
+CSS = f"""
 <style>
 /*
-Pathmark owns the seasonal accent. Streamlit owns appearance: System / Light / Dark.
-These tokens deliberately read Streamlit's active theme variables first. The media-query
-fallback keeps dark mode dark even in browsers or embedded webviews that do not expose
-Streamlit's variables in the same way.
+Pathmark owns seasonal accent and custom card styling. Streamlit owns the
+actual appearance mode. This block deliberately does not force the app shell to
+light; the Streamlit Settings menu can therefore turn the whole page dark.
 */
-:root {
+:root {{
   color-scheme: light dark;
-  --bg: var(--background-color, #F7F6F2);
-  --ink: var(--text-color, #1F2221);
-  --muted: color-mix(in srgb, var(--ink) 64%, var(--bg));
-  --surface: var(--secondary-background-color, #FFFFFF);
-  --surface-2: color-mix(in srgb, var(--surface) 84%, var(--bg));
-  --line: var(--border-color, color-mix(in srgb, var(--ink) 16%, var(--bg)));
   --accent: #334E68;
   --accent-2: #7A4E7A;
-  --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
-  --shadow: color-mix(in srgb, #000000 13%, transparent);
   --button-ink: #FFFFFF;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: var(--background-color, #05080C);
-    --ink: var(--text-color, #F8FAFC);
-    --surface: var(--secondary-background-color, #111827);
-    --surface-2: color-mix(in srgb, var(--surface) 78%, #000000);
-    --line: var(--border-color, #334155);
-    --muted: color-mix(in srgb, var(--ink) 70%, var(--bg));
-    --accent-soft: color-mix(in srgb, var(--accent) 28%, var(--surface));
-    --shadow: rgba(0,0,0,.42);
-  }
-}
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {
-  background-color: var(--bg) !important;
+{pathmark_theme_tokens_css()}
+}}
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {{
   color: var(--ink) !important;
-}
-[data-testid="stAppViewContainer"] {
-  background:
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 26rem),
-    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 24rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 18%, var(--bg)) 0%, var(--bg) 100%) !important;
-}
-.block-container { max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem; }
-h1, h2, h3 { letter-spacing: -0.035em; color: var(--ink) !important; }
-p, li { font-size: 1.02rem; line-height: 1.62; }
-.hero { padding: 2.6rem 0 1.2rem 0; }
-.eyebrow { display: inline-flex; padding: .42rem .72rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 760; font-size: .92rem; margin-bottom: 1.1rem; }
-.hero h1 { font-size: clamp(3.7rem, 8.2vw, 7.2rem); line-height: .84; margin: 0 0 1rem 0; letter-spacing: -.085em; }
-.lead { color: var(--ink); font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }
-.sublead { color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }
-.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }
-.card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {
-  background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+}}
+/* Let Streamlit control the page background. Only remove any old forced-white
+   Pathmark wash that may remain from a cached style block. */
+.stApp, [data-testid="stAppViewContainer"] {{
+  background-color: var(--bg) !important;
+}}
+.block-container {{ max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem; }}
+h1, h2, h3 {{ letter-spacing: -0.035em; color: var(--ink) !important; }}
+p, li {{ font-size: 1.02rem; line-height: 1.62; }}
+.hero {{ padding: 2.6rem 0 1.2rem 0; }}
+.eyebrow {{ display: inline-flex; padding: .42rem .72rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 760; font-size: .92rem; margin-bottom: 1.1rem; }}
+.hero h1 {{ font-size: clamp(3.7rem, 8.2vw, 7.2rem); line-height: .84; margin: 0 0 1rem 0; letter-spacing: -.085em; }}
+.lead {{ color: var(--ink); font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }}
+.sublead {{ color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }}
+.grid-3 {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }}
+.grid-2 {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }}
+.card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {{
+  background: var(--surface) !important;
   border: 1px solid var(--line) !important;
   color: var(--ink) !important;
   box-shadow: 0 14px 34px var(--shadow);
-}
-.card { border-radius: 1.35rem; padding: 1.25rem; }
-.card h3 { margin-top: 0; margin-bottom: .55rem; }
-.card p { margin-bottom: 0; color: var(--muted); }
-.meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }
-.meta-card { border-radius: 1.25rem; padding: 1rem 1.15rem; }
-.meta-label { color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }
-.meta-value { color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; letter-spacing: -.045em; }
-.download-panel { border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: .75rem; }
-.safe-rule { background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }
-.profile-pill { display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }
-.account-card { border-radius: 1rem; padding: .75rem .9rem; margin-bottom: 1rem; }
-.account-title { color: var(--muted); font-size: .84rem; font-weight: 760; text-transform: uppercase; letter-spacing: .03em; margin-bottom: .2rem; }
-.account-value { color: var(--ink); font-weight: 720; }
-.connection-card { border-radius: 1.1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
-.connection-ok { color: #2EAD5B; font-weight: 760; }
-.connection-warn { color: #D89A2B; font-weight: 760; }
-.beta-note { background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }
+}}
+.card {{ border-radius: 1.35rem; padding: 1.25rem; }}
+.card h3 {{ margin-top: 0; margin-bottom: .55rem; }}
+.card p {{ margin-bottom: 0; color: var(--muted); }}
+.meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
+.meta-card {{ border-radius: 1.25rem; padding: 1rem 1.15rem; }}
+.meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
+.meta-value {{ color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; }}
+.download-panel {{ border-radius: 1.35rem; padding: 1.2rem; margin: 1.2rem 0 2rem; }}
+.account-card, .connection-card {{ border-radius: 1.2rem; padding: 1rem 1.15rem; }}
+.safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
+.profile-pill {{ display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }}
+.kicker {{ color: var(--accent); font-size: .82rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }}
+.small-muted {{ color: var(--muted); font-size: .94rem; }}
+.hr {{ height: 1px; background: var(--line); margin: 1.6rem 0; }}
+.step-card {{ border-radius: 1.2rem; padding: 1rem 1.05rem; margin-bottom: .8rem; }}
+.step-card strong {{ color: var(--ink); }}
+.beta-note {{ background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }}
 [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
 [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
-[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *, .stMarkdown, .stMarkdown * {
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *, .stMarkdown, .stMarkdown * {{
   color: var(--ink) !important;
-}
-[data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] * {
+}}
+[data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] * {{
   color: var(--ink) !important;
   opacity: 1 !important;
-}
+}}
 [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
-button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {
-  color: var(--accent) !important;
-  font-weight: 760 !important;
-}
+button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {{ color: var(--accent) !important; font-weight: 760 !important; }}
 input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
-[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input, [data-baseweb="popover"] div {
+[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input, [data-baseweb="popover"] div {{
   background: var(--surface) !important;
   color: var(--ink) !important;
   border-color: var(--line) !important;
-}
-input::placeholder, textarea::placeholder { color: var(--muted) !important; opacity: 1 !important; }
-.setup-shell { border-radius: 18px; padding: 1.4rem; margin: 1rem 0 1.25rem 0; }
-.setup-step-label { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
-.setup-example { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: var(--ink) !important; }
-.setup-example strong { color: var(--ink) !important; }
-.setup-note { color: var(--muted); font-size: 0.94rem; margin-top: 0.35rem; }
-.setup-progress-wrap { width: 100%; max-width: 760px; height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 20%, transparent); overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid var(--line); }
-.setup-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; }
-.setup-step-list { margin: 0.35rem 0 1rem 0; padding-left: 0.2rem; }
-.setup-step-list div { margin: 0.25rem 0; }
-[role="listbox"], [role="option"] { background: var(--surface) !important; color: var(--ink) !important; }
-.stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {
-  border-radius: .85rem !important;
-  min-height: 3rem;
-  font-weight: 760 !important;
+}}
+[role="listbox"], [role="option"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
+.setup-shell {{ border-radius: 1.25rem; padding: 1.1rem 1.15rem; margin: 1rem 0 1.2rem 0; }}
+.setup-example {{ border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: var(--ink) !important; }}
+.setup-step-label {{ display:inline-flex; gap:.35rem; align-items:center; padding:.28rem .62rem; border-radius:999px; background:var(--accent-soft); color:var(--ink); font-weight:760; font-size:.9rem; }}
+.setup-progress-wrap {{ width: 100%; max-width: 760px; height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 20%, transparent); overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid var(--line); }}
+.setup-progress-fill {{ height: 100%; background: var(--accent); border-radius: 999px; }}
+.stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {{
+  border-radius: .7rem !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 72%, #000) !important;
   background: var(--accent) !important;
   color: var(--button-ink) !important;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, #000000) !important;
-  box-shadow: 0 8px 22px var(--shadow);
-  text-decoration: none !important;
-}
-.stButton button *, .stButton button p, .stButton button span,
-.stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
-[data-testid="stLinkButton"] a *, a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * { color: var(--button-ink) !important; }
-.stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover, .pathmark-link-button:hover { filter: brightness(.96); color: var(--button-ink) !important; text-decoration: none !important; }
-.stButton button:disabled, .stDownloadButton button:disabled {
+  font-weight: 650 !important;
+  box-shadow: none !important;
+}}
+.stButton button *, .stButton button p, .stButton button span, .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
+[data-testid="stLinkButton"] a *, a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * {{ color: var(--button-ink) !important; }}
+.stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover, .pathmark-link-button:hover {{ filter: brightness(.96); color: var(--button-ink) !important; text-decoration: none !important; }}
+.stButton button:disabled, .stDownloadButton button:disabled {{
   background: color-mix(in srgb, var(--surface) 82%, var(--muted)) !important;
   color: var(--muted) !important;
   border-color: var(--line) !important;
-  box-shadow: none !important;
-}
-.stButton button:disabled *, .stDownloadButton button:disabled * { color: var(--muted) !important; }
-.pathmark-link-button { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: .55rem .85rem; }
-@media (max-width: 640px) {
-  .block-container { padding-left: 1rem; padding-right: 1rem; padding-top: 1.1rem; }
-  .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; }
-  .hero h1 { font-size: clamp(3rem, 16vw, 4.6rem); }
-  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a { min-height: 3.2rem; font-size: 1rem !important; }
-}
-.guide-box { border-left: 6px solid var(--accent) !important; border-radius: 1rem; padding: 1rem 1.1rem; margin: .7rem 0 1rem; }
-.guide-box strong { color: var(--ink); }
-.step-card { border-radius: 1.15rem; padding: 1rem 1.1rem; margin: .45rem 0 1rem; }
-.step-card h3 { margin-top: 0; margin-bottom: .35rem; }
-.step-card p { color: var(--muted); margin-bottom: .45rem; }
-.pathmark-note, .pathmark-hint { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; color: var(--ink); }
-.swatch-row { display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; margin:.35rem 0 .85rem; }
-.swatch { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); padding:.25rem .55rem; font-size:.85rem; }
-.swatch-dot { width:.8rem; height:.8rem; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.18); }
-.area-colour-preview { display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:var(--surface); padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }
-.area-colour-dot { width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }
-.setup-nav-row { margin-top:1.25rem; }
-.setup-skip { margin-top:.65rem; opacity:.96; }
-[data-testid="stIFrame"] { min-height:0 !important; }
-.process-card { border-radius:1rem; padding:1rem; margin:.55rem 0; }
-.process-card h4 { margin:.05rem 0 .35rem 0; color:var(--ink); }
-.process-card p { margin:0; color:var(--muted); }
-[data-testid="stHeader"] { background: transparent !important; }
-section[data-testid="stSidebar"] { background: var(--surface) !important; color: var(--ink) !important; }
-@media (max-width: 860px) { .grid-3, .grid-2, .meta-grid { grid-template-columns: 1fr; } }
+}}
+.stButton button:disabled *, .stDownloadButton button:disabled * {{ color: var(--muted) !important; }}
+.pathmark-link-button {{ display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: .55rem .85rem; }}
+@media (max-width: 640px) {{
+  .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 1rem; }}
+  .hero h1 {{ font-size: clamp(3rem, 17vw, 5.2rem); }}
+  .lead {{ font-size: 1.15rem; }}
+  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 3.2rem; font-size: 1rem !important; }}
+}}
+.pathmark-note, .pathmark-hint {{ background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; color: var(--ink); }}
+.swatch-row {{ display:flex; flex-wrap:wrap; gap:.45rem; margin:.4rem 0 .7rem; }}
+.swatch {{ display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); padding:.25rem .55rem; font-size:.85rem; }}
+.swatch-dot {{ width:.9rem; height:.9rem; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.22); }}
+.area-colour-preview {{ display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:var(--surface); padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }}
+.area-colour-dot {{ width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }}
+.setup-nav-row {{ margin-top:1.25rem; }}
+.setup-skip {{ margin-top:.65rem; opacity:.96; }}
+.setup-working-card {{ padding: 0 .1rem; }}
+.setup-side-arrow {{ min-height: 10rem; }}
+
+[data-testid="stIFrame"] {{ min-height:0 !important; }}
+.process-card {{ border-radius:1rem; padding:1rem; margin:.55rem 0; }}
+.process-card h4 {{ margin:.05rem 0 .35rem 0; color:var(--ink); }}
+.process-card p {{ margin:0; color:var(--muted); }}
+[data-testid="stHeader"] {{ background: transparent !important; }}
+section[data-testid="stSidebar"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
+@media (max-width: 860px) {{ .grid-3, .grid-2, .meta-grid {{ grid-template-columns: 1fr; }} }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -2097,17 +2113,12 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
 
 
 def inject_theme_css(theme_name: str) -> None:
-    """Apply Pathmark's seasonal styling while leaving light/dark mode to Streamlit.
-
-    Streamlit's toolbar controls System, Light and Dark. Pathmark only supplies
-    seasonal accent tokens, then derives backgrounds and surfaces from
-    Streamlit's active CSS variables so every season has an automatic light and
-    dark variant.
-    """
+    """Apply Pathmark's seasonal accent without overriding Streamlit appearance."""
     theme_name = normalise_online_theme(theme_name)
     theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
     accent = theme.get("accent", "#334E68")
     seasonal_icon = theme.get("seasonal_icon", "")
+    mode = streamlit_appearance_mode()
     st.markdown(
         f"""
         <style>
@@ -2117,28 +2128,16 @@ def inject_theme_css(theme_name: str) -> None:
           --pathmark-accent: {accent};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
           --pathmark-button-text: #FFFFFF;
-          --pathmark-bg: var(--background-color, #F7F6F2);
-          --pathmark-surface: var(--secondary-background-color, #FFFFFF);
-          --pathmark-ink: var(--text-color, #1F2221);
-          --pathmark-muted: color-mix(in srgb, var(--pathmark-ink) 66%, var(--pathmark-bg));
-          --pathmark-line: var(--border-color, color-mix(in srgb, var(--pathmark-ink) 18%, var(--pathmark-bg)));
-          --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 15%, var(--pathmark-surface));
-          --pathmark-season-wash: color-mix(in srgb, var(--pathmark-accent) 8%, var(--pathmark-bg));
+{pathmark_theme_tokens_css(mode)}
+          --pathmark-bg: var(--bg);
+          --pathmark-surface: var(--surface);
+          --pathmark-ink: var(--ink);
+          --pathmark-muted: var(--muted);
+          --pathmark-line: var(--line);
+          --pathmark-season-soft: var(--accent-soft);
         }}
-        @media (prefers-color-scheme: dark) {{
-          :root, [data-testid="stAppViewContainer"] {{
-            --pathmark-bg: var(--background-color, #05080C);
-            --pathmark-surface: var(--secondary-background-color, #111827);
-            --pathmark-ink: var(--text-color, #F8FAFC);
-            --pathmark-line: var(--border-color, #334155);
-            --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 24%, var(--pathmark-surface));
-            --pathmark-season-wash: color-mix(in srgb, var(--pathmark-accent) 14%, var(--pathmark-bg));
-          }}
-        }}
-        html, body, .stApp, [data-testid="stAppViewContainer"] {{
-          background: radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--pathmark-accent) 13%, transparent), transparent 26rem),
-                      radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--pathmark-accent) 9%, transparent), transparent 24rem),
-                      linear-gradient(180deg, var(--pathmark-season-wash) 0%, var(--pathmark-bg) 100%) !important;
+        .stApp, [data-testid="stAppViewContainer"] {{
+          background-color: var(--pathmark-bg) !important;
           color: var(--pathmark-ink) !important;
         }}
         .card, .meta-card, .connection-card, .download-panel, .process-card, .step-card,
@@ -2206,6 +2205,7 @@ def inject_theme_css(theme_name: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+
 
 def apply_online_theme(sheet_id: str) -> None:
     theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Winter")) if sheet_id else st.session_state.get("hosted_theme_preference", "Winter")
@@ -2468,6 +2468,53 @@ def simple_rrule(frequency: str | None, activity_days: str | None = "") -> str:
     if "month" in freq.lower():
         return "RRULE:FREQ=MONTHLY"
     return ""
+
+
+def human_recurrence(value: Any) -> str:
+    """Convert an export RRULE into plain English for preview cards.
+
+    The stored recurrence value is kept in Google Calendar-compatible format;
+    this helper is used only for user-facing previews.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    rule = text.replace("RRULE:", "").strip()
+    parts: dict[str, str] = {}
+    for chunk in rule.split(";"):
+        if "=" in chunk:
+            key, val = chunk.split("=", 1)
+            parts[key.upper().strip()] = val.strip()
+    freq = parts.get("FREQ", "").upper()
+    day_names = {
+        "MO": "Monday", "TU": "Tuesday", "WE": "Wednesday", "TH": "Thursday",
+        "FR": "Friday", "SA": "Saturday", "SU": "Sunday",
+    }
+    byday_codes = [code.strip().upper() for code in parts.get("BYDAY", "").split(",") if code.strip()]
+    days = [day_names.get(code, code) for code in byday_codes]
+
+    def join_days(items: list[str]) -> str:
+        if not items:
+            return ""
+        if len(items) == 1:
+            return items[0]
+        if len(items) == 2:
+            return f"{items[0]} and {items[1]}"
+        return ", ".join(items[:-1]) + f" and {items[-1]}"
+
+    if freq == "DAILY":
+        return "Repeats every day"
+    if freq == "WEEKLY":
+        if days:
+            if byday_codes == ["MO", "TU", "WE", "TH", "FR"]:
+                return "Repeats every weekday"
+            return f"Repeats weekly on {join_days(days)}"
+        return "Repeats weekly"
+    if freq == "MONTHLY":
+        return "Repeats monthly"
+    if freq == "YEARLY":
+        return "Repeats yearly"
+    return rule
 
 
 def parent_lookup(sheet_id: str) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
@@ -2785,6 +2832,67 @@ def render_area_manager(sheet_id: str) -> None:
                 if ok:
                     st.rerun()
 
+
+def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
+    """Render saved goal activities or routine activities in a user-facing way.
+
+    Earlier releases called this helper from Goals and Routines but did not
+    include the implementation, which meant those tabs could fail as soon as a
+    goal or routine was selected. Keep this renderer intentionally simple and
+    robust: cards first, technical details hidden, edit form only when expanded.
+    """
+    kind = "routine activities" if routine_id else "goal activities"
+    if linked is None or linked.empty:
+        st.info(f"No {kind} yet. Add one below when you are ready.")
+        return
+
+    st.markdown(f"#### Saved {kind}")
+    for _, row in linked.iterrows():
+        data = {k: row.get(k, "") for k in linked.columns}
+        rid = str(data.get("action_id", "") or "")
+        title = str(data.get("title", "") or "Untitled activity")
+        outputs: list[str] = []
+        if truthy_flag(data.get("include_tasklist", "0")):
+            outputs.append("weekly tasklist")
+        if truthy_flag(data.get("calendar_block", "0")):
+            outputs.append("Calendar block")
+        if truthy_flag(data.get("reminder", "0")):
+            outputs.append("Google Tasks prompt")
+        output_text = ", ".join(outputs) if outputs else "not staged for export yet"
+        date_bits: list[str] = []
+        if str(data.get("scheduled_date", "") or "").strip():
+            date_bits.append(f"Calendar: {human_calendar_datetime(data.get('scheduled_date'))}")
+        if str(data.get("due_date", "") or "").strip():
+            date_bits.append(f"Task due: {human_calendar_datetime(data.get('due_date'))}")
+        if str(data.get("activity_days", "") or "").strip():
+            date_bits.append(f"Repeats on {data.get('activity_days')}")
+        detail = " · ".join(date_bits)
+        st.markdown(
+            f"""
+            <div class='step-card'>
+              <h3>{html.escape(title)}</h3>
+              <p>{html.escape(output_text)}</p>
+              <p>{html.escape(detail)}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"Edit {title}", expanded=False):
+            _action_form(
+                sheet_id,
+                goal_id=goal_id or str(data.get("goal_id", "") or ""),
+                routine_id=routine_id or str(data.get("routine_id", "") or ""),
+                default_area=default_area or str(data.get("area_name", "") or ""),
+                form_key=f"edit_action_{rid or uuid.uuid4().hex}",
+                action=data,
+            )
+            if rid:
+                if st.button("Move this activity to Archive", key=f"archive_action_{rid}", use_container_width=True):
+                    ok, message = archive_online_record(sheet_id, "actions", rid, "Archived from Pathmark Online.")
+                    st.success("Activity archived. You can restore it from Archive.") if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.rerun()
+
 def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", default_area: str = "", form_key: str = "action", action: dict[str, Any] | None = None) -> None:
     """Add or edit a goal activity or routine activity.
 
@@ -2889,13 +2997,20 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                 help="This becomes the Google Tasks title/prompt. It should be smaller and easier to start than the whole activity.",
             )
             default_reference = prompt_time or (start_time if calendar_block else "")
-            with st.expander("Optional: add a reference time to the task note", expanded=False):
+            add_reference_time = st.checkbox(
+                "Add a reference time to the task note",
+                value=bool(str(default_reference or "").strip()),
+                help="Optional. This is written into the Google Tasks note only; it is not exported as a scheduled task time.",
+            )
+            if add_reference_time:
                 prompt_time = st.text_input(
                     "Reference time note",
                     value=default_reference,
                     placeholder="For example, 22:30",
                     help="This is written into the task note only. Google Tasks import uses the due date, not a scheduled time or duration.",
                 )
+            else:
+                prompt_time = ""
         else:
             prompt_time = str(action.get("task_reminder_time", "") or "")
 
@@ -3311,14 +3426,17 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
         for _, row in blocks.iterrows():
             start_text = human_calendar_datetime(str(row.get("start", "")))
             end_text = human_calendar_datetime(str(row.get("end", "")))
-            repeat = str(row.get("recurrence", "") or "").replace("RRULE:", "")
+            repeat = human_recurrence(row.get("recurrence", ""))
             area = str(row.get("area_name", "") or "")
+            area_line = f"Area: {html.escape(area)}" if area else ""
+            repeat_line = html.escape(repeat) if repeat else "Does not repeat"
+            joiner = " · " if area_line and repeat_line else ""
             st.markdown(
                 f"""
                 <div class='step-card'>
                   <h3>{html.escape(str(row.get('title', 'Calendar item') or 'Calendar item'))}</h3>
                   <p><strong>{html.escape(start_text)}</strong>{' – ' + html.escape(end_text.split(', ')[-1]) if end_text else ''}</p>
-                  <p>{'Area: ' + html.escape(area) if area else ''}{' · Repeats: ' + html.escape(repeat) if repeat else ''}</p>
+                  <p>{area_line}{joiner}{repeat_line}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -3986,50 +4104,54 @@ def render_setup_pathway_primary(sheet_id: str) -> None:
     st.markdown(f"<div class='setup-progress-wrap'><div class='setup-progress-fill' style='width:{pct}%'></div></div>", unsafe_allow_html=True)
     st.caption(f"Step {current_idx + 1} of {len(SETUP_STEPS)} · {name}")
 
-    st.markdown(f"### {name}")
-    st.write(desc)
-
-    if key == "focus":
-        render_setup_step_safe("focus", render_setup_focus_step, sheet_id)
-    elif key == "review":
-        render_setup_step_safe("review", render_setup_review_step, sheet_id)
-    elif key == "areas":
-        render_setup_step_safe("areas", render_setup_area_step, sheet_id)
-    elif key == "routines":
-        render_setup_step_safe("routines", render_setup_routine_step, sheet_id)
-    elif key == "goals":
-        render_setup_step_safe("goals", render_setup_goal_step, sheet_id)
-    elif key == "actions":
-        render_setup_step_safe("actions", render_setup_action_step, sheet_id)
-    elif key == "tasklist":
-        render_setup_step_safe("tasklist", render_setup_tasklist_step, sheet_id)
-    elif key == "calendar":
-        render_setup_step_safe("calendar", render_setup_calendar_step, sheet_id)
-    elif key == "tasks":
-        render_setup_step_safe("tasks", render_setup_tasks_step, sheet_id)
-    elif key == "archive":
-        render_setup_step_safe("archive", render_setup_archive_step, sheet_id)
-
-    st.markdown("<div class='setup-nav-row'></div>", unsafe_allow_html=True)
-    left, right = st.columns(2)
-    with left:
+    nav_left, setup_body, nav_right = st.columns([0.07, 0.86, 0.07], gap="small")
+    with nav_left:
+        st.markdown("<div class='setup-side-arrow'></div>", unsafe_allow_html=True)
         if current_idx > 0:
-            if st.button("←", use_container_width=True, key=f"setup_back_{key}", help="Back"):
+            if st.button("‹", use_container_width=True, key=f"setup_back_{key}", help="Back"):
                 setup_back_step(sheet_id, current_idx)
                 st.rerun()
         else:
-            st.button("←", use_container_width=True, disabled=True, key=f"setup_back_disabled_{key}", help="Back")
-    with right:
+            st.button("‹", use_container_width=True, disabled=True, key=f"setup_back_disabled_{key}", help="Back")
+    with setup_body:
+        st.markdown("<div class='setup-working-card'>", unsafe_allow_html=True)
+        st.markdown(f"### {name}")
+        st.write(desc)
+
+        if key == "focus":
+            render_setup_step_safe("focus", render_setup_focus_step, sheet_id)
+        elif key == "review":
+            render_setup_step_safe("review", render_setup_review_step, sheet_id)
+        elif key == "areas":
+            render_setup_step_safe("areas", render_setup_area_step, sheet_id)
+        elif key == "routines":
+            render_setup_step_safe("routines", render_setup_routine_step, sheet_id)
+        elif key == "goals":
+            render_setup_step_safe("goals", render_setup_goal_step, sheet_id)
+        elif key == "actions":
+            render_setup_step_safe("actions", render_setup_action_step, sheet_id)
+        elif key == "tasklist":
+            render_setup_step_safe("tasklist", render_setup_tasklist_step, sheet_id)
+        elif key == "calendar":
+            render_setup_step_safe("calendar", render_setup_calendar_step, sheet_id)
+        elif key == "tasks":
+            render_setup_step_safe("tasks", render_setup_tasks_step, sheet_id)
+        elif key == "archive":
+            render_setup_step_safe("archive", render_setup_archive_step, sheet_id)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with nav_right:
+        st.markdown("<div class='setup-side-arrow'></div>", unsafe_allow_html=True)
         if current_idx < len(SETUP_STEPS) - 1:
-            if st.button("→", use_container_width=True, key=f"setup_next_{key}", help="Next"):
+            if st.button("›", use_container_width=True, key=f"setup_next_{key}", help="Next"):
                 setup_next_step(sheet_id, current_idx)
                 st.rerun()
         else:
-            if st.button("Continue to workspace", use_container_width=True, key="setup_continue_workspace"):
+            if st.button("›", use_container_width=True, key="setup_continue_workspace", help="Continue to workspace"):
                 with st.spinner("Opening your workspace..."):
                     save_setup_state(sheet_id, completed=True, current_step=key)
                 st.session_state["skip_online_setup_for_session"] = True
                 st.rerun()
+    st.caption("Use the right arrow to continue to the next setup step. The final arrow opens your workspace.")
     st.markdown("<div class='setup-skip'></div>", unsafe_allow_html=True)
     if st.button("Skip setup for now", use_container_width=True, key=f"setup_skip_{key}"):
         setup_skip_for_now()
