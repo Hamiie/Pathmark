@@ -1,20 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "release_date": "2026-06-03",
   "notes": [
-    "Repaired Spending Plan saves so rows are appended using the live Pathmark Sync sheet header order, protecting older beta sheets from shifted values when optional notes are blank.",
-    "Disabled Streamlit magic output to prevent raw DeltaGenerator/code-like blocks appearing after actions.",
-    "Kept low-level diagnostics out of user-facing safe-section errors.",
-    "Improved Spending Plan beta to reflect the original workbook's three spending buckets and account transfer logic.",
-    "Expanded starter spending categories for everyday spend, sinking funds, fixed costs, health, vehicle, loans, subscriptions, miscellaneous and investment-property expenses.",
-    "Changed Spending Plan forms so validation warnings do not clear entered amounts."
+    "Changed What you spend into an editable common-expense checklist so users can work down familiar categories, add amounts where relevant, rename items, or add a missing expense.",
+    "Replaced the jargony sinking funds wording with planned irregular costs in the user-facing Spending Plan beta UI.",
+    "Removed the account-creation form from Spending Plan beta; the flow now assumes five account roles and explains what goes where.",
+    "Clarified the priority order: pay debt first, rebuild the emergency account next, then divert remaining money to savings or longer-term goals.",
+    "Replaced remaining bare Streamlit success/warning conditional expressions to reduce the chance of raw DeltaGenerator output appearing in user-facing pages."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_11.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_12.zip",
   "mac_package": "",
-  "release": "v0.6.11 Spending Plan repair and guidance",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_11.zip",
-  "release_name": "Spending Plan repair and guidance",
-  "release_notes": "Repairs Spending Plan saves for older sync sheet headers, prevents raw Streamlit object output, and adds clearer spending-bucket and account-transfer guidance based on the original workbook system.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_11.zip"
+  "release": "v0.6.12 Spending Plan flow polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_12.zip",
+  "release_name": "Spending Plan flow polish",
+  "release_notes": "Makes Spending Plan beta more intuitive by replacing the account-creation form with a five-account flow map, renaming sinking funds to planned irregular costs, and turning What you spend into an editable common-expense checklist.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_12.zip"
 }

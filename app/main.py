@@ -2839,7 +2839,10 @@ def render_area_manager(sheet_id: str) -> None:
                         "default_task_list": default_task_list.strip() or "Pathmark",
                         "notes": notes.strip(),
                     })
-                    st.success(message) if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success(message)
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
     with col_main:
@@ -2863,12 +2866,18 @@ def render_area_manager(sheet_id: str) -> None:
                         "area_name": name.strip(), "description": description.strip(), "colour": colour,
                         "default_calendar": default_calendar.strip(), "default_task_list": default_task_list.strip(), "notes": notes.strip(), "status": row.get("status", "active") or "active"
                     })
-                    st.success(message) if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success(message)
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
             if st.button("Archive Area", key=f"archive_area_{selected_id}"):
                 ok, message = archive_online_record(sheet_id, "areas", selected_id, "Archived from Pathmark Online.")
-                st.success(message) if ok else st.warning(safe_user_message(message))
+                if ok:
+                    st.success(message)
+                else:
+                    st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
 
@@ -2929,7 +2938,10 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
             if rid:
                 if st.button("Move this activity to Archive", key=f"archive_action_{rid}", use_container_width=True):
                     ok, message = archive_online_record(sheet_id, "actions", rid, "Archived from Pathmark Online.")
-                    st.success("Activity archived. You can restore it from Archive.") if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success("Activity archived. You can restore it from Archive.")
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
@@ -3115,7 +3127,10 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                 else:
                     payload["action_id"] = f"action-{uuid.uuid4().hex}"
                     ok, message = append_online_record(sheet_id, "actions", payload)
-                st.success(message) if ok else st.warning(safe_user_message(message))
+                if ok:
+                    st.success(message)
+                else:
+                    st.warning(safe_user_message(message))
                 if ok:
                     st.rerun()
 
@@ -3156,7 +3171,10 @@ def render_goal_manager(sheet_id: str) -> None:
                             "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status,
                             "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip(),
                         })
-                        st.success(message) if ok else st.warning(safe_user_message(message))
+                        if ok:
+                            st.success(message)
+                        else:
+                            st.warning(safe_user_message(message))
                         if ok:
                             st.rerun()
         if goals.empty:
@@ -3192,7 +3210,10 @@ def render_goal_manager(sheet_id: str) -> None:
                             st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
                         else:
                             ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
-                            st.success(message) if ok else st.warning(safe_user_message(message))
+                            if ok:
+                                st.success(message)
+                            else:
+                                st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[1]:
@@ -3205,7 +3226,10 @@ def render_goal_manager(sheet_id: str) -> None:
                 st.write("Archive the goal when it is finished or no longer useful. This hides it from active online views.")
                 if st.button("Archive goal", key=f"archive_goal_{selected_id}"):
                     ok, message = archive_online_record(sheet_id, "goals", selected_id, "Archived from Pathmark Online.")
-                    st.success(message) if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success(message)
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
@@ -3252,7 +3276,10 @@ def render_routine_manager(sheet_id: str) -> None:
                             st.error(problem)
                     else:
                         ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "status": status, "purpose": purpose.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "checklist": checklist.strip(), "notes": notes.strip()})
-                        st.success(message) if ok else st.warning(safe_user_message(message))
+                        if ok:
+                            st.success(message)
+                        else:
+                            st.warning(safe_user_message(message))
                         if ok:
                             st.rerun()
         if routines.empty:
@@ -3284,7 +3311,10 @@ def render_routine_manager(sheet_id: str) -> None:
                             st.error("Add a routine title before saving.")
                         else:
                             ok, message = update_online_record(sheet_id, "routines", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "status": status, "purpose": purpose.strip(), "checklist": checklist.strip(), "notes": notes.strip()})
-                            st.success(message) if ok else st.warning(safe_user_message(message))
+                            if ok:
+                                st.success(message)
+                            else:
+                                st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[1]:
@@ -3322,7 +3352,10 @@ def render_routine_manager(sheet_id: str) -> None:
                                 st.error(problem)
                         else:
                             ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "duration_minutes": duration.strip(), "calendar_start_time": start.strip(), "calendar_end_time": end.strip()})
-                            st.success(message) if ok else st.warning(safe_user_message(message))
+                            if ok:
+                                st.success(message)
+                            else:
+                                st.warning(safe_user_message(message))
                             if ok:
                                 st.rerun()
             with tabs[3]:
@@ -3334,17 +3367,26 @@ def render_routine_manager(sheet_id: str) -> None:
                 c1, c2, c3 = st.columns(3)
                 if c1.button("Set as active", key=f"active_r_{selected_id}"):
                     ok, message = update_online_record(sheet_id, "routines", selected_id, {"status": "Active"})
-                    st.success(message) if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success(message)
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
                 if c2.button("Pause routine", key=f"pause_r_{selected_id}"):
                     ok, message = update_online_record(sheet_id, "routines", selected_id, {"status": "Paused"})
-                    st.success("Routine paused. It remains here so you can restart it later.") if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success("Routine paused. It remains here so you can restart it later.")
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
                 if c3.button("Archive routine", key=f"archive_r_{selected_id}"):
                     ok, message = archive_online_record(sheet_id, "routines", selected_id, "Archived from Pathmark Online.")
-                    st.success("Routine archived. You can restore it from Archive.") if ok else st.warning(safe_user_message(message))
+                    if ok:
+                        st.success("Routine archived. You can restore it from Archive.")
+                    else:
+                        st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
 
@@ -3471,39 +3513,121 @@ def render_money_metric(label: str, value: float, help_text: str = "") -> None:
     st.metric(label, money_text(value), help=help_text or None)
 
 
+SPENDING_BUCKET_ORDER = ["Everyday spend", "Fixed cost", "Sinking fund"]
+SPENDING_BUCKET_LABELS = {
+    "Everyday spend": "Weekly spend money",
+    "Fixed cost": "Regular bills and commitments",
+    "Sinking fund": "Planned irregular costs",
+}
+SPENDING_BUCKET_EXPLANATIONS = {
+    "Everyday spend": "Transfer this to the card/account you actually use during the week.",
+    "Fixed cost": "Leave this in the hub account so bills and direct debits can come out automatically.",
+    "Sinking fund": "Set this aside for predictable irregular costs, such as birthdays, Christmas, clothes, holidays and travel.",
+}
+SPENDING_FREQUENCIES = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"]
+
+
+def normalise_spending_kind(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if "everyday" in text or "weekly" in text or "blow" in text or "spend money" in text:
+        return "Everyday spend"
+    if "sinking" in text or "irregular" in text or "gift" in text or "holiday" in text or "travel" in text or "christmas" in text:
+        return "Sinking fund"
+    return "Fixed cost"
+
+
+def spending_bucket_label(value: Any) -> str:
+    return SPENDING_BUCKET_LABELS.get(normalise_spending_kind(value), "Regular bills and commitments")
+
+
+def amount_and_frequency_from_row(row: pd.Series) -> tuple[float, str]:
+    checks = [
+        ("weekly_amount", "Weekly"),
+        ("fortnightly_amount", "Fortnightly"),
+        ("monthly_amount", "Monthly"),
+        ("quarterly_amount", "Quarterly"),
+        ("yearly_amount", "Yearly"),
+    ]
+    for column, frequency in checks:
+        amount = money_value(row.get(column, ""))
+        if amount:
+            return amount, frequency
+    annual = money_value(row.get("annual_amount", ""))
+    if annual:
+        return annual, "Yearly"
+    return 0.0, "Weekly"
+
+
+def spending_sections_for_kind(kind: str) -> list[str]:
+    sections: list[str] = []
+    for starter_kind, group, _item in SPENDING_STARTER_EXPENSES:
+        if normalise_spending_kind(starter_kind) == normalise_spending_kind(kind) and group not in sections:
+            sections.append(group)
+    return sections or [SPENDING_BUCKET_LABELS.get(normalise_spending_kind(kind), kind)]
+
+
+def spending_flow_destination_for_kind(kind: str) -> str:
+    normalised = normalise_spending_kind(kind)
+    if normalised == "Everyday spend":
+        return "Account 2 — Everyday card account"
+    if normalised == "Sinking fund":
+        return "Account 4 — Gifts, holidays, clothes and Christmas"
+    return "Account 1 — Hub account"
+
+
+def render_spending_success(message: str) -> None:
+    """Avoid bare Streamlit DeltaGenerator expressions being rendered by magic."""
+    st.success(message)
+
+
 def render_spending_flow_guidance(summary: dict[str, float]) -> None:
     """Show the cash-flow logic from the original spending-plan workbook."""
-    st.markdown("#### Where the money goes")
-    st.write("The spending plan is not just a budget. It tells each dollar where to sit so everyday spending, bills, emergencies and longer-term goals do not blur together.")
+    st.markdown("#### What goes where")
+    st.write(
+        "This part is about weekly money flow, not creating lots of new accounts. "
+        "The plan assumes five roles: hub, weekly card, emergency, planned irregular costs, and debt/savings."
+    )
+    st.markdown(
+        """
+<div class='info-card'>
+<strong>Order of priority</strong><br>
+1. Pay the minimum required debt repayments as fixed costs.<br>
+2. If there is extra money, direct it to debt first.<br>
+3. Once high-interest debt is under control, build the emergency account.<br>
+4. Once the emergency account is at target, divert the extra to the savings/goals account.
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
     cards = [
         (
             "1",
             "Hub account",
-            "All income lands here. Fixed bills and direct debits come from here. Keep this banking app/card out of everyday use.",
-            f"Leave about {money_text(summary.get('fixed_weekly', 0.0))} per week for fixed costs.",
+            "All income lands here. Fixed bills and direct debits come from here. Keep this card out of everyday use and do not keep this bank's app on your phone if that helps reduce impulse transfers.",
+            f"Keep about {money_text(summary.get('fixed_weekly', 0.0))} per week here for fixed costs.",
         ),
         (
             "2",
             "Everyday card account",
-            "Only card in your wallet. Use this for groceries, fuel, cafes, eating out, parking and other weekly spend money.",
+            "This is the only card in your wallet. Transfer only the weekly spend-money amount here for groceries, fuel, cafes, eating out, parking and other day-to-day spending.",
             f"Transfer {money_text(summary.get('everyday_weekly', 0.0))} per week.",
         ),
         (
             "3",
             "Emergency savings",
-            "Expect the unexpected: car repairs, dental costs, urgent travel, or anything you cannot sensibly predict.",
+            "Expect the unexpected: car repairs, dental costs, urgent travel, or anything you cannot sensibly predict. If you use it, pause extra savings until it is rebuilt.",
             f"Target three months of planned expenses: {money_text(summary.get('emergency_target', 0.0))}.",
         ),
         (
             "4",
             "Gifts, holidays, clothes and Christmas",
-            "This is for known-but-irregular spending. Christmas is the same day every year; this account quietly builds up for it.",
+            "This is for predictable irregular costs. Christmas, birthdays, clothes and planned holidays are not surprises; this account quietly builds up for them.",
             f"Transfer {money_text(summary.get('sinking_weekly', 0.0))} per week.",
         ),
         (
             "5",
             "Debt reduction or savings goals",
-            "Once day-to-day, yearly and emergency money is spoken for, this is the real leftover to save, invest or direct to extra debt repayments.",
+            "After day-to-day, fixed, irregular and emergency money is spoken for, this is the real leftover. Use it for extra debt repayments first, then emergency savings, then longer-term savings goals.",
             f"Currently left to allocate: {money_text(summary.get('surplus_weekly', 0.0))} per week.",
         ),
     ]
@@ -3520,7 +3644,6 @@ def render_spending_flow_guidance(summary: dict[str, float]) -> None:
             unsafe_allow_html=True,
         )
 
-
 def spending_summary(sheet_id: str) -> dict[str, float]:
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
@@ -3533,9 +3656,10 @@ def spending_summary(sheet_id: str) -> dict[str, float]:
         for _, row in expenses.iterrows():
             annual = annual_from_row(row)
             kind = str(row.get("expense_kind", "") or "").lower()
-            if "everyday" in kind or "spend" in kind or "blow" in kind:
+            normalised_kind = normalise_spending_kind(kind)
+            if normalised_kind == "Everyday spend":
                 everyday_annual += annual
-            elif "sinking" in kind or "gift" in kind or "travel" in kind:
+            elif normalised_kind == "Sinking fund":
                 sinking_annual += annual
             else:
                 fixed_annual += annual
@@ -3576,7 +3700,7 @@ SPENDING_STARTER_EXPENSES = [
     ("Everyday spend", "Weekly spend money", "Other entertainment"),
     ("Everyday spend", "Weekly spend money", "Uber"),
     ("Everyday spend", "Weekly spend money", "Other"),
-    # Account 4: annual/irregular sinking funds
+    # Account 4: annual/irregular planned irregular costs
     ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Birthdays - Family"),
     ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Birthdays - Friends"),
     ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Christmas"),
@@ -3726,125 +3850,168 @@ def render_spending_income_form(sheet_id: str) -> None:
 
 def render_spending_expense_form(sheet_id: str) -> None:
     st.markdown("#### What you spend")
-    st.write("Use the three original buckets: everyday spend money, fixed costs, and sinking funds for less frequent costs such as gifts, clothes, Christmas and travel.")
-    st.markdown("""
-- **Everyday spend money** goes to the card/account you actually use during the week.
-- **Fixed costs** usually stay in the hub account because bills and direct debits come out automatically.
-- **Sinking funds** build up for predictable but irregular costs, such as Christmas, clothing, birthdays, holidays and travel.
-""")
-    with st.form("spending_expense_form", clear_on_submit=False):
-        c1, c2 = st.columns(2)
-        with c1:
-            kind = st.selectbox("Spending bucket", ["Everyday spend", "Fixed cost", "Sinking fund"])
-        group_options = {
-            "Everyday spend": ["Weekly spend money"],
-            "Sinking fund": ["Gifts, clothes, Christmas and travel", "Emergency / irregular", "Other sinking fund"],
-            "Fixed cost": ["Accommodation costs", "Bills and subscriptions", "Other living costs", "Loan repayments", "Health costs", "Vehicle costs", "Boat / motorcycle costs", "Miscellaneous expenses", "Investment property", "Other fixed cost"],
-        }
-        with c2:
-            group_choice = st.selectbox("Group", group_options.get(kind, [kind]), key="spending_group_choice")
-        group_custom = st.text_input("Custom group", placeholder="Optional: use this if the selected group is not quite right")
-        group = group_custom.strip() or group_choice
-        item = st.text_input("Item", placeholder="e.g. Groceries, rent, mobile phone, birthdays")
-        c3, c4 = st.columns(2)
-        with c3:
-            frequency = st.selectbox("How often is this paid or set aside?", ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"], key="expense_frequency")
-        with c4:
-            amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f", key="expense_amount")
-        notes = st.text_area("Notes", placeholder="Optional")
-        submitted = st.form_submit_button("Add spending item", use_container_width=True)
-    if submitted:
-        if not item.strip():
-            st.warning("Add an item before saving spending.")
-        elif amount <= 0:
-            st.warning("Add an amount greater than zero before saving spending.")
-        else:
-            record = {
-                "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
-                "expense_kind": kind,
-                "group_name": group.strip() or kind,
-                "item": item.strip(),
-                "notes": notes.strip(),
-                "status": "active",
-            }
-            record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
-            ok, msg = append_online_record(sheet_id, "spending_expenses", record)
+    st.write(
+        "Work down the common expense list. If an item applies to you, add the amount and how often it is paid. "
+        "If it does not apply, leave it at zero. You can rename items or add your own."
+    )
+    st.markdown(
+        """
+<div class='info-card'>
+<strong>The three buckets</strong><br>
+<strong>Weekly spend money:</strong> groceries, fuel, cafes, eating out and other day-to-day card spending.<br>
+<strong>Regular bills and commitments:</strong> rent/mortgage, utilities, subscriptions, insurance, minimum debt repayments and other automatic costs.<br>
+<strong>Planned irregular costs:</strong> birthdays, Christmas, clothes, holidays, travel and other known costs that need to build up over time.
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
+    if expenses.empty:
+        st.info("Load the common expense checklist, then work down it and add amounts only where the item applies to you.")
+        if st.button("Load common expense checklist", use_container_width=True):
+            ok, msg = load_spending_starter_categories(sheet_id)
             if ok:
                 st.session_state["spending_notice"] = msg
                 st.rerun()
             else:
                 st.warning(safe_user_message(msg))
+        return
+
+    tabs = st.tabs([SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER])
+    for tab, kind in zip(tabs, SPENDING_BUCKET_ORDER):
+        with tab:
+            label = SPENDING_BUCKET_LABELS[kind]
+            st.caption(f"{SPENDING_BUCKET_EXPLANATIONS[kind]} Destination: {spending_flow_destination_for_kind(kind)}.")
+            bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == kind].copy()
+            if bucket_rows.empty:
+                st.info(f"No {label.lower()} items yet. Add one below if needed.")
+            else:
+                editor_rows = []
+                for _, row in bucket_rows.iterrows():
+                    amount, frequency = amount_and_frequency_from_row(row)
+                    editor_rows.append({
+                        "_record_id": row.get("expense_id", ""),
+                        "Section": row.get("group_name", label),
+                        "Expense": row.get("item", ""),
+                        "Amount": float(amount),
+                        "Frequency": frequency,
+                        "Notes": row.get("notes", ""),
+                    })
+                edit_df = pd.DataFrame(editor_rows)
+                with st.form(f"spending_editor_{kind.replace(' ', '_').lower()}", clear_on_submit=False):
+                    edited = st.data_editor(
+                        edit_df,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_order=["Section", "Expense", "Amount", "Frequency", "Notes"],
+                        column_config={
+                            "Section": st.column_config.TextColumn("Section", help="This groups similar examples from the original sheet. You can change it if needed."),
+                            "Expense": st.column_config.TextColumn("Expense"),
+                            "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
+                            "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
+                            "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+                        },
+                    )
+                    save = st.form_submit_button(f"Save {label.lower()}", use_container_width=True)
+                if save:
+                    failures: list[str] = []
+                    updates_count = 0
+                    for _, edited_row in edited.iterrows():
+                        record_id = str(edited_row.get("_record_id", "")).strip()
+                        if not record_id:
+                            continue
+                        item = str(edited_row.get("Expense", "")).strip()
+                        section = str(edited_row.get("Section", "")).strip() or label
+                        frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
+                        amount = money_value(edited_row.get("Amount", 0.0))
+                        if not item:
+                            failures.append("One row was missing an expense name.")
+                            continue
+                        update = {
+                            "expense_kind": kind,
+                            "group_name": section,
+                            "item": item,
+                            "notes": str(edited_row.get("Notes", "") or "").strip(),
+                            "status": "active",
+                        }
+                        update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
+                        ok, msg = update_online_record(sheet_id, "spending_expenses", record_id, update)
+                        if ok:
+                            updates_count += 1
+                        else:
+                            failures.append(safe_user_message(msg))
+                    if failures:
+                        st.warning("Some spending rows could not be saved: " + "; ".join(failures[:3]))
+                    else:
+                        st.session_state["spending_notice"] = f"Saved {updates_count} {label.lower()} rows to your Pathmark Sync sheet."
+                        st.rerun()
+
+    with st.expander("Add an expense that is not listed"):
+        with st.form("spending_custom_expense_form", clear_on_submit=False):
+            bucket_label_map = {SPENDING_BUCKET_LABELS[k]: k for k in SPENDING_BUCKET_ORDER}
+            bucket_label = st.selectbox("Where should this money flow?", list(bucket_label_map.keys()))
+            kind = bucket_label_map[bucket_label]
+            section_options = spending_sections_for_kind(kind)
+            if len(section_options) == 1:
+                section = section_options[0]
+                st.caption(f"Section: {section}")
+            else:
+                section = st.selectbox("Section", section_options)
+            custom_section = st.text_input("Custom section", placeholder="Optional")
+            item = st.text_input("Expense", placeholder="e.g. Dog grooming, annual software subscription")
+            c1, c2 = st.columns(2)
+            with c1:
+                frequency = st.selectbox("How often is this paid or set aside?", SPENDING_FREQUENCIES, key="custom_expense_frequency")
+            with c2:
+                amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f", key="custom_expense_amount")
+            notes = st.text_area("Notes", placeholder="Optional")
+            submitted = st.form_submit_button("Add this expense", use_container_width=True)
+        if submitted:
+            if not item.strip():
+                st.warning("Add an expense name before saving.")
+            else:
+                record = {
+                    "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
+                    "expense_kind": kind,
+                    "group_name": custom_section.strip() or section,
+                    "item": item.strip(),
+                    "notes": notes.strip(),
+                    "status": "active",
+                }
+                record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
+                ok, msg = append_online_record(sheet_id, "spending_expenses", record)
+                if ok:
+                    st.session_state["spending_notice"] = msg
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
 
 
 def render_spending_account_form(sheet_id: str) -> None:
-    st.markdown("#### Cash-flow accounts")
-    st.write("Map the plan onto accounts so income, bills, weekly spending, emergencies and goals each have a clear place to sit.")
+    st.markdown("#### What goes where")
+    st.write(
+        "This is the flow map from the original spending plan. It does not ask you to create new accounts in Pathmark; "
+        "it shows which existing bank account role each weekly amount should move to."
+    )
     summary = spending_summary(sheet_id)
     render_spending_flow_guidance(summary)
-    with st.form("spending_account_form", clear_on_submit=False):
-        account_role = st.selectbox("Account role", ["Hub account", "Everyday card account", "Emergency savings", "Gifts / holidays / clothes sinking fund", "Debt reduction or savings goals", "Other"])
-        default_names = {
-            "Hub account": "Hub account",
-            "Everyday card account": "Everyday card account",
-            "Emergency savings": "Emergency savings",
-            "Gifts / holidays / clothes sinking fund": "Gifts, holidays, clothes and Christmas",
-            "Debt reduction or savings goals": "Debt reduction or savings goals",
-            "Other": "",
-        }
-        account_name = st.text_input("Account name", value=default_names.get(account_role, ""), placeholder="e.g. Hub account, Everyday card, Emergency savings")
-        purpose_defaults = {
-            "Hub account": "All income is paid here. Fixed bills and direct debits come from here.",
-            "Everyday card account": "Only card in the wallet. Transfer weekly spend money here.",
-            "Emergency savings": "Three months of expenses for unexpected costs.",
-            "Gifts / holidays / clothes sinking fund": "Builds up for birthdays, Christmas, clothes, holidays and travel.",
-            "Debt reduction or savings goals": "Money left after day-to-day, yearly and emergency costs are spoken for.",
-            "Other": "",
-        }
-        purpose = st.text_area("Purpose", value=purpose_defaults.get(account_role, ""), placeholder="What this account is for")
-        c1, c2 = st.columns(2)
-        with c1:
-            bank = st.text_input("Bank", placeholder="Optional")
-        with c2:
-            hint = st.text_input("Account hint", placeholder="Optional: last 4 digits only")
-        c3, c4, c5 = st.columns(3)
-        with c3:
-            transfer = st.number_input("Transfer per week", min_value=-100000.0, step=5.0, format="%.2f")
-        with c4:
-            target = st.number_input("Target balance", min_value=0.0, step=50.0, format="%.2f")
-        with c5:
-            current = st.number_input("Current balance", min_value=0.0, step=50.0, format="%.2f")
-        notes = st.text_area("Notes", placeholder="Optional")
-        submitted = st.form_submit_button("Add account", use_container_width=True)
-    if submitted:
-        if not account_name.strip():
-            st.warning("Add an account name before saving.")
-        else:
-            record = {
-                "account_id": f"account-{uuid.uuid4().hex[:12]}",
-                "account_name": account_name.strip(),
-                "purpose": purpose.strip(),
-                "bank": bank.strip(),
-                "account_number_hint": hint.strip(),
-                "transfer_per_week": str(transfer),
-                "target_balance": str(target),
-                "current_balance": str(current),
-                "notes": notes.strip(),
-                "status": "active",
-            }
-            ok, msg = append_online_record(sheet_id, "spending_accounts", record)
-            if ok:
-                st.session_state["spending_notice"] = msg
-                st.rerun()
-            else:
-                st.warning(safe_user_message(msg))
+    st.markdown(
+        """
+<div class='info-card'>
+<strong>After the weekly flow is set</strong><br>
+Use any leftover in this order: pay down debt first, rebuild the emergency account next, then send the remaining amount to savings or longer-term goals. If the plan shows a shortfall, reduce weekly spend money, fixed costs, or planned irregular costs before adding savings goals.
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_spending_records(sheet_id: str) -> None:
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
-    accounts = active_online_df(read_online_table(sheet_id, "spending_accounts"))
     st.markdown("#### Current plan records")
-    tabs = st.tabs(["Income", "Spending", "Accounts"])
+    tabs = st.tabs(["Income", "Spending"])
     with tabs[0]:
         if income.empty:
             st.info("No income records yet.")
@@ -3855,32 +4022,28 @@ def render_spending_records(sheet_id: str) -> None:
             choice = st.selectbox("Archive an income record", [""] + list(choice_map.keys()), key="archive_income_choice")
             if choice and st.button("Archive selected income", use_container_width=True):
                 ok, msg = archive_online_record(sheet_id, "spending_income", choice_map[choice], "Archived from Spending Plan.")
-                st.success(msg) if ok else st.warning(safe_user_message(msg))
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(safe_user_message(msg))
     with tabs[1]:
         if expenses.empty:
             st.info("No spending records yet.")
         else:
             display = expenses.copy()
+            display["bucket"] = display["expense_kind"].apply(spending_bucket_label)
             display["weekly_equivalent"] = display.apply(lambda row: annual_from_row(row) / 52, axis=1)
             display["annual_equivalent"] = display.apply(annual_from_row, axis=1)
-            show = display[[c for c in ["expense_kind", "group_name", "item", "weekly_equivalent", "annual_equivalent", "notes"] if c in display.columns]]
+            show = display[[c for c in ["bucket", "group_name", "item", "weekly_equivalent", "annual_equivalent", "notes"] if c in display.columns]]
             st.dataframe(show, use_container_width=True, hide_index=True)
-            choice_map = {f"{row.get('group_name','')} — {row.get('item','')} ({money_text(annual_from_row(row))/1 if False else money_text(annual_from_row(row))}/year)": row.get("expense_id", "") for _, row in expenses.iterrows()}
+            choice_map = {f"{spending_bucket_label(row.get('expense_kind',''))} — {row.get('item','')} ({money_text(annual_from_row(row))}/year)": row.get("expense_id", "") for _, row in expenses.iterrows()}
             choice = st.selectbox("Archive a spending item", [""] + list(choice_map.keys()), key="archive_expense_choice")
             if choice and st.button("Archive selected spending item", use_container_width=True):
                 ok, msg = archive_online_record(sheet_id, "spending_expenses", choice_map[choice], "Archived from Spending Plan.")
-                st.success(msg) if ok else st.warning(safe_user_message(msg))
-    with tabs[2]:
-        if accounts.empty:
-            st.info("No account records yet.")
-        else:
-            show = accounts[[c for c in ["account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes"] if c in accounts.columns]].copy()
-            st.dataframe(show, use_container_width=True, hide_index=True)
-            choice_map = {f"{row.get('account_name','')} — {row.get('purpose','')}": row.get("account_id", "") for _, row in accounts.iterrows()}
-            choice = st.selectbox("Archive an account", [""] + list(choice_map.keys()), key="archive_account_choice")
-            if choice and st.button("Archive selected account", use_container_width=True):
-                ok, msg = archive_online_record(sheet_id, "spending_accounts", choice_map[choice], "Archived from Spending Plan.")
-                st.success(msg) if ok else st.warning(safe_user_message(msg))
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(safe_user_message(msg))
 
 
 def render_spending_plan_manager(sheet_id: str) -> None:
@@ -3901,7 +4064,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         render_money_metric("Emergency target", summary["emergency_target"], "Three months of planned expenses.")
 
     if summary["surplus_annual"] < 0:
-        st.warning("This plan currently spends more than the income entered. Review everyday spend, fixed costs, or sinking funds.")
+        st.warning("This plan currently spends more than the income entered. Review everyday spend, fixed costs, or planned irregular costs.")
     elif summary["income_annual"] > 0:
         st.success("This plan has money left after the entered spending categories.")
 
@@ -3914,18 +4077,22 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         with c2:
             render_money_metric("Fixed costs", summary["fixed_weekly"], "Bills and commitments that need money set aside.")
         with c3:
-            render_money_metric("Sinking funds", summary["sinking_weekly"], "Less frequent costs such as gifts, clothes, Christmas and travel.")
+            render_money_metric("Planned irregular costs", summary["sinking_weekly"], "Less frequent costs such as gifts, clothes, Christmas and travel.")
         st.markdown("#### How this maps to the original spreadsheet system")
         st.markdown("""
 - **What comes in** records take-home income and other regular money arriving.
-- **What you spend** separates the original three buckets: everyday spend money, fixed costs, and sinking funds.
+- **What you spend** separates the original three buckets: everyday spend money, fixed costs, and planned irregular costs.
 - **Cash-flow accounts** turns the plan into weekly transfers: hub account, everyday card, emergency fund, gifts/holidays/clothes/Christmas, and savings or debt goals.
 """)
         render_spending_flow_guidance(summary)
         if active_online_df(read_online_table(sheet_id, "spending_expenses")).empty:
             if st.button("Load starter spending categories", use_container_width=True):
                 ok, msg = load_spending_starter_categories(sheet_id)
-                st.success(msg) if ok else st.warning(safe_user_message(msg))
+                if ok:
+                    st.session_state["spending_notice"] = msg
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
     with sections[1]:
         render_spending_income_form(sheet_id)
     with sections[2]:
@@ -3988,7 +4155,10 @@ def render_tasklist_manager(sheet_id: str) -> None:
             if st.button("Move selected tasklist items to Archive", use_container_width=True):
                 ids = selected_rows.get("action_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
                 ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=True)
-                st.success(message) if ok else st.warning(safe_user_message(message))
+                if ok:
+                    st.success(message)
+                else:
+                    st.warning(safe_user_message(message))
                 st.rerun()
 
 def render_google_calendar_export_manager(sheet_id: str) -> None:
@@ -4025,7 +4195,10 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
         if st.button("Move exported calendar items to Archive", use_container_width=True):
             ids = blocks.get("linked_record_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
             ok, message = mark_actions_exported(sheet_id, ids, "google_calendar", archive=True)
-            st.success(message) if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
             st.rerun()
 
 
@@ -4094,13 +4267,19 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
     if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
         ok, message = write_google_tasks_export_tab(sheet_id, prompts)
-        st.success(message) if ok else st.warning(safe_user_message(message))
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
     if not prompts.empty:
         st.info("After you have downloaded or written the Google Tasks export, you can move those exported rows to Archive so they leave the active workspace.")
         if st.button("Move exported Google Tasks items to Archive", use_container_width=True):
             ids = prompts.get("id", pd.Series(dtype=str)).dropna().astype(str).tolist()
             ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=True)
-            st.success(message) if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
             st.rerun()
 
 def render_archive_manager(sheet_id: str) -> None:
@@ -4132,7 +4311,10 @@ def render_archive_manager(sheet_id: str) -> None:
             chosen_id = dict(choices).get(choice_label, "")
             if st.button(f"Restore selected {title.lower()}", key=f"restore_button_{table}", use_container_width=True, disabled=not chosen_id):
                 ok, message = restore_online_record(sheet_id, table, chosen_id)
-                st.success("Restored to the active workspace.") if ok else st.warning(safe_user_message(message))
+                if ok:
+                    st.success("Restored to the active workspace.")
+                else:
+                    st.warning(safe_user_message(message))
                 st.rerun()
 
 
@@ -4160,7 +4342,10 @@ def render_online_settings(sheet_id: str) -> None:
         if st.button("Start setup pathway again", use_container_width=True, key="settings_reset_setup"):
             st.session_state.pop("skip_online_setup_for_session", None)
             ok, message = save_setup_state(sheet_id, reset=True)
-            st.success("Guided setup is ready to revisit.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success("Guided setup is ready to revisit.")
+            else:
+                st.warning(safe_user_message(message))
             st.rerun()
     with st.expander("Advanced Google Sheet settings", expanded=False):
         render_google_sheets_oauth_diagnostics()
@@ -4170,7 +4355,10 @@ def render_online_settings(sheet_id: str) -> None:
             clear_online_cache(st.session_state.get("sync_sheet_id", ""))
         if st.button("Find or create Pathmark Sync sheet", use_container_width=True):
             ok, new_sheet_id, message = ensure_pathmark_sync_sheet_ready()
-            st.success("Pathmark sync sheet is ready.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success("Pathmark sync sheet is ready.")
+            else:
+                st.warning(safe_user_message(message))
             if ok:
                 clear_online_cache(new_sheet_id)
                 st.rerun()
@@ -4552,7 +4740,10 @@ def render_setup_focus_step(sheet_id: str) -> None:
             st.warning("Add a short weekly focus before saving, or move to the next step and come back later.")
         else:
             ok, message = save_online_setting(sheet_id, "weekly_focus", focus.strip())
-            st.success("Weekly focus saved.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success("Weekly focus saved.")
+            else:
+                st.warning(safe_user_message(message))
 
 
 def render_setup_area_step(sheet_id: str) -> None:
@@ -4578,7 +4769,10 @@ def render_setup_area_step(sheet_id: str) -> None:
                 "default_calendar": name.strip(),
                 "default_task_list": "Pathmark",
             })
-            st.success("Area saved. You can add more Areas now or continue to routines.") if ok else st.warning(safe_user_message(message))
+            if ok:
+                st.success("Area saved. You can add more Areas now or continue to routines.")
+            else:
+                st.warning(safe_user_message(message))
             if ok:
                 st.rerun()
 
@@ -4754,7 +4948,10 @@ def render_online_overview(sheet_id: str) -> None:
         save_focus = st.form_submit_button("Save weekly focus", use_container_width=True)
     if save_focus:
         ok, message = save_online_setting(sheet_id, "weekly_focus", new_focus.strip())
-        st.success("Weekly focus saved.") if ok else st.warning(safe_user_message(message))
+        if ok:
+            st.success("Weekly focus saved.")
+        else:
+            st.warning(safe_user_message(message))
 
     st.markdown("""
     <div class="guide-box"><strong>Your active workspace.</strong><br>
