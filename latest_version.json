@@ -1,18 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.8",
-  "release_date": "2026-06-02",
+  "version": "0.6.9",
+  "release_date": "2026-06-03",
   "notes": [
-    "Restored the saved activity list used by Goals and Routines so those tabs do not fail when a saved goal or routine is selected.",
-    "Converted Calendar export preview recurrence labels into plain English while leaving the hidden export details and .ics RRULE values in Google-compatible format.",
-    "Removed a nested optional expander from the activity form and replaced it with a simple optional reference-time checkbox for Google Tasks notes.",
-    "Moved guided setup navigation to side arrows beside the working content, leaving Skip setup for now as the only bottom button."
+    "Added a dedicated Spending Plan tab to Pathmark Online beta.",
+    "Added Google Sheet-backed tables for income, spending items, and cash-flow accounts.",
+    "Added cash-flow summary metrics for annual income, annual spending, weekly surplus, everyday spend, fixed costs, sinking funds, and emergency fund target.",
+    "Added starter spending categories based on the uploaded spending-plan system without hard-coding private sample values.",
+    "Updated About & Privacy wording to include spending plan records in the user's Pathmark Sync sheet."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_8.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_9.zip",
   "mac_package": "",
-  "release": "v0.6.8 setup navigation and export preview repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_8.zip",
-  "release_name": "Setup navigation and export preview repair",
-  "release_notes": "Repairs the Goals and Routines tabs by restoring the saved activity list renderer, makes Calendar export preview recurrence text user-facing while preserving RRULE export format, removes the nested expander from the activity form, and moves setup navigation to side arrows with Skip setup as the only bottom button.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_8.zip"
+  "release": "v0.6.9 spending plan beta tab",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_9.zip",
+  "release_name": "Spending Plan beta tab",
+  "release_notes": "Adds a dedicated Spending Plan tab to Pathmark Online, with separate income, spending, and cash-flow account records saved in the user's Pathmark Sync sheet. The local desktop package is carried forward unchanged in this release.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_9.zip"
 }
