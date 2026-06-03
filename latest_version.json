@@ -1,19 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.9",
+  "version": "0.6.10",
   "release_date": "2026-06-03",
   "notes": [
-    "Added a dedicated Spending Plan tab to Pathmark Online beta.",
-    "Added Google Sheet-backed tables for income, spending items, and cash-flow accounts.",
-    "Added cash-flow summary metrics for annual income, annual spending, weekly surplus, everyday spend, fixed costs, sinking funds, and emergency fund target.",
-    "Added starter spending categories based on the uploaded spending-plan system without hard-coding private sample values.",
-    "Updated About & Privacy wording to include spending plan records in the user's Pathmark Sync sheet."
+    "Moved Spending Plan out of the Pathmark Online beta workspace tabs.",
+    "Added Spending Plan beta as its own top-level beta tab alongside Pathmark Online beta.",
+    "Kept Spending Plan records in the user-owned Pathmark Sync sheet using the existing spending_income, spending_expenses, and spending_accounts tabs.",
+    "Kept Pathmark Online beta focused on goals, routines, weekly focus, review, tasklists, calendar export, Google Tasks export, archive, and settings.",
+    "Local desktop package is carried forward unchanged apart from release packaging."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_9.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_10.zip",
   "mac_package": "",
-  "release": "v0.6.9 spending plan beta tab",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_9.zip",
-  "release_name": "Spending Plan beta tab",
-  "release_notes": "Adds a dedicated Spending Plan tab to Pathmark Online, with separate income, spending, and cash-flow account records saved in the user's Pathmark Sync sheet. The local desktop package is carried forward unchanged in this release.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_9.zip"
+  "release": "v0.6.10 separate Spending Plan beta tab",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_10.zip",
+  "release_name": "Separate Spending Plan beta tab",
+  "release_notes": "Moves Spending Plan out of the Pathmark Online beta workspace and into its own top-level Spending Plan beta tab alongside Pathmark Online beta. Spending Plan records remain saved in the user-owned Pathmark Sync sheet.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_10.zip"
 }

@@ -4781,7 +4781,6 @@ def on_the_go_tab() -> None:
         "Areas",
         "Routines",
         "Goals and Projects",
-        "Spending Plan",
         "Tasklist",
         "Google Calendar Export",
         "Google Tasks Export",
@@ -4799,17 +4798,55 @@ def on_the_go_tab() -> None:
     with sections[4]:
         render_safe_section("Goals and Projects", render_goal_manager, sheet_id)
     with sections[5]:
-        render_safe_section("Spending Plan", render_spending_plan_manager, sheet_id)
-    with sections[6]:
         render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
-    with sections[7]:
+    with sections[6]:
         render_safe_section("Google Calendar Export", render_google_calendar_export_manager, sheet_id)
-    with sections[8]:
+    with sections[7]:
         render_safe_section("Google Tasks Export", render_google_tasks_export_manager, sheet_id)
-    with sections[9]:
+    with sections[8]:
         render_safe_section("Archive", render_archive_manager, sheet_id)
-    with sections[10]:
+    with sections[9]:
         render_safe_section("Settings", render_online_settings, sheet_id)
+
+def spending_plan_beta_tab() -> None:
+    handle_google_oauth_redirect()
+    st.header("Spending Plan beta")
+    st.write("Use this separate beta space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+
+    auth_ready = web_oauth_available()
+    credentials = google_credentials_from_session()
+    should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
+    if should_prepare_sheet and (st.session_state.pop("auto_create_sync_sheet_after_connect", False) or not st.session_state.get("sync_sheet_ready_attempted")):
+        st.session_state["sync_sheet_ready_attempted"] = True
+        ok, sheet_id_found, message = ensure_pathmark_sync_sheet_ready()
+        if not ok:
+            st.warning(safe_user_message(message))
+
+    sheet_id = st.session_state.get("sync_sheet_id", "")
+    render_connection_summary(credentials, sheet_id, auth_ready)
+
+    if not credentials and auth_ready:
+        auth_url = login_auth_url()
+        if auth_url:
+            st.link_button("Sign in with Google", auth_url, use_container_width=True)
+        st.caption("Pathmark asks for permission to create or update Pathmark files you use with the app. Details are in About & Privacy.")
+        return
+
+    if not (credentials and sheet_id):
+        st.info("Pathmark is still preparing your sync sheet. Refresh online data or reconnect from Settings if this does not resolve.")
+        return
+
+    apply_online_theme(sheet_id)
+    service = sheets_service()
+    if service is not None:
+        try:
+            with st.spinner("Loading your Spending Plan from Google Sheets..."):
+                ensure_pathmark_online_schema(service, sheet_id)
+                load_online_tables(sheet_id)
+        except Exception:
+            st.warning("Pathmark could not prepare your Spending Plan just now. Please refresh online data or reconnect Google access, then try again.")
+
+    render_safe_section("Spending Plan", render_spending_plan_manager, sheet_id)
 
 def developer_tab() -> None:
     st.header("Developer settings")
@@ -4959,6 +4996,7 @@ def render_app() -> None:
     tabs = ["Home", "About & Privacy"]
     if role_can_use_on_the_go(role, status):
         tabs.append("Pathmark Online beta")
+        tabs.append("Spending Plan beta")
     if role_can_develop(role, status):
         tabs.append("Developer")
     created_tabs = st.tabs(tabs)
@@ -4970,6 +5008,9 @@ def render_app() -> None:
     if role_can_use_on_the_go(role, status):
         with created_tabs[idx]:
             on_the_go_tab()
+        idx += 1
+        with created_tabs[idx]:
+            spending_plan_beta_tab()
         idx += 1
     if role_can_develop(role, status):
         with created_tabs[idx]:
