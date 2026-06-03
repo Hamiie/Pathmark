@@ -1710,7 +1710,38 @@ def ensure_pathmark_online_schema(service: Any, sheet_id: str) -> None:
     sheet_titles = {sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])}
     for title, columns in ONLINE_TABLES.items():
         ensure_sheet_with_header(service, sheet_id, title, columns, sheet_titles)
+    for key in list(st.session_state.keys()):
+        if str(key).startswith(f"online_header::{sheet_id}::"):
+            st.session_state.pop(key, None)
     st.session_state[ready_key] = True
+
+
+def online_sheet_header(service: Any, sheet_id: str, table: str) -> list[str]:
+    """Return the live header row for a Pathmark Sync tab.
+
+    Older beta sheets can have a different valid column order. Saves must use
+    the live header so values such as annual income do not shift when optional
+    notes are blank.
+    """
+    fallback = list(ONLINE_TABLES.get(table, []))
+    if not fallback:
+        return []
+    cache_key = f"online_header::{sheet_id}::{table}"
+    cached = st.session_state.get(cache_key)
+    if cached:
+        return list(cached)
+    end_col = sheet_col_letter(max(len(fallback) + 8, 1))
+    try:
+        values = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{table}!A1:{end_col}1",
+        ).execute().get("values", [])
+        header = [str(v) for v in values[0]] if values and values[0] else fallback
+        header = header + [col for col in fallback if col not in header]
+    except Exception:
+        header = fallback
+    st.session_state[cache_key] = header
+    return header
 
 
 def _values_to_dataframe(values: list[list[str]], expected_columns: list[str]) -> pd.DataFrame:
@@ -1795,22 +1826,23 @@ def append_online_record(sheet_id: str, table: str, record: dict[str, Any]) -> t
         return False, "Google Sheets access is not available for this session."
     try:
         ensure_pathmark_online_schema(service, sheet_id)
+        header = online_sheet_header(service, sheet_id, table) or columns
         now = utc_now_text()
-        row = {col: str(record.get(col, "") or "") for col in columns}
-        if "created_at" in columns and not row.get("created_at"):
+        row = {col: str(record.get(col, "") or "") for col in header}
+        if "created_at" in header and not row.get("created_at"):
             row["created_at"] = now
-        if "updated_at" in columns:
+        if "updated_at" in header:
             row["updated_at"] = now
-        if "status" in columns and not row.get("status"):
+        if "status" in header and not row.get("status"):
             row["status"] = "active"
-        if "source" in columns and not row.get("source"):
+        if "source" in header and not row.get("source"):
             row["source"] = "pathmark_online"
         service.spreadsheets().values().append(
             spreadsheetId=sheet_id,
-            range=f"{table}!A:{sheet_col_letter(len(columns))}",
+            range=f"{table}!A:{sheet_col_letter(len(header))}",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
-            body={"values": [[row.get(col, "") for col in columns]]},
+            body={"values": [[row.get(col, "") for col in header]]},
         ).execute()
         clear_online_cache(sheet_id)
         return True, "Saved to your Pathmark sync sheet."
@@ -1832,11 +1864,7 @@ ONLINE_ID_COLUMNS = {
 
 
 def append_many_online_records(sheet_id: str, records_by_table: dict[str, list[dict[str, Any]]]) -> tuple[bool, str]:
-    """Append starter/example records with one write per table.
-
-    This keeps the online setup guided without consuming lots of Google Sheets
-    quota through one request per row.
-    """
+    """Append starter/example records using the live header order for each tab."""
     sheet_id = extract_google_sheet_id(sheet_id)
     service = sheets_service()
     if service is None:
@@ -1844,33 +1872,39 @@ def append_many_online_records(sheet_id: str, records_by_table: dict[str, list[d
     try:
         ensure_pathmark_online_schema(service, sheet_id)
         total = 0
+        now = utc_now_text()
         for table, records in records_by_table.items():
             if not records:
                 continue
             columns = ONLINE_TABLES.get(table)
             if not columns:
                 continue
-            now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            header = online_sheet_header(service, sheet_id, table) or columns
             rows = []
             for record in records:
-                row = dict(record)
-                row.setdefault("created_at", now)
-                row.setdefault("updated_at", now)
-                row.setdefault("source", "Pathmark Online starter examples")
-                rows.append([str(row.get(col, "")) for col in columns])
-            service.spreadsheets().values().append(
-                spreadsheetId=sheet_id,
-                range=f"{table}!A1",
-                valueInputOption="USER_ENTERED",
-                insertDataOption="INSERT_ROWS",
-                body={"values": rows},
-            ).execute()
-            total += len(rows)
+                row = {col: str(record.get(col, "") or "") for col in header}
+                if "created_at" in header and not row.get("created_at"):
+                    row["created_at"] = now
+                if "updated_at" in header:
+                    row["updated_at"] = now
+                if "status" in header and not row.get("status"):
+                    row["status"] = "active"
+                if "source" in header and not row.get("source"):
+                    row["source"] = "Pathmark Online starter examples"
+                rows.append([row.get(col, "") for col in header])
+            if rows:
+                service.spreadsheets().values().append(
+                    spreadsheetId=sheet_id,
+                    range=f"{table}!A:{sheet_col_letter(len(header))}",
+                    valueInputOption="USER_ENTERED",
+                    insertDataOption="INSERT_ROWS",
+                    body={"values": rows},
+                ).execute()
+                total += len(rows)
         clear_online_cache(sheet_id)
         return True, f"Loaded {total} editable starter records into your Pathmark sync sheet."
     except Exception as exc:
         return False, f"Could not load starter examples: {exc}"
-
 
 def update_online_record(sheet_id: str, table: str, record_id: str, updates: dict[str, Any]) -> tuple[bool, str]:
     """Update one Google Sheet row by stable record id.
@@ -2051,9 +2085,9 @@ def render_safe_section(label: str, func, *args, **kwargs) -> None:
     except Exception as exc:
         st.warning(f"Pathmark could not open {label} just now. Please refresh online data and try again.")
         user = current_user() if 'current_user' in globals() else {}
-        if str(user.get('role', '')).lower() == 'developer':
-            with st.expander("Developer diagnostics", expanded=False):
-                st.code(repr(exc))
+        # Keep implementation details out of the user-facing app. Full details
+        # remain available in Streamlit Cloud logs.
+        return
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
         st.info("No records yet.")
@@ -3437,6 +3471,56 @@ def render_money_metric(label: str, value: float, help_text: str = "") -> None:
     st.metric(label, money_text(value), help=help_text or None)
 
 
+def render_spending_flow_guidance(summary: dict[str, float]) -> None:
+    """Show the cash-flow logic from the original spending-plan workbook."""
+    st.markdown("#### Where the money goes")
+    st.write("The spending plan is not just a budget. It tells each dollar where to sit so everyday spending, bills, emergencies and longer-term goals do not blur together.")
+    cards = [
+        (
+            "1",
+            "Hub account",
+            "All income lands here. Fixed bills and direct debits come from here. Keep this banking app/card out of everyday use.",
+            f"Leave about {money_text(summary.get('fixed_weekly', 0.0))} per week for fixed costs.",
+        ),
+        (
+            "2",
+            "Everyday card account",
+            "Only card in your wallet. Use this for groceries, fuel, cafes, eating out, parking and other weekly spend money.",
+            f"Transfer {money_text(summary.get('everyday_weekly', 0.0))} per week.",
+        ),
+        (
+            "3",
+            "Emergency savings",
+            "Expect the unexpected: car repairs, dental costs, urgent travel, or anything you cannot sensibly predict.",
+            f"Target three months of planned expenses: {money_text(summary.get('emergency_target', 0.0))}.",
+        ),
+        (
+            "4",
+            "Gifts, holidays, clothes and Christmas",
+            "This is for known-but-irregular spending. Christmas is the same day every year; this account quietly builds up for it.",
+            f"Transfer {money_text(summary.get('sinking_weekly', 0.0))} per week.",
+        ),
+        (
+            "5",
+            "Debt reduction or savings goals",
+            "Once day-to-day, yearly and emergency money is spoken for, this is the real leftover to save, invest or direct to extra debt repayments.",
+            f"Currently left to allocate: {money_text(summary.get('surplus_weekly', 0.0))} per week.",
+        ),
+    ]
+    for number, title, body, amount in cards:
+        st.markdown(
+            f"""
+            <div class='step-card'>
+              <div class='eyebrow'>Account {html.escape(number)}</div>
+              <h3>{html.escape(title)}</h3>
+              <p>{html.escape(body)}</p>
+              <p><strong>{html.escape(amount)}</strong></p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def spending_summary(sheet_id: str) -> dict[str, float]:
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
@@ -3474,25 +3558,110 @@ def spending_summary(sheet_id: str) -> dict[str, float]:
 
 
 SPENDING_STARTER_EXPENSES = [
+    # Account 2: weekly everyday spend money / blow money
     ("Everyday spend", "Weekly spend money", "Food / Groceries"),
-    ("Everyday spend", "Weekly spend money", "Fuel / transport"),
+    ("Everyday spend", "Weekly spend money", "Hello Fresh / Lite & Easy / meal kits"),
+    ("Everyday spend", "Weekly spend money", "Fuel"),
     ("Everyday spend", "Weekly spend money", "Eating out"),
     ("Everyday spend", "Weekly spend money", "Cafes and coffee"),
+    ("Everyday spend", "Weekly spend money", "Alcohol"),
+    ("Everyday spend", "Weekly spend money", "Cigarettes"),
     ("Everyday spend", "Weekly spend money", "Personal care"),
-    ("Everyday spend", "Weekly spend money", "Recreation and hobbies"),
-    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Birthdays"),
-    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Christmas"),
-    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Clothes"),
+    ("Everyday spend", "Weekly spend money", "Recreation / hobbies"),
+    ("Everyday spend", "Weekly spend money", "Work expenses"),
+    ("Everyday spend", "Weekly spend money", "Parking"),
+    ("Everyday spend", "Weekly spend money", "Weekly sport not direct debited"),
+    ("Everyday spend", "Weekly spend money", "Movies"),
+    ("Everyday spend", "Weekly spend money", "Weekly medical"),
+    ("Everyday spend", "Weekly spend money", "Other entertainment"),
+    ("Everyday spend", "Weekly spend money", "Uber"),
+    ("Everyday spend", "Weekly spend money", "Other"),
+    # Account 4: annual/irregular sinking funds
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Birthdays - Family"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Birthdays - Friends"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Gifts - Christmas"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Clothes - Work"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Clothes - Casual"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Other clothes"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Holiday season entertainment"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Shoes"),
     ("Sinking fund", "Gifts, clothes, Christmas and travel", "Weekends away"),
-    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Annual holidays"),
-    ("Fixed cost", "Accommodation costs", "Rent or mortgage"),
-    ("Fixed cost", "Accommodation costs", "Power / electricity"),
-    ("Fixed cost", "Accommodation costs", "Internet"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Planned annual holidays"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Big international trip"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Weddings and engagements"),
+    ("Sinking fund", "Gifts, clothes, Christmas and travel", "Other"),
+    # Account 1: fixed bills and commitments
+    ("Fixed cost", "Accommodation costs", "Mortgage repayments / rent"),
+    ("Fixed cost", "Accommodation costs", "Rates"),
+    ("Fixed cost", "Accommodation costs", "Water"),
+    ("Fixed cost", "Accommodation costs", "Electricity"),
+    ("Fixed cost", "Accommodation costs", "Gas"),
+    ("Fixed cost", "Accommodation costs", "House and contents insurance"),
+    ("Fixed cost", "Accommodation costs", "Strata / body corporate"),
+    ("Fixed cost", "Accommodation costs", "Maintenance fees"),
+    ("Fixed cost", "Accommodation costs", "Yard"),
+    ("Fixed cost", "Accommodation costs", "Pool maintenance"),
+    ("Fixed cost", "Accommodation costs", "House cleaner / keeper"),
+    ("Fixed cost", "Accommodation costs", "Pest control"),
+    ("Fixed cost", "Bills and subscriptions", "Home telephone"),
     ("Fixed cost", "Bills and subscriptions", "Mobile phone"),
-    ("Fixed cost", "Bills and subscriptions", "Streaming subscriptions"),
-    ("Fixed cost", "Health costs", "Doctors / pharmacy"),
-    ("Fixed cost", "Vehicle costs", "Registration, WoF and servicing"),
+    ("Fixed cost", "Bills and subscriptions", "Internet"),
+    ("Fixed cost", "Bills and subscriptions", "Foxtel / Sky"),
+    ("Fixed cost", "Bills and subscriptions", "Netflix"),
+    ("Fixed cost", "Bills and subscriptions", "Stan"),
+    ("Fixed cost", "Bills and subscriptions", "Prime Video"),
+    ("Fixed cost", "Bills and subscriptions", "iTunes"),
+    ("Fixed cost", "Bills and subscriptions", "Spotify"),
+    ("Fixed cost", "Bills and subscriptions", "Online dating services"),
+    ("Fixed cost", "Bills and subscriptions", "Bank fees"),
+    ("Fixed cost", "Bills and subscriptions", "Audible"),
+    ("Fixed cost", "Other living costs", "School fees"),
+    ("Fixed cost", "Other living costs", "Education costs"),
+    ("Fixed cost", "Other living costs", "Child day care"),
+    ("Fixed cost", "Other living costs", "Nanny services / babysitting"),
+    ("Fixed cost", "Other living costs", "Haircare / beauty"),
+    ("Fixed cost", "Loan repayments", "Credit card minimum repayments"),
+    ("Fixed cost", "Loan repayments", "Car loan minimum repayments"),
+    ("Fixed cost", "Loan repayments", "Personal loan repayments"),
+    ("Fixed cost", "Health costs", "Private health insurance"),
+    ("Fixed cost", "Health costs", "Doctor"),
+    ("Fixed cost", "Health costs", "Medication"),
+    ("Fixed cost", "Health costs", "Optometrist"),
+    ("Fixed cost", "Health costs", "Dental"),
+    ("Fixed cost", "Health costs", "Physiotherapist"),
+    ("Fixed cost", "Health costs", "Osteopath"),
+    ("Fixed cost", "Health costs", "Chiropractor"),
+    ("Fixed cost", "Health costs", "Psychologist"),
+    ("Fixed cost", "Health costs", "Nutritionist"),
+    ("Fixed cost", "Health costs", "Naturopath"),
+    ("Fixed cost", "Health costs", "Massage"),
+    ("Fixed cost", "Health costs", "Yoga / Pilates / gym membership"),
+    ("Fixed cost", "Health costs", "Trauma insurance"),
+    ("Fixed cost", "Vehicle costs", "Car registration"),
+    ("Fixed cost", "Vehicle costs", "WoF"),
+    ("Fixed cost", "Vehicle costs", "Car insurance"),
+    ("Fixed cost", "Vehicle costs", "Roadside assistance"),
+    ("Fixed cost", "Vehicle costs", "Tyres"),
+    ("Fixed cost", "Vehicle costs", "Car servicing / repairs"),
+    ("Fixed cost", "Vehicle costs", "Driver licence"),
+    ("Fixed cost", "Boat / motorcycle costs", "Boat licence"),
+    ("Fixed cost", "Boat / motorcycle costs", "Boat insurance"),
+    ("Fixed cost", "Boat / motorcycle costs", "Motorcycle registration"),
+    ("Fixed cost", "Boat / motorcycle costs", "Motorcycle insurance"),
+    ("Fixed cost", "Miscellaneous expenses", "Self-employed income tax allocation"),
+    ("Fixed cost", "Miscellaneous expenses", "Tax"),
+    ("Fixed cost", "Miscellaneous expenses", "PlayStation Plus"),
+    ("Fixed cost", "Miscellaneous expenses", "Steam"),
+    ("Fixed cost", "Miscellaneous expenses", "Charity"),
     ("Fixed cost", "Miscellaneous expenses", "Pet and vet"),
+    ("Fixed cost", "Investment property", "Mortgage repayments"),
+    ("Fixed cost", "Investment property", "Strata / body corporate"),
+    ("Fixed cost", "Investment property", "Maintenance fees"),
+    ("Fixed cost", "Investment property", "Agent fees"),
+    ("Fixed cost", "Investment property", "Insurance - building"),
+    ("Fixed cost", "Investment property", "Insurance - landlord"),
+    ("Fixed cost", "Investment property", "Water"),
+    ("Fixed cost", "Investment property", "Rates"),
 ]
 
 
@@ -3523,7 +3692,7 @@ def load_spending_starter_categories(sheet_id: str) -> tuple[bool, str]:
 def render_spending_income_form(sheet_id: str) -> None:
     st.markdown("#### What comes in")
     st.write("Add take-home income and other regular money coming in. Pathmark converts each amount to an annual and weekly view for the cash-flow summary.")
-    with st.form("spending_income_form", clear_on_submit=True):
+    with st.form("spending_income_form", clear_on_submit=False):
         person = st.text_input("Person or source", placeholder="e.g. Me, partner, investment income")
         category = st.selectbox("Income type", ["After-tax employment income", "Other income", "Government benefits", "Child support", "Investment income", "Other"])
         c1, c2 = st.columns(2)
@@ -3548,18 +3717,34 @@ def render_spending_income_form(sheet_id: str) -> None:
             }
             record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
             ok, msg = append_online_record(sheet_id, "spending_income", record)
-            st.success(msg) if ok else st.warning(safe_user_message(msg))
+            if ok:
+                st.session_state["spending_notice"] = msg
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
 
 
 def render_spending_expense_form(sheet_id: str) -> None:
     st.markdown("#### What you spend")
-    st.write("Use three buckets: everyday spend money, fixed costs, and sinking funds for less frequent costs such as gifts, clothes, Christmas and travel.")
-    with st.form("spending_expense_form", clear_on_submit=True):
+    st.write("Use the three original buckets: everyday spend money, fixed costs, and sinking funds for less frequent costs such as gifts, clothes, Christmas and travel.")
+    st.markdown("""
+- **Everyday spend money** goes to the card/account you actually use during the week.
+- **Fixed costs** usually stay in the hub account because bills and direct debits come out automatically.
+- **Sinking funds** build up for predictable but irregular costs, such as Christmas, clothing, birthdays, holidays and travel.
+""")
+    with st.form("spending_expense_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
         with c1:
             kind = st.selectbox("Spending bucket", ["Everyday spend", "Fixed cost", "Sinking fund"])
+        group_options = {
+            "Everyday spend": ["Weekly spend money"],
+            "Sinking fund": ["Gifts, clothes, Christmas and travel", "Emergency / irregular", "Other sinking fund"],
+            "Fixed cost": ["Accommodation costs", "Bills and subscriptions", "Other living costs", "Loan repayments", "Health costs", "Vehicle costs", "Boat / motorcycle costs", "Miscellaneous expenses", "Investment property", "Other fixed cost"],
+        }
         with c2:
-            group = st.text_input("Group", placeholder="e.g. Weekly spend money, Accommodation costs, Health costs")
+            group_choice = st.selectbox("Group", group_options.get(kind, [kind]), key="spending_group_choice")
+        group_custom = st.text_input("Custom group", placeholder="Optional: use this if the selected group is not quite right")
+        group = group_custom.strip() or group_choice
         item = st.text_input("Item", placeholder="e.g. Groceries, rent, mobile phone, birthdays")
         c3, c4 = st.columns(2)
         with c3:
@@ -3584,20 +3769,38 @@ def render_spending_expense_form(sheet_id: str) -> None:
             }
             record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
             ok, msg = append_online_record(sheet_id, "spending_expenses", record)
-            st.success(msg) if ok else st.warning(safe_user_message(msg))
+            if ok:
+                st.session_state["spending_notice"] = msg
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
 
 
 def render_spending_account_form(sheet_id: str) -> None:
     st.markdown("#### Cash-flow accounts")
-    st.write("Map the plan onto accounts: a hub account, everyday card account, emergency savings, sinking funds, and any extra savings goals.")
+    st.write("Map the plan onto accounts so income, bills, weekly spending, emergencies and goals each have a clear place to sit.")
     summary = spending_summary(sheet_id)
-    with st.expander("Suggested weekly transfers from this plan", expanded=False):
-        st.write(f"Everyday card account: **{money_text(summary['everyday_weekly'])} per week**")
-        st.write(f"Fixed bills and sinking funds combined: **{money_text(summary['fixed_weekly'] + summary['sinking_weekly'])} per week**")
-        st.write(f"Emergency fund target, based on three months of expenses: **{money_text(summary['emergency_target'])}**")
-    with st.form("spending_account_form", clear_on_submit=True):
-        account_name = st.text_input("Account name", placeholder="e.g. Hub account, Everyday card, Emergency savings")
-        purpose = st.text_area("Purpose", placeholder="What this account is for")
+    render_spending_flow_guidance(summary)
+    with st.form("spending_account_form", clear_on_submit=False):
+        account_role = st.selectbox("Account role", ["Hub account", "Everyday card account", "Emergency savings", "Gifts / holidays / clothes sinking fund", "Debt reduction or savings goals", "Other"])
+        default_names = {
+            "Hub account": "Hub account",
+            "Everyday card account": "Everyday card account",
+            "Emergency savings": "Emergency savings",
+            "Gifts / holidays / clothes sinking fund": "Gifts, holidays, clothes and Christmas",
+            "Debt reduction or savings goals": "Debt reduction or savings goals",
+            "Other": "",
+        }
+        account_name = st.text_input("Account name", value=default_names.get(account_role, ""), placeholder="e.g. Hub account, Everyday card, Emergency savings")
+        purpose_defaults = {
+            "Hub account": "All income is paid here. Fixed bills and direct debits come from here.",
+            "Everyday card account": "Only card in the wallet. Transfer weekly spend money here.",
+            "Emergency savings": "Three months of expenses for unexpected costs.",
+            "Gifts / holidays / clothes sinking fund": "Builds up for birthdays, Christmas, clothes, holidays and travel.",
+            "Debt reduction or savings goals": "Money left after day-to-day, yearly and emergency costs are spoken for.",
+            "Other": "",
+        }
+        purpose = st.text_area("Purpose", value=purpose_defaults.get(account_role, ""), placeholder="What this account is for")
         c1, c2 = st.columns(2)
         with c1:
             bank = st.text_input("Bank", placeholder="Optional")
@@ -3629,7 +3832,11 @@ def render_spending_account_form(sheet_id: str) -> None:
                 "status": "active",
             }
             ok, msg = append_online_record(sheet_id, "spending_accounts", record)
-            st.success(msg) if ok else st.warning(safe_user_message(msg))
+            if ok:
+                st.session_state["spending_notice"] = msg
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
 
 
 def render_spending_records(sheet_id: str) -> None:
@@ -3680,6 +3887,8 @@ def render_spending_plan_manager(sheet_id: str) -> None:
     st.subheader("Spending Plan")
     st.write("Turn a budget spreadsheet into a working cash-flow plan. This tab keeps money planning separate from routines and goals, while still using your Pathmark Sync sheet.")
     st.info("Structure: what comes in → what you spend → where money should move each week. Your records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+    if st.session_state.get("spending_notice"):
+        st.success(st.session_state.pop("spending_notice"))
     summary = spending_summary(sheet_id)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -3709,9 +3918,10 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         st.markdown("#### How this maps to the original spreadsheet system")
         st.markdown("""
 - **What comes in** records take-home income and other regular money arriving.
-- **What you spend** separates everyday spending, fixed costs, and sinking funds.
-- **Cash-flow accounts** turns the plan into weekly transfers: hub account, everyday card, emergency fund, sinking funds, and savings goals.
+- **What you spend** separates the original three buckets: everyday spend money, fixed costs, and sinking funds.
+- **Cash-flow accounts** turns the plan into weekly transfers: hub account, everyday card, emergency fund, gifts/holidays/clothes/Christmas, and savings or debt goals.
 """)
+        render_spending_flow_guidance(summary)
         if active_online_df(read_online_table(sheet_id, "spending_expenses")).empty:
             if st.button("Load starter spending categories", use_container_width=True):
                 ok, msg = load_spending_starter_categories(sheet_id)
@@ -4452,9 +4662,9 @@ def render_setup_step_safe(label: str, func, sheet_id: str) -> None:
         func(sheet_id)
     except Exception as exc:
         st.warning(f"Pathmark could not open this setup step just now. Please refresh online data and try again.")
-        if str(current_user().get('role', '')).lower() == 'developer':
-            with st.expander("Developer diagnostics", expanded=False):
-                st.code(repr(exc))
+        # Keep implementation details out of the user-facing setup flow. Full
+        # details remain available in Streamlit Cloud logs.
+        return
 
 def render_setup_pathway_primary(sheet_id: str) -> None:
     state = get_setup_state(sheet_id)

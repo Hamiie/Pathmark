@@ -1,19 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "release_date": "2026-06-03",
   "notes": [
-    "Moved Spending Plan out of the Pathmark Online beta workspace tabs.",
-    "Added Spending Plan beta as its own top-level beta tab alongside Pathmark Online beta.",
-    "Kept Spending Plan records in the user-owned Pathmark Sync sheet using the existing spending_income, spending_expenses, and spending_accounts tabs.",
-    "Kept Pathmark Online beta focused on goals, routines, weekly focus, review, tasklists, calendar export, Google Tasks export, archive, and settings.",
-    "Local desktop package is carried forward unchanged apart from release packaging."
+    "Repaired Spending Plan saves so rows are appended using the live Pathmark Sync sheet header order, protecting older beta sheets from shifted values when optional notes are blank.",
+    "Disabled Streamlit magic output to prevent raw DeltaGenerator/code-like blocks appearing after actions.",
+    "Kept low-level diagnostics out of user-facing safe-section errors.",
+    "Improved Spending Plan beta to reflect the original workbook's three spending buckets and account transfer logic.",
+    "Expanded starter spending categories for everyday spend, sinking funds, fixed costs, health, vehicle, loans, subscriptions, miscellaneous and investment-property expenses.",
+    "Changed Spending Plan forms so validation warnings do not clear entered amounts."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_10.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_11.zip",
   "mac_package": "",
-  "release": "v0.6.10 separate Spending Plan beta tab",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_10.zip",
-  "release_name": "Separate Spending Plan beta tab",
-  "release_notes": "Moves Spending Plan out of the Pathmark Online beta workspace and into its own top-level Spending Plan beta tab alongside Pathmark Online beta. Spending Plan records remain saved in the user-owned Pathmark Sync sheet.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_10.zip"
+  "release": "v0.6.11 Spending Plan repair and guidance",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_11.zip",
+  "release_name": "Spending Plan repair and guidance",
+  "release_notes": "Repairs Spending Plan saves for older sync sheet headers, prevents raw Streamlit object output, and adds clearer spending-bucket and account-transfer guidance based on the original workbook system.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_11.zip"
 }
