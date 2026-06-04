@@ -1,0 +1,22 @@
+{
+  "app_name": "Pathmark",
+  "version": "0.6.17",
+  "release_date": "2026-06-04",
+  "notes": [
+    "Refined the dedicated Creation Wizard workspace into a tighter, more focused UX.",
+    "Reduced the oversized hero treatment and moved Return to dashboard into a quieter top action.",
+    "Removed the empty rounded wizard container that could appear between the header and the question.",
+    "Added visible progress/stage pills and contextual labels such as Project step 1 or Routine activity 1.",
+    "Changed Back and Next controls from bare arrows to clearer button labels.",
+    "Reduced the prominence of the cancel action by changing it to a quieter Exit wizard flow.",
+    "Added card-style explanations for the initial Project/Routine choice.",
+    "Kept required-text detection so required text fields can activate Next once non-empty."
+  ],
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_17.zip",
+  "mac_package": "",
+  "release": "v0.6.17 Creation wizard UX refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_17.zip",
+  "release_name": "Creation wizard UX refinement",
+  "release_notes": "Refines the dedicated Pathmark creation wizard workspace with a tighter header, visible progress cues, clearer Back/Next controls, quieter exit handling, card-style Project/Routine choice guidance, and removal of the empty rounded container. The repository package now includes only the latest Windows download package rather than old downloadable versions.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_17.zip"
+}
