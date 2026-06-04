@@ -1,20 +1,18 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.18",
+  "version": "0.6.21",
   "release_date": "2026-06-04",
   "notes": [
-    "Moved the Creation Wizard into its own Pathmark Online tab beside Home rather than positioning it as a dashboard component.",
-    "Reduced the wizard visual treatment to a sleeker header and simple progress line.",
-    "Removed large Project/Routine explanation cards from the first step.",
-    "Replaced wizard guidance expanders with small information popovers so extra text only appears when requested.",
-    "Added more left and right padding to text inputs and guide boxes so text is not tight against borders or accent stripes.",
-    "Kept required-text detection so required text fields can activate Next once non-empty."
+    "Adds a Finance setup wizard inside the Spending Plan area to guide users through inflows, everyday spend, fixed costs and planned irregular costs.",
+    "Calculates the weekly cash-flow guidance and suggested automatic payments before saving final spending records.",
+    "Writes income, spending and account-role records only after the Review and Save step.",
+    "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_18.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_21.zip",
   "mac_package": "",
-  "release": "v0.6.18 Creation wizard tab and sleeker UX",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_18.zip",
-  "release_name": "Creation wizard tab and sleeker UX",
-  "release_notes": "Moves the Creation Wizard into its own Pathmark Online tab beside Home, replaces large dropdown-style wizard guidance with compact information popovers, reduces the first-step visual weight, and improves text/input spacing near borders and accent stripes. The repository package includes only the latest Windows download package.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_18.zip"
+  "release": "v0.6.21 Finance setup wizard",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_21.zip",
+  "release_name": "Finance setup wizard",
+  "release_notes": "Adds a guided Finance setup wizard for inflows and outflows, then shows where income should land and which weekly automatic payments to set up before saving to the Spending Plan tables.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_21.zip"
 }
