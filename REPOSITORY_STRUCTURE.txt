@@ -1,4 +1,4 @@
-Pathmark release hub v0.6.3
+Pathmark release hub v0.6.16
 
 .gitignore
 README.md
@@ -17,8 +17,21 @@ app/
     pathmark-icon-512.png
     apple-touch-icon.png
 downloads/
+  Pathmark_Local_App_Windows_v0_6_10.zip
+  Pathmark_Local_App_Windows_v0_6_11.zip
+  Pathmark_Local_App_Windows_v0_6_12.zip
+  Pathmark_Local_App_Windows_v0_6_13.zip
+  Pathmark_Local_App_Windows_v0_6_14.zip
+  Pathmark_Local_App_Windows_v0_6_15.zip
+  Pathmark_Local_App_Windows_v0_6_16.zip
   Pathmark_Local_App_Windows_v0_6_2.zip
   Pathmark_Local_App_Windows_v0_6_3.zip
+  Pathmark_Local_App_Windows_v0_6_4.zip
+  Pathmark_Local_App_Windows_v0_6_5.zip
+  Pathmark_Local_App_Windows_v0_6_6.zip
+  Pathmark_Local_App_Windows_v0_6_7.zip
+  Pathmark_Local_App_Windows_v0_6_8.zip
+  Pathmark_Local_App_Windows_v0_6_9.zip
 supabase/
   README.md
   migrations/

@@ -287,6 +287,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hr {{ height: 1px; background: var(--line); margin: 1.6rem 0; }}
 .step-card {{ border-radius: 1.2rem; padding: 1rem 1.05rem; margin-bottom: .8rem; }}
 .step-card strong {{ color: var(--ink); }}
+.wizard-shell {{ max-width: 980px; margin: 0 auto 3rem auto; }}
+.wizard-hero {{ border-radius: 1.45rem; padding: 1.25rem 1.35rem; margin: 0 0 1.2rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 14px 34px var(--shadow); }}
+.wizard-hero h2 {{ margin: .1rem 0 .25rem 0; }}
+.wizard-card {{ border-radius: 1.45rem; padding: 1.25rem 1.35rem; margin: .8rem 0 1rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 14px 34px var(--shadow); }}
+.wizard-entry-card {{ border-radius: 1.35rem; padding: 1.2rem 1.25rem; margin: 1rem 0 1.2rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 14px 34px var(--shadow); }}
 .beta-note {{ background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }}
 [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
 [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
@@ -4355,14 +4360,14 @@ def render_online_settings(sheet_id: str) -> None:
         revoke_google_session_token()
         st.rerun()
     with st.expander("Creation wizard", expanded=False):
-        st.write("The creation wizard is now the Pathmark starting point. Use it from the Home tab to create a Project or Routine one question at a time.")
+        st.write("The creation wizard now opens in its own Pathmark Online workspace so the creation flow is not tucked inside Home.")
         latest = _latest_wizard_draft(sheet_id)
         if latest:
             label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
             label = label or ("Project draft" if latest.get("wizard_type") == "project" else "Routine draft")
             st.write(f"Unfinished draft available: **{label}**")
-            if st.button("Restore draft on Home", use_container_width=True, key="settings_restore_wizard_draft"):
-                _set_wizard_state(latest)
+            if st.button("Restore draft in wizard", use_container_width=True, key="settings_restore_wizard_draft"):
+                _open_pathmark_wizard_view(latest)
                 st.rerun()
         else:
             st.write("No unfinished creation wizard draft is currently saved.")
@@ -5138,37 +5143,115 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
     return ok, msg
 
 
+
+def _open_pathmark_wizard_view(draft: dict[str, Any] | None = None) -> None:
+    """Switch Pathmark Online into its dedicated wizard workspace."""
+    if draft is not None:
+        _set_wizard_state(draft)
+    elif not _wizard_state():
+        _set_wizard_state(_new_wizard_draft())
+    st.session_state["pathmark_online_view"] = "wizard"
+
+
+def _return_to_pathmark_dashboard() -> None:
+    """Return Pathmark Online to the normal workspace dashboard."""
+    st.session_state["pathmark_online_view"] = "dashboard"
+
+
+def _wizard_enable_next_when_text_nonempty() -> None:
+    """Client-side helper for required text questions.
+
+    Streamlit text areas usually commit on Ctrl+Enter or blur. For required
+    wizard questions, that makes a disabled Next button look stuck. This small
+    script watches the active text input/textarea in the browser and enables the
+    visible Next arrow as soon as the box contains text. The server still
+    validates the saved value after the click, so empty answers cannot progress.
+    """
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          function visible(el) {
+            if (!el) return false;
+            const style = window.parent.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+          }
+          function candidateTextBox() {
+            const fields = Array.from(doc.querySelectorAll('textarea, input[type="text"]')).filter(visible);
+            if (!fields.length) return null;
+            const active = doc.activeElement;
+            if (fields.includes(active)) return active;
+            return fields[fields.length - 1];
+          }
+          function nextButton() {
+            const buttons = Array.from(doc.querySelectorAll('button')).filter(visible);
+            const arrows = buttons.filter(btn => (btn.textContent || '').trim() === '›');
+            return arrows.length ? arrows[arrows.length - 1] : null;
+          }
+          function sync() {
+            const field = candidateTextBox();
+            const button = nextButton();
+            if (!field || !button) return;
+            const ready = (field.value || '').trim().length > 0;
+            button.disabled = !ready;
+            button.setAttribute('aria-disabled', ready ? 'false' : 'true');
+            if (ready) {
+              button.removeAttribute('disabled');
+              button.style.opacity = '';
+              button.style.cursor = '';
+            }
+          }
+          function bind() {
+            const field = candidateTextBox();
+            if (!field || field.dataset.pathmarkWizardWatcher === '1') { sync(); return; }
+            field.dataset.pathmarkWizardWatcher = '1';
+            field.addEventListener('input', sync);
+            field.addEventListener('keyup', sync);
+            field.addEventListener('change', sync);
+            sync();
+          }
+          bind();
+          setTimeout(bind, 100);
+          setTimeout(bind, 350);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
 def render_pathmark_creation_wizard_entry(sheet_id: str) -> bool:
-    """Render the wizard entry/restore card. Return True when wizard is active."""
-    draft = _wizard_state()
-    if draft and draft.get("status") == "in_progress":
-        render_pathmark_creation_wizard(sheet_id)
-        return True
+    """Render the dashboard entry point for the dedicated wizard workspace."""
     latest = _latest_wizard_draft(sheet_id)
-    st.markdown("### Design something new")
-    st.write("Use the Pathmark creation wizard to create a project or routine one question at a time. Pathmark will make time in your calendar, keep each step available for your weekly tasklist, and add each step or activity to Google Tasks as a checklist item.")
+    st.markdown("""
+    <div class="wizard-entry-card">
+      <div class="kicker">Create</div>
+      <h3>Pathmark creation wizard</h3>
+      <p>Start a project or routine in an immersive wizard workspace. Pathmark will make time in your calendar, keep each step available for your weekly tasklist, and add each step or activity to Google Tasks as a checklist item.</p>
+    </div>
+    """, unsafe_allow_html=True)
     if latest:
         label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
         label = label or ("Project draft" if latest.get("wizard_type") == "project" else "Routine draft")
         st.info(f"You have an unfinished Pathmark creation draft: {label}.")
         c1, c2, c3 = st.columns(3)
-        if c1.button("Restore draft", use_container_width=True):
-            _set_wizard_state(latest)
+        if c1.button("Restore draft in wizard", use_container_width=True):
+            _open_pathmark_wizard_view(latest)
             st.rerun()
         if c2.button("Discard draft", use_container_width=True):
             latest["status"] = "discarded"
             _save_wizard_draft(sheet_id, latest)
             _clear_wizard_state()
             st.rerun()
-        if c3.button("Start new", use_container_width=True):
-            _set_wizard_state(_new_wizard_draft())
+        if c3.button("Start new wizard", use_container_width=True):
+            _open_pathmark_wizard_view(_new_wizard_draft())
             st.rerun()
     else:
         if st.button("Start Pathmark creation wizard", use_container_width=True):
-            _set_wizard_state(_new_wizard_draft())
+            _open_pathmark_wizard_view(_new_wizard_draft())
             st.rerun()
     return False
-
 
 def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, next_step: str | None = None, next_answer: Any = None) -> tuple[bool, bool]:
     back_col, mid_col, next_col = st.columns([0.15, 0.70, 0.15])
@@ -5190,9 +5273,21 @@ def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, nex
 def render_pathmark_creation_wizard(sheet_id: str) -> None:
     draft = _wizard_state() or _new_wizard_draft()
     step = draft.get("current_step_key", "choose_type")
-    st.markdown("### Pathmark creation wizard")
-    st.markdown("<div class='guide-box'><strong>Projects have a definition of done. Routines repeat.</strong><br>Pathmark helps you decide what matters, then make time for it.</div>", unsafe_allow_html=True)
-    st.markdown("<div class='step-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='wizard-shell'>", unsafe_allow_html=True)
+    top_left, top_right = st.columns([0.72, 0.28])
+    with top_left:
+        st.markdown("""
+        <div class='wizard-hero'>
+          <div class='kicker'>Creation workspace</div>
+          <h2>Pathmark creation wizard</h2>
+          <p><strong>Projects have a definition of done. Routines repeat.</strong><br>Pathmark helps you decide what matters, then make time for it.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with top_right:
+        if st.button("Return to dashboard", use_container_width=True):
+            _return_to_pathmark_dashboard()
+            st.rerun()
+    st.markdown("<div class='wizard-card'>", unsafe_allow_html=True)
 
     if step == "choose_type":
         st.subheader("What are you creating?")
@@ -5231,6 +5326,7 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
             area["area_name"] = st.text_input("Area name", value=str(area.get("area_name", "")), placeholder="Body and Stability")
             _set_wizard_state(draft)
             _render_wizard_nav(sheet_id, draft, bool(str(area.get("area_name", "")).strip()))
+            _wizard_enable_next_when_text_nonempty()
         elif step == "area_colour":
             st.subheader("What calendar colour should this area use?")
             current = str(area.get("calendar_colour_name", "Sage") or "Sage")
@@ -5263,17 +5359,20 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
             draft["status"] = "in_progress"
             _save_wizard_draft(sheet_id, draft)
             _clear_wizard_state()
+            _return_to_pathmark_dashboard()
             st.session_state.pop("wizard_cancel_confirm", None)
             st.rerun()
         if c2.button("Discard draft", use_container_width=True):
             draft["status"] = "discarded"
             _save_wizard_draft(sheet_id, draft)
             _clear_wizard_state()
+            _return_to_pathmark_dashboard()
             st.session_state.pop("wizard_cancel_confirm", None)
             st.rerun()
         if c3.button("Continue editing", use_container_width=True):
             st.session_state.pop("wizard_cancel_confirm", None)
             st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) -> None:
@@ -5282,6 +5381,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         st.subheader("What project do you want to move forward?")
         project["title"] = st.text_input("Project", value=str(project.get("title", "")), placeholder="Complete a beginner sketching course")
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("title", "").strip()))
+        _wizard_enable_next_when_text_nonempty()
     elif step == "project_reason":
         st.subheader("Why does this project matter?")
         project["reason"] = st.text_area("Why it matters", value=str(project.get("reason", "")), placeholder="I want to sketch stronger pottery forms before decorating them.")
@@ -5290,6 +5390,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         st.subheader("What would “done” look like?")
         project["definition_of_done"] = st.text_area("Definition of done", value=str(project.get("definition_of_done", "")), placeholder="I have completed 10 exercises and saved the sketches in my design folder.")
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("definition_of_done", "").strip()))
+        _wizard_enable_next_when_text_nonempty()
     elif step == "project_target":
         st.subheader("When would you like this project to be done?")
         use_date = st.checkbox("Add a target date", value=bool(project.get("target_date")))
@@ -5309,6 +5410,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.caption("Project steps are distinct one-off actions. If something needs to repeat, create it as a routine instead.")
             current["title"] = st.text_input("Project step", value=str(current.get("title", "")), placeholder="Choose a beginner sketching guide")
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
+            _wizard_enable_next_when_text_nonempty()
         elif step == "project_calendar_date":
             st.subheader("What day will you make time for this step?")
             current["calendar_date"] = st.date_input("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
@@ -5340,6 +5442,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.subheader("What extra checklist item would help you begin or prepare?")
             task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="Put sketchbook on the desk")
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
+            _wizard_enable_next_when_text_nonempty()
         elif step == "project_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("What date should this checklist item appear?")
@@ -5372,6 +5475,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         st.subheader("What routine do you want to protect?")
         routine["title"] = st.text_input("Routine", value=str(routine.get("title", "")), placeholder="Sleep 8 hours a night")
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(routine.get("title", "").strip()))
+        _wizard_enable_next_when_text_nonempty()
     elif step == "routine_purpose":
         st.subheader("What is this routine meant to support?")
         routine["purpose"] = st.text_area("Purpose", value=str(routine.get("purpose", "")), placeholder="Better energy, mood and concentration.")
@@ -5399,6 +5503,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.caption("The routine sets the repeat pattern. Each activity inside it repeats according to that pattern, but can have its own start and end time.")
             current["title"] = st.text_input("Routine activity", value=str(current.get("title", "")), placeholder="Sleep")
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
+            _wizard_enable_next_when_text_nonempty()
         elif step == "routine_calendar_start_time":
             st.subheader("What time will this activity start?")
             current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(22,30))))
@@ -5430,6 +5535,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.subheader("What extra checklist item would help you begin or prepare?")
             task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="No screen time three hours before bed")
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
+            _wizard_enable_next_when_text_nonempty()
         elif step == "routine_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("When should this checklist item appear?")
@@ -5476,7 +5582,7 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
         if st.button("Save project", use_container_width=True):
             ok, msg = _final_save_wizard(sheet_id, draft)
             if ok:
-                st.success(msg); _clear_wizard_state(); st.rerun()
+                st.success(msg); _clear_wizard_state(); _return_to_pathmark_dashboard(); st.rerun()
             else:
                 st.warning(safe_user_message(msg))
         _render_wizard_nav(sheet_id, draft, False)
@@ -5494,7 +5600,7 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
         if st.button("Save routine", use_container_width=True):
             ok, msg = _final_save_wizard(sheet_id, draft)
             if ok:
-                st.success(msg); _clear_wizard_state(); st.rerun()
+                st.success(msg); _clear_wizard_state(); _return_to_pathmark_dashboard(); st.rerun()
             else:
                 st.warning(safe_user_message(msg))
         _render_wizard_nav(sheet_id, draft, False)
@@ -5749,8 +5855,13 @@ def on_the_go_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
-    # Pathmark Online opens directly to the workspace. The Pathmark creation
-    # wizard is the main first-run and ongoing creation flow.
+    # Pathmark Online opens to the workspace, but the Creation Wizard now has
+    # its own immersive in-tab workspace rather than being embedded inside Home.
+    active_draft = _wizard_state()
+    if st.session_state.get("pathmark_online_view") == "wizard" or (active_draft and active_draft.get("status") == "in_progress"):
+        st.session_state["pathmark_online_view"] = "wizard"
+        render_safe_section("Creation Wizard", render_pathmark_creation_wizard, sheet_id)
+        return
 
     sections = st.tabs([
         "Home",

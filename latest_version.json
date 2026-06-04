@@ -1,19 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.15",
+  "version": "0.6.16",
   "release_date": "2026-06-04",
   "notes": [
-    "Replaced always-visible information text in the creation wizard with collapsed guidance panels.",
-    "Fixed Project and Routine helper checklist item routing so choosing Yes proceeds to the helper item questions.",
-    "Replaced the next-day checkbox with an explicit finish date for project steps and routine activities.",
-    "Added calendar_end_date to action records so exported calendar times can span overnight or multiple dates correctly.",
-    "Added automatic Google Tasks checklist rows for each wizard-created project step or routine activity, with optional helper checklist rows kept separate."
+    "Moved the Creation Wizard out of the embedded Home flow and into a dedicated Pathmark Online wizard workspace within the same browser tab.",
+    "Added dashboard entry, draft restore, and Settings restore actions that open the dedicated wizard workspace.",
+    "Added a Return to dashboard action and returned users to the dashboard after saving, keeping, or discarding a wizard draft.",
+    "Added client-side required-text detection so the Next arrow can become available as soon as required text fields are non-empty, reducing reliance on Ctrl+Enter for text areas.",
+    "Retained collapsed guidance panels, helper checklist routing, explicit finish dates/times, and silent automatic Google Tasks checklist rows from v0.6.15."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_15.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_16.zip",
   "mac_package": "",
-  "release": "v0.6.15 Creation wizard interaction repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_15.zip",
-  "release_name": "Creation wizard interaction repair",
-  "release_notes": "Repairs the Pathmark creation wizard so information guidance stays hidden until opened, helper checklist item loops route correctly, and start/end calendar timing uses explicit finish dates rather than a next-day checkbox.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_15.zip"
+  "release": "v0.6.16 Dedicated creation wizard workspace",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_16.zip",
+  "release_name": "Dedicated creation wizard workspace",
+  "release_notes": "Moves the Pathmark creation wizard into its own immersive Pathmark Online workspace, keeps the dashboard as the entry point, and improves required text question navigation so the Next arrow can activate as soon as required text is entered rather than relying on Ctrl+Enter.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_16.zip"
 }
