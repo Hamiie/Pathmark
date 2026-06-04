@@ -703,7 +703,7 @@ def supabase_config() -> dict[str, str] | None:
 
     Supabase is used only for hosted Pathmark access control: users, roles,
     status, feature flags, and audit logs. It is not used for Pathmark planning
-    data, projects, routines, task prompts, Workspace files, or on-the-go entries.
+    data, projects, routines, checklist items, Workspace files, or on-the-go entries.
 
     Prefer Supabase's newer `sb_secret_...` Secret API keys for server-side
     hosted role management. The older JWT-based service_role key is still
@@ -2634,47 +2634,63 @@ def linked_calendar_summary_for_action(row: pd.Series, blocks: pd.DataFrame) -> 
     return f"Related Google Calendar item: {block.get('title','Calendar time')} ({block.get('start','')})"
 
 
+
 def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
-    if actions.empty:
-        return pd.DataFrame(columns=["id", "title", "area_name", "due_date", "reminder_time", "task_list", "notes", "repeat_pattern", "linked_calendar_summary"])
+    extra_prompts = read_online_table(sheet_id, "task_prompts")
     goals, routines = parent_lookup(sheet_id)
     blocks = staged_calendar_blocks(sheet_id)
     rows = []
-    for _, action in actions.iterrows():
-        if not truthy_flag(action.get("reminder")):
-            continue
-        if str(action.get("status", "")).lower() in {"done", "paused"}:
-            continue
-        aid = str(action.get("action_id", "") or uuid.uuid4().hex)
-        goal_id = str(action.get("goal_id", "") or "")
-        routine_id = str(action.get("routine_id", "") or "")
-        routine = routines.get(routine_id, {})
-        if str(routine.get("status", "")).lower() == "paused":
-            continue
-        goal = goals.get(goal_id, {})
-        area_name = action.get("area_name", "") or routine.get("area_name", "") or goal.get("area_name", "")
-        defaults = area_defaults(sheet_id, str(area_name))
-        first = str(action.get("first_step", "") or "").strip() or str(action.get("title", "") or "Pathmark task").strip()
-        parent = routine.get("title") or goal.get("title") or ""
-        base_note = str(action.get("notes") or action.get("description") or "")
-        repeat = routine.get("frequency", "") if routine_id else ""
-        linked = linked_calendar_summary_for_action(action, blocks)
-        note_parts = [f"Routine: {parent}" if routine_id and parent else f"Goal: {parent}" if goal_id and parent else "", base_note, f"Repeat pattern: {repeat}." if repeat else "", f"Reference time: {action.get('task_reminder_time') or action.get('calendar_start_time') or routine.get('task_reminder_time')}." if (action.get('task_reminder_time') or action.get('calendar_start_time') or routine.get('task_reminder_time')) else "", linked]
-        rows.append({
-            "id": aid,
-            "title": first,
-            "area_name": area_name,
-            "parent": parent,
-            "due_date": action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or "",
-            "reminder_time": action.get("task_reminder_time") or action.get("calendar_start_time") or routine.get("task_reminder_time") or "",
-            "task_list": defaults.get("default_task_list") or area_name or "Pathmark",
-            "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
-            "repeat_pattern": repeat,
-            "linked_calendar_summary": linked,
-            "status": "needsAction",
-        })
-    extra_prompts = read_online_table(sheet_id, "task_prompts")
+
+    explicit_activity_linked_ids: set[str] = set()
+    if not extra_prompts.empty:
+        for _, prompt in extra_prompts.iterrows():
+            if str(prompt.get("status", "")).lower() in {"archived", "done", "completed"}:
+                continue
+            if str(prompt.get("task_kind", "")).strip().lower() == "activity":
+                linked_id = str(prompt.get("linked_record_id", "") or "").strip()
+                if linked_id:
+                    explicit_activity_linked_ids.add(linked_id)
+
+    if not actions.empty:
+        for _, action in actions.iterrows():
+            if not truthy_flag(action.get("reminder")):
+                continue
+            if str(action.get("status", "")).lower() in {"done", "paused"}:
+                continue
+            aid = str(action.get("action_id", "") or uuid.uuid4().hex)
+            if aid in explicit_activity_linked_ids:
+                # Wizard-created records already have a dedicated activity checklist
+                # item in task_prompts. Avoid creating a duplicate derived row.
+                continue
+            goal_id = str(action.get("goal_id", "") or "")
+            routine_id = str(action.get("routine_id", "") or "")
+            routine = routines.get(routine_id, {})
+            if str(routine.get("status", "")).lower() == "paused":
+                continue
+            goal = goals.get(goal_id, {})
+            area_name = action.get("area_name", "") or routine.get("area_name", "") or goal.get("area_name", "")
+            defaults = area_defaults(sheet_id, str(area_name))
+            title = str(action.get("title", "") or "Pathmark checklist item").strip()
+            parent = routine.get("title") or goal.get("title") or ""
+            base_note = str(action.get("notes") or action.get("description") or "")
+            repeat = routine.get("frequency", "") if routine_id else ""
+            linked = linked_calendar_summary_for_action(action, blocks)
+            note_parts = [f"Routine: {parent}" if routine_id and parent else f"Project: {parent}" if goal_id and parent else "", base_note, f"Repeat pattern: {repeat}." if repeat else "", f"Reference calendar time: {action.get('calendar_start_time') or routine.get('calendar_start_time')}." if (action.get('calendar_start_time') or routine.get('calendar_start_time')) else "", linked]
+            rows.append({
+                "id": aid,
+                "title": title,
+                "area_name": area_name,
+                "parent": parent,
+                "due_date": action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or "",
+                "reminder_time": "",
+                "task_list": defaults.get("default_task_list") or area_name or "Pathmark",
+                "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
+                "repeat_pattern": repeat,
+                "linked_calendar_summary": linked,
+                "status": "needsAction",
+            })
+
     if not extra_prompts.empty:
         for _, prompt in extra_prompts.iterrows():
             if str(prompt.get("status", "")).lower() in {"archived", "done", "completed"}:
@@ -2684,6 +2700,13 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
             if not title:
                 continue
             area_name = str(prompt.get("area_name", "") or "")
+            linked_id = str(prompt.get("linked_record_id", "") or "")
+            linked = ""
+            if linked_id and not blocks.empty:
+                match = blocks[blocks["linked_record_id"].fillna("") == linked_id]
+                if not match.empty:
+                    b = match.iloc[0]
+                    linked = f"Related Google Calendar item: {b.get('title','Calendar time')} ({b.get('start','')})"
             rows.append({
                 "id": pid,
                 "title": title,
@@ -2692,13 +2715,12 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 "due_date": str(prompt.get("due_date", "") or ""),
                 "reminder_time": "",
                 "task_list": str(prompt.get("task_list", "") or "Pathmark"),
-                "notes": str(prompt.get("notes", "") or "Helper checklist item created by Pathmark."),
+                "notes": str(prompt.get("notes", "") or "Checklist item created by Pathmark."),
                 "repeat_pattern": "",
-                "linked_calendar_summary": "",
+                "linked_calendar_summary": linked,
                 "status": "needsAction",
             })
     return pd.DataFrame(rows)
-
 
 def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
@@ -2921,45 +2943,86 @@ def render_area_manager(sheet_id: str) -> None:
                     st.rerun()
 
 
-def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
-    """Render saved project steps or routine activities in a user-facing way.
 
-    Earlier releases called this helper from Goals and Routines but did not
-    include the implementation, which meant those tabs could fail as soon as a
-    goal or routine was selected. Keep this renderer intentionally simple and
-    robust: cards first, technical details hidden, edit form only when expanded.
-    """
+def _calendar_finish_validation(*, start_date: str, start_time: str, end_date: str, end_time: str) -> list[str]:
+    """Validate that a mandatory Pathmark calendar entry has real start and finish details."""
+    problems: list[str] = []
+    if not str(start_date or "").strip():
+        problems.append("Add the calendar start date.")
+    elif not valid_online_date(start_date, allow_blank=False):
+        problems.append("Calendar start date must be a real date. Use DD-MM-YYYY or YYYY-MM-DD.")
+    if not str(end_date or "").strip():
+        problems.append("Add the calendar finish date.")
+    elif not valid_online_date(end_date, allow_blank=False):
+        problems.append("Calendar finish date must be a real date. Use DD-MM-YYYY or YYYY-MM-DD.")
+    if not str(start_time or "").strip():
+        problems.append("Add the calendar start time.")
+    elif not valid_online_time(start_time, allow_blank=False):
+        problems.append("Calendar start time must be a real time, for example 09:00 or 7:30pm.")
+    if not str(end_time or "").strip():
+        problems.append("Add the calendar finish time.")
+    elif not valid_online_time(end_time, allow_blank=False):
+        problems.append("Calendar finish time must be a real time, for example 10:00 or 8:15pm.")
+    if problems:
+        return problems
+    start_d = parse_online_date(start_date)
+    end_d = parse_online_date(end_date)
+    start_t = parse_online_time(start_time)
+    end_t = parse_online_time(end_time)
+    if start_d and end_d:
+        start_dt = datetime.combine(start_d, start_t)
+        end_dt = datetime.combine(end_d, end_t)
+        if end_dt <= start_dt:
+            problems.append("Calendar finish must be after the calendar start.")
+    return problems
+
+
+def _minutes_between_calendar_bounds(start_date: str, start_time: str, end_date: str, end_time: str) -> str:
+    """Return an estimated minute duration for tasklist context, leaving blank if invalid."""
+    try:
+        start_d = parse_online_date(start_date)
+        end_d = parse_online_date(end_date)
+        if not start_d or not end_d:
+            return ""
+        start_dt = datetime.combine(start_d, parse_online_time(start_time))
+        end_dt = datetime.combine(end_d, parse_online_time(end_time))
+        minutes = int((end_dt - start_dt).total_seconds() // 60)
+        return str(minutes) if minutes > 0 else ""
+    except Exception:
+        return ""
+
+
+def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
+    """Render saved project steps or routine activities in a user-facing way."""
     kind = "routine activities" if routine_id else "project steps"
     if linked is None or linked.empty:
         st.info(f"No {kind} yet. Add one below when you are ready.")
         return
 
+    blocks = staged_calendar_blocks(sheet_id)
     st.markdown(f"#### Saved {kind}")
     for _, row in linked.iterrows():
         data = {k: row.get(k, "") for k in linked.columns}
         rid = str(data.get("action_id", "") or "")
         title = str(data.get("title", "") or "Untitled activity")
-        outputs: list[str] = []
-        if truthy_flag(data.get("include_tasklist", "0")):
-            outputs.append("weekly tasklist")
-        if truthy_flag(data.get("calendar_block", "0")):
-            outputs.append("Calendar block")
-        if truthy_flag(data.get("reminder", "0")):
-            outputs.append("Google Tasks prompt")
-        output_text = ", ".join(outputs) if outputs else "not staged for export yet"
+        outputs = "Calendar time · weekly tasklist · Google Tasks checklist item"
         date_bits: list[str] = []
         if str(data.get("scheduled_date", "") or "").strip():
-            date_bits.append(f"Calendar: {human_calendar_datetime(data.get('scheduled_date'))}")
-        if str(data.get("due_date", "") or "").strip():
-            date_bits.append(f"Task due: {human_calendar_datetime(data.get('due_date'))}")
+            date_bits.append(f"Starts {human_calendar_datetime(data.get('scheduled_date'))}")
+        if str(data.get("calendar_start_time", "") or "").strip() or str(data.get("calendar_end_time", "") or "").strip():
+            end_date = str(data.get("calendar_end_date", "") or data.get("scheduled_date", "") or "")
+            date_bits.append(f"{data.get('calendar_start_time', '')} to {data.get('calendar_end_time', '')}" + (f" on {end_date}" if end_date and end_date != str(data.get('scheduled_date', '') or '') else ""))
         if str(data.get("activity_days", "") or "").strip():
             date_bits.append(f"Repeats on {data.get('activity_days')}")
-        detail = " · ".join(date_bits)
+        recurrence = linked_calendar_summary_for_action(row, blocks)
+        if recurrence:
+            date_bits.append(recurrence)
+        detail = " · ".join([str(x) for x in date_bits if str(x).strip()])
         st.markdown(
             f"""
             <div class='step-card'>
               <h3>{html.escape(title)}</h3>
-              <p>{html.escape(output_text)}</p>
+              <p>{html.escape(outputs)}</p>
               <p>{html.escape(detail)}</p>
             </div>
             """,
@@ -2984,160 +3047,89 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
                     if ok:
                         st.rerun()
 
-def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", default_area: str = "", form_key: str = "action", action: dict[str, Any] | None = None) -> None:
-    """Add or edit a goal activity or routine activity.
 
-    The form is deliberately staged so the user first describes the activity,
-    then chooses where it should appear, then completes only the fields needed
-    for those selected outputs.
+def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", default_area: str = "", form_key: str = "action", action: dict[str, Any] | None = None) -> None:
+    """Add or edit a project step or routine activity.
+
+    This form now follows the same Pathmark rule used by the Creation Wizard:
+    every saved project step/routine activity automatically receives calendar
+    time, a weekly tasklist row, and a Google Tasks checklist item. These are no
+    longer optional switches in the manual Goals/Projects and Routines sections.
     """
     area_id = find_area_id(sheet_id, default_area) if default_area else ""
     is_routine_activity = bool(routine_id)
     action = action or {}
     record_id = str(action.get("action_id", "") or "")
-    title_word = "Routine activity" if is_routine_activity else "Goal activity"
+    title_word = "Routine activity" if is_routine_activity else "Project step"
     form_id = f"online_{'edit' if record_id else 'add'}_{form_key}_{record_id or 'new'}"
 
-    current_minutes = 30
-    try:
-        current_minutes = int(float(str(action.get("estimated_minutes", "30") or 30)))
-    except Exception:
-        current_minutes = 30
-    if current_minutes <= 0:
-        current_minutes = 30
+    routine: dict[str, str] = {}
+    if is_routine_activity and routine_id:
+        routines_df = read_online_table(sheet_id, "routines")
+        if not routines_df.empty and "routine_id" in routines_df.columns:
+            match = routines_df[routines_df["routine_id"].fillna("") == routine_id]
+            if not match.empty:
+                routine = {k: str(match.iloc[0].get(k, "") or "") for k in routines_df.columns}
+
+    default_start_date = str(action.get("scheduled_date", "") or action.get("due_date", "") or routine.get("next_due", "") or "")
+    default_end_date = str(action.get("calendar_end_date", "") or default_start_date or "")
+    default_start_time = str(action.get("calendar_start_time", "") or routine.get("calendar_start_time", "") or "")
+    default_end_time = str(action.get("calendar_end_time", "") or routine.get("calendar_end_time", "") or "")
 
     with st.form(form_id, clear_on_submit=not bool(record_id)):
         st.markdown(f"### {'Edit' if record_id else 'Add'} {title_word.lower()}")
         if is_routine_activity:
-            st.caption("This is the activity inside the routine. The routine is the container; this row is what can appear on your tasklist, calendar export, and Google Tasks export.")
+            st.caption("Routine activities repeat according to the routine's repeat settings. Pathmark will automatically make calendar time and create tasklist/Google Tasks checklist items for this activity.")
         else:
-            st.caption("Goal activities are usually one-off next steps. If the work repeats, create it as a routine activity instead.")
+            st.caption("Project steps are one-off pieces of work. Pathmark will automatically make time for each step in your calendar and keep it available for your tasklist and Google Tasks export.")
 
-        st.markdown("#### 1. What is the activity?")
-        title = st.text_input("Activity title", value=str(action.get("title", "")), placeholder="For example, Wind-down routine, Strength training A, or Buy sketchbook")
-        description = st.text_area("Notes / description", value=str(action.get("description", action.get("notes", "")) or ""), height=80, placeholder="Optional context, checklist notes, or what 'done' looks like.")
+        st.markdown("#### 1. What is this?")
+        title = st.text_input(title_word, value=str(action.get("title", "")), placeholder="For example, Choose a sketching guide" if not is_routine_activity else "For example, Sleep")
+        description = st.text_area("Notes / description", value=str(action.get("description", action.get("notes", "")) or ""), height=80, placeholder="Optional context or notes.")
 
-        c1, c2, c3 = st.columns([0.34, 0.33, 0.33])
+        c1, c2 = st.columns([0.5, 0.5])
         status_options = ["Next", "Scheduled", "Planned", "Waiting", "Done"] if not is_routine_activity else ["Included", "Paused", "Done"]
         current_status = str(action.get("status", status_options[0]) or status_options[0])
         status = c1.selectbox("Status", status_options, index=status_options.index(current_status) if current_status in status_options else 0)
         priority_options = ["High", "Medium", "Low"]
         current_priority = str(action.get("priority", "Medium") or "Medium")
         priority = c2.selectbox("Priority", priority_options, index=priority_options.index(current_priority) if current_priority in priority_options else 1)
-        minutes = c3.number_input("Duration / effort", min_value=5, step=5, value=current_minutes, help="Used to calculate the calendar end time and to show the effort on the tasklist.")
 
-        st.markdown("#### 2. When does it happen?")
-        c4, c5 = st.columns(2)
-        scheduled = c4.text_input("Calendar date", value=str(action.get("scheduled_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD", help="Used only when a Calendar block is created. For repeating routine activities, this is the first date.")
-        due = c5.text_input("Google Tasks due date", value=str(action.get("due_date", "") or ""), placeholder="DD-MM-YYYY or YYYY-MM-DD", help="Used only when a Google Tasks prompt is created. Google Tasks receives a date, not a duration.")
+        st.markdown("#### 2. Make time in your calendar")
+        st.markdown("<div class='pathmark-note'>Calendar time, the weekly tasklist row and the Google Tasks checklist item are created automatically for every saved project step or routine activity.</div>", unsafe_allow_html=True)
+        c3, c4 = st.columns(2)
+        scheduled = c3.text_input("Start date", value=default_start_date, placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        start_time = c4.text_input("Start time", value=default_start_time, placeholder="HH:MM, for example 09:00")
+        c5, c6 = st.columns(2)
+        end_date = c5.text_input("Finish date", value=default_end_date, placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        end_time = c6.text_input("Finish time", value=default_end_time, placeholder="HH:MM, for example 10:00")
+        location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
 
         activity_days = ""
         if is_routine_activity:
-            current_activity_days, _bad_activity_days = parse_days_text(str(action.get("activity_days", "")))
-            selected_activity_days = st.multiselect(
-                "Repeat on these days",
-                VALID_DAYS,
-                default=current_activity_days,
-                help="Used for recurring Calendar blocks and date-based Google Tasks prompts. Leave blank only if this activity does not repeat on selected weekdays.",
-            )
-            activity_days = ", ".join(selected_activity_days)
-
-        st.markdown("#### 3. Choose where Pathmark should put it")
-        st.markdown("""
-        <div class='pathmark-note'>
-        <strong>Calendar block</strong> creates scheduled time with a start, calculated end, duration and repeat pattern.<br>
-        <strong>Weekly tasklist</strong> prints the activity so you can tick it off by hand.<br>
-        <strong>Google Tasks prompt</strong> creates a date-based first step. Google Tasks does not preserve duration or scheduled time, so time-blocked work belongs in Calendar.
-        </div>
-        """, unsafe_allow_html=True)
-        c6, c7, c8 = st.columns(3)
-        include_tasklist = c6.checkbox("Put the activity on the weekly tasklist", value=truthy_flag(action.get("include_tasklist", "1")))
-        calendar_block = c7.checkbox("Make calendar time for it", value=truthy_flag(action.get("calendar_block", "0")))
-        reminder = c8.checkbox("Create a first-step task prompt", value=truthy_flag(action.get("reminder", "0")))
-
-        start_time = str(action.get("calendar_start_time", "09:00") or "09:00")
-        end_time = str(action.get("calendar_end_time", "") or "")
-        prompt_time = str(action.get("task_reminder_time", "") or "")
-        location = str(action.get("calendar_location", "") or "")
-        first_step = str(action.get("first_step", "") or "")
-
-        if calendar_block:
-            st.markdown("#### 4. Calendar block details")
-            c9, c10 = st.columns([0.42, 0.58])
-            start_time = c9.text_input("Start time", value=start_time, placeholder="HH:MM")
-            calculated_end = calculated_end_time(start_time, minutes)
-            end_time = calculated_end
-            c10.markdown(
-                f"<div class='pathmark-note'><strong>Calendar end:</strong> {html.escape(calculated_end)}<br>Calculated from the start time and {int(minutes)} minutes.</div>",
-                unsafe_allow_html=True,
-            )
-            location = st.text_input("Calendar location", value=location, placeholder="Optional")
-            if is_routine_activity and activity_days:
-                st.caption(f"Calendar export will repeat this activity on: {activity_days}.")
-            elif is_routine_activity:
-                st.caption("Choose repeat days above if this activity should recur in Calendar.")
-        else:
-            end_time = str(action.get("calendar_end_time", "") or "")
-
-        if reminder:
-            st.markdown("#### 5. Google Tasks prompt")
-            first_step = st.text_input(
-                "First tiny step",
-                value=first_step,
-                placeholder="For example, put on running shoes, open the sketchbook, or start wind-down routine",
-                help="This becomes the Google Tasks title/prompt. It should be smaller and easier to start than the whole activity.",
-            )
-            default_reference = prompt_time or (start_time if calendar_block else "")
-            add_reference_time = st.checkbox(
-                "Add a reference time to the task note",
-                value=bool(str(default_reference or "").strip()),
-                help="Optional. This is written into the Google Tasks note only; it is not exported as a scheduled task time.",
-            )
-            if add_reference_time:
-                prompt_time = st.text_input(
-                    "Reference time note",
-                    value=default_reference,
-                    placeholder="For example, 22:30",
-                    help="This is written into the task note only. Google Tasks import uses the due date, not a scheduled time or duration.",
-                )
+            frequency = str(routine.get("frequency", "") or "Weekly")
+            preferred = str(routine.get("preferred_days", "") or "")
+            if frequency.lower() == "weekdays":
+                inherited = "Monday, Tuesday, Wednesday, Thursday, Friday"
+            elif frequency.lower() == "daily":
+                inherited = "Daily"
             else:
-                prompt_time = ""
-        else:
-            prompt_time = str(action.get("task_reminder_time", "") or "")
-
-        if include_tasklist or calendar_block or reminder:
-            preview_parts = []
-            if include_tasklist:
-                preview_parts.append("weekly tasklist")
-            if calendar_block:
-                preview_parts.append(f"Calendar from {start_time} to {end_time}")
-            if reminder:
-                preview_parts.append("Google Tasks first-step prompt")
-            st.caption("Pathmark will use this activity for: " + "; ".join(preview_parts) + ".")
+                inherited = preferred or frequency
+            activity_days = preferred
+            st.caption(f"This activity inherits the routine repeat pattern: {inherited or 'set in the routine Repeat tab'}. Edit the routine's Repeat tab to change the pattern for its activities.")
 
         submitted = st.form_submit_button("Save changes" if record_id else f"Save {title_word.lower()}", use_container_width=True)
         if submitted:
-            if calendar_block:
-                end_time = calculated_end_time(start_time, minutes)
-            problems = validate_online_action_dates_and_times(
-                scheduled=scheduled,
-                due=due,
-                start_time=start_time if calendar_block else "",
-                end_time=end_time if calendar_block else "",
-                prompt_time=prompt_time if reminder and prompt_time else "",
-            )
-            if calendar_block and not scheduled.strip():
-                problems.append("Add a Calendar date, or untick 'Make calendar time for it'.")
-            if reminder and not due.strip():
-                problems.append("Add a Google Tasks due date, or untick 'Create a first-step task prompt'.")
-            if reminder and not first_step.strip():
-                problems.append("Add a first tiny step, or untick the Google Tasks prompt option.")
+            problems = _calendar_finish_validation(start_date=scheduled, start_time=start_time, end_date=end_date, end_time=end_time)
             if not title.strip():
-                st.error("Add an activity title before saving.")
+                st.error(f"Add a {title_word.lower()} title before saving.")
             elif problems:
                 for problem in problems:
                     st.error(problem)
             else:
+                start_date_norm = normalise_online_date(scheduled)
+                end_date_norm = normalise_online_date(end_date)
+                minutes = _minutes_between_calendar_bounds(scheduled, start_time, end_date, end_time)
                 payload = {
                     "goal_id": goal_id or str(action.get("goal_id", "") or ""),
                     "routine_id": routine_id or str(action.get("routine_id", "") or ""),
@@ -3147,18 +3139,19 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     "description": description.strip(),
                     "status": status,
                     "priority": priority,
-                    "due_date": normalise_online_date(due) if due.strip() else "",
-                    "scheduled_date": normalise_online_date(scheduled) if scheduled.strip() else "",
+                    "due_date": start_date_norm,
+                    "scheduled_date": start_date_norm,
                     "activity_days": activity_days.strip(),
-                    "estimated_minutes": str(int(minutes or 0)) if minutes else "",
-                    "calendar_block": "1" if calendar_block else "0",
-                    "reminder": "1" if reminder else "0",
-                    "include_tasklist": "1" if include_tasklist else "0",
-                    "first_step": first_step.strip() if reminder else "",
-                    "task_reminder_time": prompt_time.strip() if reminder else "",
-                    "calendar_start_time": start_time.strip() if calendar_block else "",
-                    "calendar_end_time": end_time.strip() if calendar_block else "",
-                    "calendar_location": location.strip() if calendar_block else "",
+                    "estimated_minutes": minutes,
+                    "calendar_block": "1",
+                    "reminder": "1",
+                    "include_tasklist": "1",
+                    "first_step": title.strip(),
+                    "task_reminder_time": "",
+                    "calendar_start_time": start_time.strip(),
+                    "calendar_end_time": end_time.strip(),
+                    "calendar_end_date": end_date_norm,
+                    "calendar_location": location.strip(),
                     "notes": description.strip(),
                 }
                 if record_id:
@@ -3174,18 +3167,18 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     st.rerun()
 
 def render_goal_manager(sheet_id: str) -> None:
-    st.subheader("Goals and Projects")
+    st.subheader("Projects")
     st.markdown("""
-    <div class='guide-box'><strong>Goals need a finish line and a next step.</strong><br>
-    It is easy for goals to pile up, compete for attention, or fade before they are finished. Define what “done” means, then choose the next one or two actions that would genuinely move the goal forward. Pathmark can place those actions in the calendar and create a first-step prompt for the moment you need to start.</div>
+    <div class='guide-box'><strong>Projects have a definition of done.</strong><br>
+    Define what finished means, then add one-off project steps. Pathmark automatically makes time for each step in Google Calendar, keeps it available for the weekly tasklist, and creates a date-based Google Tasks checklist item.</div>
     """, unsafe_allow_html=True)
     goals = active_online_df(read_online_table(sheet_id, "goals"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
     areas = area_options(sheet_id)
     col_list, col_main = st.columns([0.34, 0.66])
     with col_list:
-        st.markdown("### Goals and projects")
-        with st.expander("Add goal or project", expanded=goals.empty):
+        st.markdown("### Projects")
+        with st.expander("Add project", expanded=goals.empty):
             with st.form("online_add_goal", clear_on_submit=True):
                 area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
                 title = st.text_input("Title")
@@ -3196,7 +3189,7 @@ def render_goal_manager(sheet_id: str) -> None:
                 desired = st.text_area("Specific outcome", height=75, placeholder="What will be different when this is done?")
                 closure = st.text_area("Measure of success / definition of done", height=75)
                 notes = st.text_area("Notes", height=80)
-                submitted = st.form_submit_button("Save goal", use_container_width=True)
+                submitted = st.form_submit_button("Save project", use_container_width=True)
                 if submitted:
                     if not title.strip():
                         st.error("Add a title before saving.")
@@ -3217,17 +3210,17 @@ def render_goal_manager(sheet_id: str) -> None:
                         if ok:
                             st.rerun()
         if goals.empty:
-            st.info("No goals yet.")
+            st.info("No projects yet.")
             selected_id = ""
         else:
             labels = {f"{row.get('title','Untitled')} ({row.get('status','')})": str(row.get("goal_id", "")) for _, row in goals.iterrows()}
-            selected_label = st.radio("Select a goal", list(labels.keys()), label_visibility="collapsed", key="online_goal_select")
+            selected_label = st.radio("Select a project", list(labels.keys()), label_visibility="collapsed", key="online_goal_select")
             selected_id = labels.get(selected_label, "")
     with col_main:
         if selected_id:
             g = goals[goals["goal_id"] == selected_id].iloc[0].to_dict()
-            st.markdown(f"### {g.get('title','Goal')}")
-            tabs = st.tabs(["SMART goal", "Goal activities", "Archive"])
+            st.markdown(f"### {g.get('title','Project')}")
+            tabs = st.tabs(["Project details", "Project steps", "Archive"])
             with tabs[0]:
                 with st.form(f"online_edit_goal_{selected_id}"):
                     area = st.selectbox("Area", options=[""] + areas, index=([""] + areas).index(str(g.get("area_name", ""))) if str(g.get("area_name", "")) in areas else 0) if areas else st.text_input("Area", value=str(g.get("area_name", "")))
@@ -3244,7 +3237,7 @@ def render_goal_manager(sheet_id: str) -> None:
                     submitted = st.form_submit_button("Save changes", use_container_width=True)
                     if submitted:
                         if not title.strip():
-                            st.error("Add a goal title before saving.")
+                            st.error("Add a project title before saving.")
                         elif not valid_online_date(target_date):
                             st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
                         else:
@@ -3258,12 +3251,12 @@ def render_goal_manager(sheet_id: str) -> None:
             with tabs[1]:
                 linked = actions[actions["goal_id"].fillna("") == selected_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
                 _render_action_list(sheet_id, linked, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""))
-                st.caption("Goal activities are one-off steps toward this goal. Recurring work belongs under Routines.")
-                with st.expander("Add goal activity", expanded=linked.empty):
+                st.caption("Project steps are one-off steps toward this project. Recurring work belongs under Routines. Calendar time, tasklist rows and Google Tasks checklist items are created automatically.")
+                with st.expander("Add project step", expanded=linked.empty):
                     _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}")
             with tabs[2]:
-                st.write("Archive the goal when it is finished or no longer useful. This hides it from active online views.")
-                if st.button("Archive goal", key=f"archive_goal_{selected_id}"):
+                st.write("Archive the project when it is finished or no longer useful. This hides it from active online views.")
+                if st.button("Archive project", key=f"archive_goal_{selected_id}"):
                     ok, message = archive_online_record(sheet_id, "goals", selected_id, "Archived from Pathmark Online.")
                     if ok:
                         st.success(message)
@@ -3277,7 +3270,7 @@ def render_routine_manager(sheet_id: str) -> None:
     st.subheader("Routines")
     st.markdown("""
     <div class='guide-box'><strong>Routines are the habits that keep you steady.</strong><br>
-    A routine is the container. Routine activities are the specific things you do inside it, and those activities can appear on the tasklist, become Google Calendar blocks, or create date-based Google Tasks first-step prompts.</div>
+    A routine is the container. Routine activities are the specific things you do inside it, and those activities can appear on the tasklist, become Google Calendar blocks, or create date-based Google Tasks checklist items.</div>
     """, unsafe_allow_html=True)
     routines = active_online_df(read_online_table(sheet_id, "routines"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
@@ -3289,7 +3282,7 @@ def render_routine_manager(sheet_id: str) -> None:
             with st.form("online_add_routine", clear_on_submit=True):
                 area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="routine_area") if areas else st.text_input("Area", key="routine_area_text")
                 title = st.text_input("Routine title")
-                frequency = st.selectbox("Repeat pattern for calendar blocks and task prompts", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index("Weekly"))
+                frequency = st.selectbox("Repeat pattern for calendar blocks and checklist items", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index("Weekly"))
                 if frequency in {"Daily", "Weekdays"}:
                     preferred_day_values = []
                     preferred_days = ""
@@ -3299,7 +3292,7 @@ def render_routine_manager(sheet_id: str) -> None:
                 next_due = st.text_input("Repeat starts", placeholder="YYYY-MM-DD")
                 purpose = st.text_area("Why this matters", height=75)
                 checklist = ""
-                st.caption("After saving the routine container, add one or more routine activities. Activities drive calendar blocks, tasklist rows and Google Tasks prompts.")
+                st.caption("After saving the routine container, add one or more routine activities. Activities drive calendar blocks, tasklist rows and Google Tasks checklist items.")
                 status = st.selectbox("Status", ["Active", "Paused", "Archived"], index=0)
                 notes = st.text_area("Notes", height=80)
                 submitted = st.form_submit_button("Save routine", use_container_width=True)
@@ -3364,7 +3357,7 @@ def render_routine_manager(sheet_id: str) -> None:
             with tabs[2]:
                 with st.form(f"online_repeat_{selected_id}"):
                     current_freq = str(r.get("frequency", "") or "Weekly")
-                    frequency = st.selectbox("Repeat pattern for calendar blocks and task prompts", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index(current_freq) if current_freq in VALID_FREQUENCIES else VALID_FREQUENCIES.index("Custom"))
+                    frequency = st.selectbox("Repeat pattern for calendar blocks and checklist items", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index(current_freq) if current_freq in VALID_FREQUENCIES else VALID_FREQUENCIES.index("Custom"))
                     current_days, _bad_days = parse_days_text(str(r.get("preferred_days", "")))
                     if frequency in {"Daily", "Weekdays"}:
                         preferred_day_values = []
@@ -3432,7 +3425,7 @@ def render_routine_manager(sheet_id: str) -> None:
 
 def render_review_queue_manager(sheet_id: str) -> None:
     st.subheader("Review Queue")
-    st.write("Review Queue checks whether the parts of your workspace are ready to work together before you export tasklists, calendar blocks or Google Tasks prompts.")
+    st.write("Review Queue checks whether the parts of your workspace are ready to work together before you export tasklists, calendar blocks or Google Tasks checklist items.")
     data = read_online_tables(sheet_id)
     issues = []
     areas = active_online_df(data.get("areas", pd.DataFrame()))
@@ -3448,7 +3441,7 @@ def render_review_queue_manager(sheet_id: str) -> None:
         if str(r.get("frequency", "") or "").strip() == "":
             issues.append({"priority": "Medium", "kind": "Routine", "item": r.get("title", "Untitled"), "issue": "This routine does not have a repeat pattern yet.", "next": "Open the routine and set how often it repeats."})
         if linked.empty:
-            issues.append({"priority": "Medium", "kind": "Routine", "item": r.get("title", "Untitled"), "issue": "This routine does not have an activity yet.", "next": "Add at least one routine activity so Pathmark can place it on a tasklist, calendar export or Google Tasks prompt."})
+            issues.append({"priority": "Medium", "kind": "Routine", "item": r.get("title", "Untitled"), "issue": "This routine does not have an activity yet.", "next": "Add at least one routine activity so Pathmark can place it on a tasklist, calendar export or Google Tasks checklist item."})
     for _, g in goals.iterrows():
         gid = str(g.get("goal_id", "") or "")
         linked = actions[actions["goal_id"].fillna("") == gid] if not actions.empty and "goal_id" in actions.columns else pd.DataFrame()
@@ -3459,9 +3452,9 @@ def render_review_queue_manager(sheet_id: str) -> None:
     for _, a in actions.iterrows():
         title = a.get("title", "Untitled")
         if truthy_flag(a.get("calendar_block", "0")) and not str(a.get("scheduled_date", "") or "").strip():
-            issues.append({"priority": "High", "kind": "Calendar", "item": title, "issue": "This activity is marked for Google Calendar but does not have a date.", "next": "Add a calendar date and start/end time, or untick the Calendar block option."})
+            issues.append({"priority": "High", "kind": "Calendar", "item": title, "issue": "This activity needs calendar time but does not have a start date yet.", "next": "Open the project step or routine activity and add a start date, start time, finish date and finish time."})
         if truthy_flag(a.get("reminder", "0")) and not str(a.get("first_step", "") or "").strip():
-            issues.append({"priority": "Medium", "kind": "Google Tasks", "item": title, "issue": "This activity is marked for Google Tasks but does not have a first-action prompt.", "next": "Add a tiny first step such as 'put on running shoes' or untick the Google Tasks prompt option."})
+            issues.append({"priority": "Medium", "kind": "Google Tasks", "item": title, "issue": "This activity is marked for Google Tasks but does not have a checklist title.", "next": "Add a tiny first step such as 'put on running shoes' or untick the Google Tasks checklist item option."})
 
     if not issues:
         st.success("No review issues found. Your active workspace has enough structure for tasklists and exports.")
@@ -4512,7 +4505,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Use a printed tasklist as the paper alternative to Google Tasks prompts. Choose the routine activities and project steps you want to tick off by hand.")
+    st.write("Use a printed tasklist as the paper alternative to Google Tasks checklist items. Choose the routine activities and project steps you want to tick off by hand.")
     tasklist = staged_tasklist(sheet_id)
     if tasklist.empty:
         st.info("No tasklist rows yet. Add project steps or routine activities and choose 'Add this activity to the weekly tasklist'.")
@@ -4573,7 +4566,7 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.write("Calendar export turns selected project steps and routine activities into time blocks. Repeat settings are used for recurring routine activities where available.")
     blocks = staged_calendar_blocks(sheet_id)
     if blocks.empty:
-        st.info("No calendar rows are staged yet. Tick 'Create a Google Calendar time block' on a goal activity or routine activity, then add a date and time.")
+        st.info("No calendar rows are staged yet. Add a project step or routine activity with start and finish times.")
     else:
         st.markdown("### Calendar items ready to export")
         for _, row in blocks.iterrows():
@@ -4648,14 +4641,14 @@ def write_google_tasks_export_tab(sheet_id: str, prompts: pd.DataFrame) -> tuple
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Export")
-    st.write("Google Tasks prompts are date-based first steps from project steps and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
+    st.write("Google Tasks checklist items are date-based first steps from project steps and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
     prompts = staged_task_prompts(sheet_id)
     if prompts.empty:
-        st.info("No Google Tasks prompts are staged yet. Tick 'Create a Google Tasks first-action prompt' on a goal activity or routine activity.")
+        st.info("No Google Tasks checklist items are staged yet. Add a project step or routine activity.")
     else:
-        st.markdown("### Google Tasks prompts ready to export")
+        st.markdown("### Google Tasks checklist items ready to export")
         for _, row in prompts.iterrows():
-            title = html.escape(str(row.get("title", "Task prompt") or "Task prompt"))
+            title = html.escape(str(row.get("title", "Checklist item") or "Checklist item"))
             due = human_calendar_datetime(str(row.get("due_date", "") or ""))
             area = html.escape(str(row.get("area_name", "") or ""))
             task_list = html.escape(str(row.get("task_list", "Pathmark") or "Pathmark"))
@@ -4694,7 +4687,7 @@ def render_archive_manager(sheet_id: str) -> None:
     st.write("Archive keeps exported, completed or paused records out of the active workspace without deleting them. Restore a record when you want to work with it again.")
     table_specs = [
         ("areas", "Areas", "area_id", "area_name", ["area_name", "description", "updated_at", "archived_at", "archived_reason"]),
-        ("goals", "Goals", "goal_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
+        ("goals", "Projects", "goal_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
         ("routines", "Routines", "routine_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
         ("actions", "Goal and routine activities", "action_id", "title", ["title", "area_name", "status", "export_type", "exported_at", "archived_at", "archived_reason"]),
     ]
@@ -4856,7 +4849,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 continue
             heading = "Goal activities" if source_type == "Goal action" else "Routine activities"
             story.append(Paragraph(clean_text(heading), h_style))
-            data = [["", "Task", "When / context", "First action prompt"]]
+            data = [["", "Task", "When / context", "Checklist item"]]
             for _, row in subset.iterrows():
                 context_bits = []
                 for label, col in [("Area", "area_name"), ("Parent", "parent"), ("Scheduled", "scheduled_date"), ("Due", "due_date"), ("Time", "estimated_minutes")]:
@@ -6115,7 +6108,7 @@ def render_online_overview(sheet_id: str) -> None:
     counts = {name: len(active_online_df(df)) for name, df in data.items() if name in ["areas", "goals", "routines", "actions"]}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Areas", counts.get("areas", 0))
-    c2.metric("Goals", counts.get("goals", 0))
+    c2.metric("Projects", counts.get("goals", 0))
     c3.metric("Routines", counts.get("routines", 0))
     c4.metric("Activities", counts.get("actions", 0))
 
@@ -6155,14 +6148,14 @@ def download_tab() -> None:
       <div class="eyebrow">Routines. Prompts. Progress.</div>
       <h1>Pathmark</h1>
       <p class="lead">Make time for routines, keep goals moving, and start the next action with less friction.</p>
-      <p class="sublead">Pathmark helps you put routines and project steps into your calendar, then create Google Tasks prompts or a printable tasklist so the day has a clear first step.</p>
+      <p class="sublead">Pathmark helps you put routines and project steps into your calendar, then create Google Tasks checklist items or a printable tasklist so the day has a clear first step.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
       <div class="card"><h3>Put it in the calendar</h3><p>Routine activities and project steps become calendar blocks, so the work has a real place in the week.</p></div>
       <div class="card"><h3>Keep goals from drifting</h3><p>Track competing goals and interests in one place, then define only the next one or two useful actions.</p></div>
-      <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks prompts for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
+      <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks checklist items for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Two ways to use Pathmark")
@@ -6362,7 +6355,7 @@ def on_the_go_tab() -> None:
         "Review Queue",
         "Areas",
         "Routines",
-        "Goals and Projects",
+        "Projects",
         "Tasklist",
         "Google Calendar Export",
         "Google Tasks Export",
@@ -6380,7 +6373,7 @@ def on_the_go_tab() -> None:
     with sections[4]:
         render_safe_section("Routines", render_routine_manager, sheet_id)
     with sections[5]:
-        render_safe_section("Goals and Projects", render_goal_manager, sheet_id)
+        render_safe_section("Projects", render_goal_manager, sheet_id)
     with sections[6]:
         render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
     with sections[7]:
@@ -6443,7 +6436,7 @@ def developer_tab() -> None:
     """)
     actor = current_user().get("email", "")
     if supabase_available():
-        st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark projects, routines, task prompts, Workspace files, or on-the-go planning entries.")
+        st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark projects, routines, checklist items, Workspace files, or on-the-go planning entries.")
     else:
         st.info("Persistent role management is not configured yet. Bootstrap developer and beta access can still be supplied through Streamlit secrets, but role assignments cannot be saved from this page until Supabase is configured.")
         with st.expander("Supabase access-layer setup", expanded=True):
@@ -6552,7 +6545,7 @@ def developer_tab() -> None:
         - **Supabase access records** decide whether that verified user is standard, beta tester, developer, active, or disabled.
         - **User-owned Google sync sheets** are separate and are used only for on-the-go planning captures when the user authorises them.
 
-        Supabase should not store projects, routines, Google Tasks prompts, calendar blocks, Workspace files, or other private planning content at this stage.
+        Supabase should not store projects, routines, Google Tasks checklist items, calendar blocks, Workspace files, or other private planning content at this stage.
         """)
 
 

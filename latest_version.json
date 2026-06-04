@@ -1,18 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.21",
+  "version": "0.6.22",
   "release_date": "2026-06-04",
   "notes": [
-    "Adds a Finance setup wizard inside the Spending Plan area to guide users through inflows, everyday spend, fixed costs and planned irregular costs.",
-    "Calculates the weekly cash-flow guidance and suggested automatic payments before saving final spending records.",
-    "Writes income, spending and account-role records only after the Review and Save step.",
+    "Aligns manual Projects and Routines sections with the Creation Wizard output model.",
+    "Project steps and routine activities now automatically create calendar time, weekly tasklist rows and Google Tasks checklist items.",
+    "Manual project/routine activity forms now require start date/time and finish date/time before saving.",
+    "Routine activities inherit the routine repeat pattern rather than setting their own repeat days.",
+    "Avoids duplicate Google Tasks checklist items when wizard-created records already have explicit task prompt rows.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_21.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_22.zip",
   "mac_package": "",
-  "release": "v0.6.21 Finance setup wizard",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_21.zip",
-  "release_name": "Finance setup wizard",
-  "release_notes": "Adds a guided Finance setup wizard for inflows and outflows, then shows where income should land and which weekly automatic payments to set up before saving to the Spending Plan tables.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_21.zip"
+  "release": "v0.6.22 Manual project/routine output alignment",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_22.zip",
+  "release_name": "Manual project/routine output alignment",
+  "release_notes": "Aligns manual project and routine activity creation with the wizard: calendar time, weekly tasklist rows and Google Tasks checklist items are automatic, with start and finish details required before saving.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_22.zip"
 }

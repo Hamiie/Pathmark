@@ -1,4 +1,4 @@
-Pathmark release hub v0.6.21
+Pathmark release hub v0.6.22
 
 .gitignore
 README.md
@@ -15,7 +15,7 @@ app/
     pathmark-icon-192.png
     pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_21.zip
+  Pathmark_Local_App_Windows_v0_6_22.zip
 .streamlit/
   config.toml
 supabase/

@@ -1,6 +1,6 @@
 # Pathmark release hub
 
-## v0.6.21 Finance setup wizard
+## v0.6.22 Manual project/routine output alignment
 
 This repository hosts the Streamlit release hub and Pathmark Online app for Pathmark.
 
@@ -8,10 +8,11 @@ This release is Windows-only while the local app workflow is stabilised.
 
 ### Release notes
 
-- Adds a guided Finance setup wizard to the Spending Plan area.
-- The wizard collects inflows first, then everyday spend, fixed costs, and planned irregular costs.
-- The review step calculates where income should land, suggested weekly automatic payments, surplus, and the emergency savings target.
-- The wizard saves final income, expense, and account-role records only after Review and Save.
+- Aligns the manual Projects and Routines sections with the Creation Wizard model.
+- Every saved project step or routine activity now automatically creates calendar time, a weekly tasklist row and a Google Tasks checklist item.
+- Manual project/routine activity forms now require start date, start time, finish date and finish time before saving.
+- Routine activities inherit the routine repeat pattern from the routine container.
+- Wizard-created Google Tasks checklist items are not duplicated by derived export rows.
 - The updated repository keeps only the latest Windows package in `downloads/`.
 
 ## Structure
@@ -32,7 +33,7 @@ app/
     pathmark-icon-192.png
     pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_21.zip
+  Pathmark_Local_App_Windows_v0_6_22.zip
 .streamlit/
   config.toml
 supabase/
