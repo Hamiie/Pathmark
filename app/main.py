@@ -39,8 +39,8 @@ ONLINE_TABLES = {
     "settings": ["key", "value", "updated_at", "source"],
     "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "archived_at", "archived_reason", "restored_at"],
+    "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "archived_at", "archived_reason", "restored_at"],
     "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "due_date", "task_kind", "linked_record_id", "linked_record_type", "linked_parent_id", "linked_parent_type", "task_list", "notes", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
@@ -2573,6 +2573,14 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
             continue
         base_date = action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or ""
         start, end = online_event_bounds(base_date, action.get("calendar_start_time") or routine.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or routine.get("calendar_end_time") or "10:00")
+        end_date_override = str(action.get("calendar_end_date", "") or "").strip()
+        if end_date_override:
+            start_t = parse_online_time(action.get("calendar_start_time") or routine.get("calendar_start_time") or "09:00", "09:00")
+            end_t = parse_online_time(action.get("calendar_end_time") or routine.get("calendar_end_time") or "10:00", "10:00")
+            start_d = parse_online_date(base_date) or date.today()
+            end_d = parse_online_date(end_date_override) or start_d
+            start = datetime.combine(start_d, start_t).strftime("%Y-%m-%d %H:%M")
+            end = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
         recurrence = simple_rrule(routine.get("frequency"), action.get("activity_days")) if routine_id else ""
         routine_parent = routines.get(routine_id, {})
         if str(routine_parent.get("status", "")).lower() == "paused":
@@ -4672,10 +4680,40 @@ def _minutes_between(start_text: str, end_text: str, ends_next_day: bool = False
     return int((end_dt - start_dt).total_seconds() // 60)
 
 
+def _calendar_minutes(start_date: Any, start_text: Any, end_date: Any, end_text: Any) -> int:
+    start_d = _text_to_date(start_date)
+    end_d = _text_to_date(end_date, start_d)
+    start_dt = datetime.combine(start_d, _text_to_time(start_text, time(9, 0)))
+    end_dt = datetime.combine(end_d, _text_to_time(end_text, time(10, 0)))
+    if end_dt <= start_dt:
+        return 0
+    return int((end_dt - start_dt).total_seconds() // 60)
+
+
+def _calendar_end_date_default(item: dict[str, Any], start_date_value: Any) -> date:
+    start_d = _text_to_date(start_date_value)
+    existing = str(item.get("calendar_end_date", "") or "").strip()
+    if existing:
+        return _text_to_date(existing, start_d)
+    if bool(item.get("ends_next_day")):
+        return start_d + timedelta(days=1)
+    return start_d
+
+
 def _format_time_range(start_text: str, end_text: str, ends_next_day: bool = False) -> str:
     start = _text_to_time(start_text).strftime("%-I:%M%p").lower().replace(":00", "")
     end = _text_to_time(end_text).strftime("%-I:%M%p").lower().replace(":00", "")
     return f"{start} to {end}{' next day' if ends_next_day else ''}"
+
+
+def _format_time_range_with_dates(start_date: Any, start_text: Any, end_date: Any, end_text: Any) -> str:
+    start_d = _text_to_date(start_date)
+    end_d = _text_to_date(end_date, start_d)
+    start = _text_to_time(start_text).strftime("%-I:%M%p").lower().replace(":00", "")
+    end = _text_to_time(end_text).strftime("%-I:%M%p").lower().replace(":00", "")
+    if end_d == start_d:
+        return f"{start} to {end}"
+    return f"{start} to {end} on {display_date(end_d.isoformat()) if 'display_date' in globals() else end_d.isoformat()}"
 
 
 def _new_wizard_draft(wizard_type: str | None = None) -> dict[str, Any]:
@@ -4818,6 +4856,7 @@ def _append_project_step(draft: dict[str, Any]) -> dict[str, Any]:
         "calendar_date": date.today().isoformat(),
         "calendar_start_time": "09:00",
         "calendar_end_time": "10:00",
+        "calendar_end_date": date.today().isoformat(),
         "ends_next_day": False,
         "include_on_tasklist": True,
         "has_helper_tasks": False,
@@ -4835,6 +4874,7 @@ def _append_routine_activity(draft: dict[str, Any]) -> dict[str, Any]:
         "title": "",
         "calendar_start_time": "22:30",
         "calendar_end_time": "06:30",
+        "calendar_end_date": (date.today() + timedelta(days=1)).isoformat(),
         "ends_next_day": True,
         "location": "",
         "include_on_tasklist": True,
@@ -4884,12 +4924,14 @@ def _validate_project_step(step: dict[str, Any]) -> list[str]:
         problems.append("Choose a start time.")
     if not _time_to_text(step.get("calendar_end_time")):
         problems.append("Choose an end time.")
-    if _minutes_between(step.get("calendar_start_time", ""), step.get("calendar_end_time", ""), bool(step.get("ends_next_day"))) <= 0:
-        problems.append("End time must be after start time. Tick 'ends next day' for overnight time.")
+    if not _date_to_text(step.get("calendar_end_date")):
+        problems.append("Choose the date this calendar time will finish.")
+    if _calendar_minutes(step.get("calendar_date"), step.get("calendar_start_time", ""), step.get("calendar_end_date"), step.get("calendar_end_time", "")) <= 0:
+        problems.append("The finish date and time must be after the start date and time.")
     return problems
 
 
-def _validate_routine_activity(activity: dict[str, Any]) -> list[str]:
+def _validate_routine_activity(activity: dict[str, Any], routine_start_date: Any = None) -> list[str]:
     problems = []
     if not str(activity.get("title", "")).strip():
         problems.append("Add a routine activity.")
@@ -4897,8 +4939,11 @@ def _validate_routine_activity(activity: dict[str, Any]) -> list[str]:
         problems.append("Choose a start time.")
     if not _time_to_text(activity.get("calendar_end_time")):
         problems.append("Choose an end time.")
-    if _minutes_between(activity.get("calendar_start_time", ""), activity.get("calendar_end_time", ""), bool(activity.get("ends_next_day"))) <= 0:
-        problems.append("End time must be after start time. Tick 'ends next day' for overnight time.")
+    if not _date_to_text(activity.get("calendar_end_date")):
+        problems.append("Choose the date this calendar time will finish.")
+    start_date_value = routine_start_date or activity.get("start_date", date.today().isoformat())
+    if _calendar_minutes(start_date_value, activity.get("calendar_start_time", ""), activity.get("calendar_end_date"), activity.get("calendar_end_time", "")) <= 0:
+        problems.append("The finish date and time must be after the start date and time.")
     return problems
 
 
@@ -5033,16 +5078,18 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
         records["goals"].append({"goal_id": goal_id, "area_id": area_id, "area_name": area_name, "title": str(project.get("title", "")).strip(), "description": str(project.get("reason", "")).strip(), "specific_area": "", "status": "Active", "target_date": _date_to_text(project.get("target_date")), "purpose": str(project.get("reason", "")).strip(), "desired_outcome": str(project.get("definition_of_done", "")).strip(), "closure_criteria": str(project.get("definition_of_done", "")).strip(), "notes": "Created from the Pathmark creation wizard."})
         for idx, step in enumerate(steps, start=1):
             action_id = f"action-{uuid.uuid4().hex}"
-            minutes = str(_minutes_between(step.get("calendar_start_time"), step.get("calendar_end_time"), bool(step.get("ends_next_day"))))
             scheduled = _date_to_text(step.get("calendar_date"))
+            end_date = _date_to_text(step.get("calendar_end_date")) or scheduled
+            minutes = str(_calendar_minutes(scheduled, step.get("calendar_start_time"), end_date, step.get("calendar_end_time")))
             helper_titles = [str(t.get("title", "")).strip() for t in step.get("helper_tasks", []) if str(t.get("title", "")).strip()]
             notes = "Created from the Pathmark creation wizard."
-            if bool(step.get("ends_next_day")):
-                notes += " Ends next day."
+            if end_date and end_date != scheduled:
+                notes += f" Ends on {end_date}."
             if helper_titles:
                 notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
             title = str(step.get("title", "")).strip()
-            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_location": "", "notes": notes})
+            records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": title, "prompt_text": title, "due_date": scheduled, "task_kind": "activity", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Automatic checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
+            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": "", "notes": notes})
             for task in step.get("helper_tasks", []) or []:
                 if str(task.get("title", "")).strip():
                     records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or scheduled, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Helper checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
@@ -5056,7 +5103,7 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
         if not activities:
             return False, "Add at least one routine activity before saving."
         for activity in activities:
-            problems = _validate_routine_activity(activity)
+            problems = _validate_routine_activity(activity, routine.get("start_date"))
             if problems:
                 return False, " ".join(problems)
         routine_id = f"routine-{uuid.uuid4().hex}"
@@ -5067,15 +5114,17 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
         activity_days = preferred or ("Every day" if freq == "Daily" else "")
         for activity in activities:
             action_id = f"action-{uuid.uuid4().hex}"
-            minutes = str(_minutes_between(activity.get("calendar_start_time"), activity.get("calendar_end_time"), bool(activity.get("ends_next_day"))))
+            end_date = _date_to_text(activity.get("calendar_end_date")) or start_date
+            minutes = str(_calendar_minutes(start_date, activity.get("calendar_start_time"), end_date, activity.get("calendar_end_time")))
             helper_titles = [str(t.get("title", "")).strip() for t in activity.get("helper_tasks", []) if str(t.get("title", "")).strip()]
             notes = "Created from the Pathmark creation wizard."
-            if bool(activity.get("ends_next_day")):
-                notes += " Ends next day."
+            if end_date and end_date != start_date:
+                notes += f" Ends on {end_date}."
             if helper_titles:
                 notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
             title = str(activity.get("title", "")).strip()
-            records["actions"].append({"action_id": action_id, "goal_id": "", "routine_id": routine_id, "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Included", "priority": "Medium", "specific_area": "", "due_date": start_date, "scheduled_date": "", "activity_days": activity_days, "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(activity.get("calendar_start_time")), "calendar_end_time": _time_to_text(activity.get("calendar_end_time")), "calendar_location": str(activity.get("location", "")).strip(), "notes": notes})
+            records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": title, "prompt_text": title, "due_date": start_date, "task_kind": "activity", "linked_record_id": action_id, "linked_record_type": "routine_activity", "linked_parent_id": routine_id, "linked_parent_type": "routine", "task_list": "Pathmark", "notes": f"Automatic checklist item for routine activity: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
+            records["actions"].append({"action_id": action_id, "goal_id": "", "routine_id": routine_id, "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Included", "priority": "Medium", "specific_area": "", "due_date": start_date, "scheduled_date": "", "activity_days": activity_days, "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(activity.get("calendar_start_time")), "calendar_end_time": _time_to_text(activity.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": str(activity.get("location", "")).strip(), "notes": notes})
             for task in activity.get("helper_tasks", []) or []:
                 if str(task.get("title", "")).strip():
                     records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or start_date, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "routine_activity", "linked_parent_id": routine_id, "linked_parent_type": "routine", "task_list": "Pathmark", "notes": f"Helper checklist item for routine activity: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
@@ -5147,7 +5196,8 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
 
     if step == "choose_type":
         st.subheader("What are you creating?")
-        st.caption("ⓘ Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
+        with st.expander("ⓘ Which should I choose?", expanded=False):
+            st.write("Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
         choice = st.radio("Choose one", ["Project", "Routine"], horizontal=True, index=0 if draft.get("wizard_type") != "routine" else 1)
         draft["wizard_type"] = "project" if choice == "Project" else "routine"
         _set_wizard_state(draft)
@@ -5155,7 +5205,8 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
 
     elif step == "choose_area":
         st.subheader("Which area of your life does this belong to?")
-        st.caption("ⓘ Areas help Pathmark keep similar projects and routines together. This area can also become the Google Calendar grouping or subcalendar where you place related time in your calendar.")
+        with st.expander("ⓘ What is an Area?", expanded=False):
+            st.write("Areas help Pathmark keep similar projects and routines together. This area can also become the Google Calendar grouping or subcalendar where you place related time in your calendar.")
         options = _area_options(sheet_id)
         names = [o["area_name"] for o in options]
         choices = names + ["+ Add a new area"]
@@ -5175,7 +5226,8 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
         area = draft.setdefault("area", {"mode": "new"})
         if step == "area_name":
             st.subheader("What should this area be called?")
-            st.caption("ⓘ Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
+            with st.expander("ⓘ Naming an Area", expanded=False):
+                st.write("Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
             area["area_name"] = st.text_input("Area name", value=str(area.get("area_name", "")), placeholder="Body and Stability")
             _set_wizard_state(draft)
             _render_wizard_nav(sheet_id, draft, bool(str(area.get("area_name", "")).strip()))
@@ -5266,18 +5318,21 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(9,0))))
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_calendar_end_time":
-            st.subheader("What time will you finish?")
-            current["calendar_end_time"] = _time_to_text(st.time_input("End time", value=_text_to_time(current.get("calendar_end_time"), time(10,0))))
-            current["ends_next_day"] = st.checkbox("This ends the next day", value=bool(current.get("ends_next_day")))
+            st.subheader("When will you finish?")
+            start_date = _text_to_date(current.get("calendar_date"))
+            current["calendar_end_date"] = st.date_input("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}").isoformat()
+            current["calendar_end_time"] = _time_to_text(st.time_input("Finish time", value=_text_to_time(current.get("calendar_end_time"), time(10,0))))
+            current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(current.get("calendar_date"))
             problems = _validate_project_step(current)
             for p in problems: st.warning(p)
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
         elif step == "project_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
-            st.caption("ⓘ Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as “put sketchbook on desk” or “open the course page”.")
+            with st.expander("ⓘ What is a helper checklist item?", expanded=False):
+                st.write("Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as ‘put sketchbook on desk’ or ‘open the course page’.")
             choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
             current["has_helper_tasks"] = choice == "Yes"
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_answer=current["has_helper_tasks"])
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_step=("project_helper_task_item" if current["has_helper_tasks"] else "project_add_step"))
         elif step == "project_helper_task_item":
             if not current.get("helper_tasks") or not draft.get("current_task_id"):
                 task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
@@ -5288,7 +5343,8 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         elif step == "project_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("What date should this checklist item appear?")
-            st.caption("ⓘ Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            with st.expander("ⓘ Why only a date?", expanded=False):
+                st.write("Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
             task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(current.get("calendar_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_add_helper_task_item":
@@ -5348,10 +5404,12 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(22,30))))
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_calendar_end_time":
-            st.subheader("What time will this activity finish?")
-            current["calendar_end_time"] = _time_to_text(st.time_input("End time", value=_text_to_time(current.get("calendar_end_time"), time(6,30))))
-            current["ends_next_day"] = st.checkbox("This ends the next day", value=bool(current.get("ends_next_day", True)))
-            problems = _validate_routine_activity(current)
+            st.subheader("When will this activity finish?")
+            routine_start = _text_to_date(routine.get("start_date"))
+            current["calendar_end_date"] = st.date_input("Finish date for the first occurrence", value=_calendar_end_date_default(current, routine_start), key=f"routine_end_date_{current.get('activity_id','')}").isoformat()
+            current["calendar_end_time"] = _time_to_text(st.time_input("Finish time", value=_text_to_time(current.get("calendar_end_time"), time(6,30))))
+            current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(routine.get("start_date"))
+            problems = _validate_routine_activity(current, routine.get("start_date"))
             for p in problems: st.warning(p)
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
         elif step == "routine_calendar_location":
@@ -5360,10 +5418,11 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
-            st.caption("ⓘ Pathmark will already add the routine activity itself to Google Tasks as a checklist item. For sleep, a helper checklist item might be “no screen time three hours before bed”, “dim the lights”, or “put phone outside the bedroom”.")
+            with st.expander("ⓘ What is a helper checklist item?", expanded=False):
+                st.write("Pathmark will already add the routine activity itself to Google Tasks as a checklist item. For sleep, a helper checklist item might be ‘no screen time three hours before bed’, ‘dim the lights’, or ‘put phone outside the bedroom’.")
             choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
             current["has_helper_tasks"] = choice == "Yes"
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_answer=current["has_helper_tasks"])
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_step=("routine_helper_task_item" if current["has_helper_tasks"] else "routine_add_activity"))
         elif step == "routine_helper_task_item":
             if not current.get("helper_tasks") or not draft.get("current_task_id"):
                 task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
@@ -5374,7 +5433,8 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         elif step == "routine_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("When should this checklist item appear?")
-            st.caption("ⓘ Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            with st.expander("ⓘ Why only a date?", expanded=False):
+                st.write("Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
             task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(routine.get("start_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_add_helper_task_item":
@@ -5408,7 +5468,7 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
         st.markdown("#### Project steps")
         for i, step in enumerate(draft.get("project_steps", []), start=1):
             due = _date_to_text(step.get("calendar_date"))
-            st.write(f"{i}. **{step.get('title','')}** — {display_date(due) if 'display_date' in globals() else due}, {_format_time_range(step.get('calendar_start_time'), step.get('calendar_end_time'), bool(step.get('ends_next_day')))}")
+            st.write(f"{i}. **{step.get('title','')}** — {display_date(due) if 'display_date' in globals() else due}, {_format_time_range_with_dates(step.get('calendar_date'), step.get('calendar_start_time'), step.get('calendar_end_date'), step.get('calendar_end_time'))}")
             st.caption("Google Tasks checklist item: " + str(step.get("title", "")))
             helpers = [t.get("title", "") for t in step.get("helper_tasks", []) if t.get("title")]
             if helpers:
@@ -5426,7 +5486,7 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
         st.write(f"Repeats: {_routine_days_text(routine)}")
         st.markdown("#### Routine activities")
         for i, activity in enumerate(draft.get("routine_activities", []), start=1):
-            st.write(f"{i}. **{activity.get('title','')}** — {_format_time_range(activity.get('calendar_start_time'), activity.get('calendar_end_time'), bool(activity.get('ends_next_day')))}")
+            st.write(f"{i}. **{activity.get('title','')}** — {_format_time_range_with_dates(routine.get('start_date'), activity.get('calendar_start_time'), activity.get('calendar_end_date'), activity.get('calendar_end_time'))}")
             st.caption("Google Tasks checklist item: " + str(activity.get("title", "")))
             helpers = [t.get("title", "") for t in activity.get("helper_tasks", []) if t.get("title")]
             if helpers:

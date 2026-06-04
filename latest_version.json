@@ -1,19 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.14",
+  "version": "0.6.15",
   "release_date": "2026-06-04",
   "notes": [
-    "Retired the guided setup gate from Pathmark Online.",
-    "Pathmark Online now opens directly to the normal workspace after Google Sheets preparation.",
-    "The Pathmark creation wizard on Home replaces setup as the main first-run and ongoing creation flow.",
-    "Settings now points users to the Creation wizard and any unfinished wizard draft instead of offering guided setup controls.",
-    "Updated Home wording so empty workspaces direct users to the creation wizard rather than setup."
+    "Replaced always-visible information text in the creation wizard with collapsed guidance panels.",
+    "Fixed Project and Routine helper checklist item routing so choosing Yes proceeds to the helper item questions.",
+    "Replaced the next-day checkbox with an explicit finish date for project steps and routine activities.",
+    "Added calendar_end_date to action records so exported calendar times can span overnight or multiple dates correctly.",
+    "Added automatic Google Tasks checklist rows for each wizard-created project step or routine activity, with optional helper checklist rows kept separate."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_14.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_15.zip",
   "mac_package": "",
-  "release": "v0.6.14 Creation wizard replaces setup",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_14.zip",
-  "release_name": "Creation wizard replaces setup",
-  "release_notes": "Retires the guided setup gate. Pathmark Online now opens directly to the workspace, with the Pathmark creation wizard on Home replacing setup as the first-run and ongoing flow for creating Projects and Routines.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_14.zip"
+  "release": "v0.6.15 Creation wizard interaction repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_15.zip",
+  "release_name": "Creation wizard interaction repair",
+  "release_notes": "Repairs the Pathmark creation wizard so information guidance stays hidden until opened, helper checklist item loops route correctly, and start/end calendar timing uses explicit finish dates rather than a next-day checkbox.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_15.zip"
 }
