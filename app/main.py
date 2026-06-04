@@ -42,9 +42,10 @@ ONLINE_TABLES = {
     "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "archived_at", "archived_reason", "restored_at"],
     "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
-    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
+    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "due_date", "task_kind", "linked_record_id", "linked_record_type", "linked_parent_id", "linked_parent_type", "task_list", "notes", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "google_tasks_export": ["Task ID", "Task List", "Title", "Notes", "Due Date", "Reference Time", "Status", "Repeat Pattern", "Related Google Calendar Item", "exported_at"],
+    "wizard_drafts": ["draft_id", "wizard_type", "current_step_key", "answers_json", "activity_drafts_json", "status", "created_at", "updated_at", "saved_at", "source"],
     "spending_income": ["income_id", "person", "category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "spending_expenses": ["expense_id", "expense_kind", "group_name", "item", "weekly_amount", "fortnightly_amount", "monthly_amount", "quarterly_amount", "yearly_amount", "annual_amount", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "spending_accounts": ["account_id", "account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
@@ -106,19 +107,6 @@ def normalise_online_theme(theme_name: str | None) -> str:
 
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-SETUP_STEPS = [
-    ("focus", "Weekly Focus", "Choose the main thing this week needs from you before adding more structure."),
-    ("review", "Review Queue", "See how Pathmark checks whether the parts of your system are ready to use."),
-    ("areas", "Areas", "Create broad life systems so routines, goals and calendar groups have somewhere to belong."),
-    ("routines", "Routines", "Add repeating habits and at least one activity so wellbeing and capacity are protected."),
-    ("goals", "Goals and Projects", "Define what done looks like, then keep only the next one or two useful actions visible."),
-    ("actions", "Goal activities", "Turn goals into concrete one-off activities and first-step prompts that reduce friction."),
-    ("tasklist", "Tasklist", "Choose the saved actions and routine activities you want on a printable paper list."),
-    ("calendar", "Google Calendar Export", "Preview how selected actions become calendar blocks."),
-    ("tasks", "Google Tasks Export", "Preview first-step prompts for Google Tasks or the Google Tasks export tab."),
-    ("archive", "Archive", "Move exported or finished work out of the active space, and restore it if you change your mind."),
-]
-SETUP_STEP_KEYS = [step[0] for step in SETUP_STEPS]
 DAY_ALIASES = {d.lower(): d for d in VALID_DAYS}
 DAY_ALIASES.update({d[:3].lower(): d for d in VALID_DAYS})
 
@@ -697,7 +685,7 @@ def supabase_config() -> dict[str, str] | None:
 
     Supabase is used only for hosted Pathmark access control: users, roles,
     status, feature flags, and audit logs. It is not used for Pathmark planning
-    data, goals, routines, task prompts, Workspace files, or on-the-go entries.
+    data, projects, routines, task prompts, Workspace files, or on-the-go entries.
 
     Prefer Supabase's newer `sb_secret_...` Secret API keys for server-side
     hosted role management. The older JWT-based service_role key is still
@@ -1859,6 +1847,7 @@ ONLINE_ID_COLUMNS = {
     "spending_income": "income_id",
     "spending_expenses": "expense_id",
     "spending_accounts": "account_id",
+    "wizard_drafts": "draft_id",
     "pending_changes": "sync_id",
 }
 
@@ -2569,7 +2558,7 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
         return pd.DataFrame(columns=["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status"])
-    goals, routines = parent_lookup(sheet_id)
+    projects, routines = parent_lookup(sheet_id)
     rows = []
     for _, action in actions.iterrows():
         if not truthy_flag(action.get("calendar_block")):
@@ -2622,7 +2611,7 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
         return pd.DataFrame(columns=["id", "title", "area_name", "due_date", "reminder_time", "task_list", "notes", "repeat_pattern", "linked_calendar_summary"])
-    goals, routines = parent_lookup(sheet_id)
+    projects, routines = parent_lookup(sheet_id)
     blocks = staged_calendar_blocks(sheet_id)
     rows = []
     for _, action in actions.iterrows():
@@ -2658,6 +2647,29 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
             "linked_calendar_summary": linked,
             "status": "needsAction",
         })
+    extra_prompts = read_online_table(sheet_id, "task_prompts")
+    if not extra_prompts.empty:
+        for _, prompt in extra_prompts.iterrows():
+            if str(prompt.get("status", "")).lower() in {"archived", "done", "completed"}:
+                continue
+            pid = str(prompt.get("prompt_id", "") or uuid.uuid4().hex)
+            title = str(prompt.get("prompt_text", "") or prompt.get("title", "") or "Pathmark checklist item").strip()
+            if not title:
+                continue
+            area_name = str(prompt.get("area_name", "") or "")
+            rows.append({
+                "id": pid,
+                "title": title,
+                "area_name": area_name,
+                "parent": str(prompt.get("linked_parent_type", "") or ""),
+                "due_date": str(prompt.get("due_date", "") or ""),
+                "reminder_time": "",
+                "task_list": str(prompt.get("task_list", "") or "Pathmark"),
+                "notes": str(prompt.get("notes", "") or "Helper checklist item created by Pathmark."),
+                "repeat_pattern": "",
+                "linked_calendar_summary": "",
+                "status": "needsAction",
+            })
     return pd.DataFrame(rows)
 
 
@@ -2665,7 +2677,7 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
         return pd.DataFrame(columns=["action_id", "source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
-    goals, routines = parent_lookup(sheet_id)
+    projects, routines = parent_lookup(sheet_id)
     rows = []
     for _, action in actions.iterrows():
         if not truthy_flag(action.get("include_tasklist", "1")):
@@ -2883,14 +2895,14 @@ def render_area_manager(sheet_id: str) -> None:
 
 
 def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
-    """Render saved goal activities or routine activities in a user-facing way.
+    """Render saved project steps or routine activities in a user-facing way.
 
     Earlier releases called this helper from Goals and Routines but did not
     include the implementation, which meant those tabs could fail as soon as a
     goal or routine was selected. Keep this renderer intentionally simple and
     robust: cards first, technical details hidden, edit form only when expanded.
     """
-    kind = "routine activities" if routine_id else "goal activities"
+    kind = "routine activities" if routine_id else "project steps"
     if linked is None or linked.empty:
         st.info(f"No {kind} yet. Add one below when you are ready.")
         return
@@ -3416,7 +3428,7 @@ def render_review_queue_manager(sheet_id: str) -> None:
         if not str(g.get("closure_criteria", "") or g.get("desired_outcome", "") or "").strip():
             issues.append({"priority": "Medium", "kind": "Goal", "item": g.get("title", "Untitled"), "issue": "This goal does not yet say what done looks like.", "next": "Add a measure of success or definition of done."})
         if linked.empty:
-            issues.append({"priority": "Medium", "kind": "Goal", "item": g.get("title", "Untitled"), "issue": "This goal does not have a next activity yet.", "next": "Add one or two concrete goal activities rather than a full project plan."})
+            issues.append({"priority": "Medium", "kind": "Goal", "item": g.get("title", "Untitled"), "issue": "This goal does not have a next activity yet.", "next": "Add one or two concrete project steps rather than a full project plan."})
     for _, a in actions.iterrows():
         title = a.get("title", "Untitled")
         if truthy_flag(a.get("calendar_block", "0")) and not str(a.get("scheduled_date", "") or "").strip():
@@ -4105,10 +4117,10 @@ def render_spending_plan_manager(sheet_id: str) -> None:
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Use a printed tasklist as the paper alternative to Google Tasks prompts. Choose the routine activities and goal actions you want to tick off by hand.")
+    st.write("Use a printed tasklist as the paper alternative to Google Tasks prompts. Choose the routine activities and project steps you want to tick off by hand.")
     tasklist = staged_tasklist(sheet_id)
     if tasklist.empty:
-        st.info("No tasklist rows yet. Add goal actions or routine activities and choose 'Add this activity to the weekly tasklist'.")
+        st.info("No tasklist rows yet. Add project steps or routine activities and choose 'Add this activity to the weekly tasklist'.")
         return
     with st.expander("Choose what goes on the tasklist", expanded=True):
         title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
@@ -4163,7 +4175,7 @@ def render_tasklist_manager(sheet_id: str) -> None:
 
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Export")
-    st.write("Calendar export turns selected goal activities and routine activities into time blocks. Repeat settings are used for recurring routine activities where available.")
+    st.write("Calendar export turns selected project steps and routine activities into time blocks. Repeat settings are used for recurring routine activities where available.")
     blocks = staged_calendar_blocks(sheet_id)
     if blocks.empty:
         st.info("No calendar rows are staged yet. Tick 'Create a Google Calendar time block' on a goal activity or routine activity, then add a date and time.")
@@ -4241,7 +4253,7 @@ def write_google_tasks_export_tab(sheet_id: str, prompts: pd.DataFrame) -> tuple
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Export")
-    st.write("Google Tasks prompts are date-based first steps from goal activities and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
+    st.write("Google Tasks prompts are date-based first steps from project steps and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
     prompts = staged_task_prompts(sheet_id)
     if prompts.empty:
         st.info("No Google Tasks prompts are staged yet. Tick 'Create a Google Tasks first-action prompt' on a goal activity or routine activity.")
@@ -4334,19 +4346,18 @@ def render_online_settings(sheet_id: str) -> None:
     if c3.button("Disconnect Google access", use_container_width=True):
         revoke_google_session_token()
         st.rerun()
-    with st.expander("Guided setup", expanded=False):
-        state = get_setup_state(sheet_id)
-        st.write(f"Current setup status: **{state['status'].replace('_', ' ').title()}**")
-        st.write(f"Current step: **{state['current_step'].title()}**")
-        st.write("You can revisit the setup pathway without deleting any Areas, routines, goals or actions.")
-        if st.button("Start setup pathway again", use_container_width=True, key="settings_reset_setup"):
-            st.session_state.pop("skip_online_setup_for_session", None)
-            ok, message = save_setup_state(sheet_id, reset=True)
-            if ok:
-                st.success("Guided setup is ready to revisit.")
-            else:
-                st.warning(safe_user_message(message))
-            st.rerun()
+    with st.expander("Creation wizard", expanded=False):
+        st.write("The creation wizard is now the Pathmark starting point. Use it from the Home tab to create a Project or Routine one question at a time.")
+        latest = _latest_wizard_draft(sheet_id)
+        if latest:
+            label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
+            label = label or ("Project draft" if latest.get("wizard_type") == "project" else "Routine draft")
+            st.write(f"Unfinished draft available: **{label}**")
+            if st.button("Restore draft on Home", use_container_width=True, key="settings_restore_wizard_draft"):
+                _set_wizard_state(latest)
+                st.rerun()
+        else:
+            st.write("No unfinished creation wizard draft is currently saved.")
     with st.expander("Advanced Google Sheet settings", expanded=False):
         render_google_sheets_oauth_diagnostics()
         sheet_url_input = st.text_input("Use an existing Pathmark Sync Google Sheet URL or ID", value=st.session_state.get("sync_sheet_id", ""), help="Use a Pathmark Sync sheet that belongs to your Google account. With the safer drive.file permission, Pathmark can only use files it created or files you explicitly authorise.")
@@ -4599,337 +4610,835 @@ def render_exports_manager(sheet_id: str) -> None:
         render_google_tasks_export_manager(sheet_id)
 
 
-def get_setup_state(sheet_id: str) -> dict[str, str]:
-    status = online_setting(sheet_id, "setup_status", "not_started")
-    if status not in {"not_started", "in_progress", "completed"}:
-        status = "not_started"
-    current = online_setting(sheet_id, "setup_current_step", SETUP_STEP_KEYS[0])
-    if current not in SETUP_STEP_KEYS:
-        current = SETUP_STEP_KEYS[0]
+# ---------------------------------------------------------------------------
+# Pathmark creation wizard
+# ---------------------------------------------------------------------------
+
+WIZARD_STATES = {"in_progress", "saved", "cancelled", "discarded"}
+WIZARD_FREQ_OPTIONS = ["Daily", "Selected days", "Weekly"]
+DAY_CODE = {"Monday": "MO", "Tuesday": "TU", "Wednesday": "WE", "Thursday": "TH", "Friday": "FR", "Saturday": "SA", "Sunday": "SU"}
+CODE_DAY = {v: k for k, v in DAY_CODE.items()}
+
+
+def _time_to_text(value: Any) -> str:
+    if isinstance(value, time):
+        return value.strftime("%H:%M")
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return datetime.strptime(text, "%H:%M").strftime("%H:%M")
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(text, "%H:%M:%S").strftime("%H:%M")
+    except Exception:
+        return text
+
+
+def _text_to_time(value: Any, fallback: time = time(9, 0)) -> time:
+    text = str(value or "").strip()
+    for fmt in ("%H:%M", "%H:%M:%S", "%I:%M%p", "%I:%M %p"):
+        try:
+            return datetime.strptime(text, fmt).time()
+        except Exception:
+            pass
+    return fallback
+
+
+def _date_to_text(value: Any) -> str:
+    if isinstance(value, date):
+        return value.isoformat()
+    return normalise_online_date(value)
+
+
+def _text_to_date(value: Any, fallback: date | None = None) -> date:
+    text = _date_to_text(value)
+    if text:
+        try:
+            return date.fromisoformat(text)
+        except Exception:
+            pass
+    return fallback or date.today()
+
+
+def _minutes_between(start_text: str, end_text: str, ends_next_day: bool = False) -> int:
+    start = _text_to_time(start_text, time(9, 0))
+    end = _text_to_time(end_text, time(10, 0))
+    start_dt = datetime.combine(date.today(), start)
+    end_dt = datetime.combine(date.today() + timedelta(days=1 if ends_next_day else 0), end)
+    if end_dt <= start_dt:
+        return 0
+    return int((end_dt - start_dt).total_seconds() // 60)
+
+
+def _format_time_range(start_text: str, end_text: str, ends_next_day: bool = False) -> str:
+    start = _text_to_time(start_text).strftime("%-I:%M%p").lower().replace(":00", "")
+    end = _text_to_time(end_text).strftime("%-I:%M%p").lower().replace(":00", "")
+    return f"{start} to {end}{' next day' if ends_next_day else ''}"
+
+
+def _new_wizard_draft(wizard_type: str | None = None) -> dict[str, Any]:
     return {
-        "status": status,
-        "current_step": current,
-        "completed_at": online_setting(sheet_id, "setup_completed_at", ""),
-        "reset_at": online_setting(sheet_id, "setup_reset_at", ""),
+        "draft_id": f"draft-{uuid.uuid4().hex}",
+        "wizard_type": wizard_type or "",
+        "current_step_key": "choose_type",
+        "area": {"mode": "existing", "area_id": "", "area_name": "", "calendar_colour_id": "2", "calendar_colour_name": "Sage"},
+        "project": {"title": "", "reason": "", "definition_of_done": "", "target_date": "", "target_label": ""},
+        "project_steps": [],
+        "routine": {"title": "", "purpose": "", "frequency": "Daily", "preferred_days": [], "start_date": date.today().isoformat()},
+        "routine_activities": [],
+        "current_step_id": "",
+        "current_activity_id": "",
+        "current_task_id": "",
+        "status": "in_progress",
+        "created_at": utc_now_text(),
+        "updated_at": utc_now_text(),
     }
 
 
-def save_setup_state(sheet_id: str, *, status: str | None = None, current_step: str | None = None, completed: bool = False, reset: bool = False) -> tuple[bool, str]:
-    ok = True
-    messages: list[str] = []
-    if status:
-        step_ok, msg = save_online_setting(sheet_id, "setup_status", status)
-        ok = ok and step_ok; messages.append(msg)
-    if current_step:
-        step_ok, msg = save_online_setting(sheet_id, "setup_current_step", current_step)
-        ok = ok and step_ok; messages.append(msg)
-    if completed:
-        step_ok, msg = save_online_setting(sheet_id, "setup_status", "completed")
-        ok = ok and step_ok; messages.append(msg)
-        step_ok, msg = save_online_setting(sheet_id, "setup_completed_at", utc_now_text())
-        ok = ok and step_ok; messages.append(msg)
-    if reset:
-        step_ok, msg = save_online_setting(sheet_id, "setup_status", "in_progress")
-        ok = ok and step_ok; messages.append(msg)
-        step_ok, msg = save_online_setting(sheet_id, "setup_current_step", SETUP_STEP_KEYS[0])
-        ok = ok and step_ok; messages.append(msg)
-        step_ok, msg = save_online_setting(sheet_id, "setup_reset_at", utc_now_text())
-        ok = ok and step_ok; messages.append(msg)
-    clear_online_cache(sheet_id)
-    return ok, "Setup guide updated." if ok else safe_user_message(messages[-1] if messages else "Could not update setup guide.")
+def _wizard_to_record(draft: dict[str, Any]) -> dict[str, Any]:
+    answers = {
+        "area": draft.get("area", {}),
+        "project": draft.get("project", {}),
+        "routine": draft.get("routine", {}),
+    }
+    activities = {
+        "project_steps": draft.get("project_steps", []),
+        "routine_activities": draft.get("routine_activities", []),
+    }
+    return {
+        "draft_id": draft.get("draft_id", f"draft-{uuid.uuid4().hex}"),
+        "wizard_type": draft.get("wizard_type", ""),
+        "current_step_key": draft.get("current_step_key", "choose_type"),
+        "answers_json": json.dumps(answers, ensure_ascii=False),
+        "activity_drafts_json": json.dumps(activities, ensure_ascii=False),
+        "status": draft.get("status", "in_progress"),
+        "created_at": draft.get("created_at", utc_now_text()),
+        "updated_at": utc_now_text(),
+        "saved_at": draft.get("saved_at", ""),
+        "source": "pathmark_creation_wizard",
+    }
 
 
-
-def setup_step_index(step_key: str) -> int:
-    legacy = {"exports": "calendar", "google_calendar": "calendar", "google_tasks": "tasks"}
-    step_key = legacy.get(step_key, step_key)
-    return SETUP_STEP_KEYS.index(step_key) if step_key in SETUP_STEP_KEYS else 0
-
-
-def setup_area_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
-    df = active_online_df(read_online_table(sheet_id, "areas"))
-    options: list[str] = []
-    mapping: dict[str, dict[str, str]] = {}
-    for _, row in df.iterrows():
-        label = str(row.get("area_name", "") or "").strip()
-        if not label:
-            continue
-        options.append(label)
-        mapping[label] = {"area_id": str(row.get("area_id", "") or ""), "area_name": label}
-    return options, mapping
-
-
-def setup_goal_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
-    df = active_online_df(read_online_table(sheet_id, "goals"))
-    options: list[str] = []
-    mapping: dict[str, dict[str, str]] = {}
-    for _, row in df.iterrows():
-        label = str(row.get("title", "") or "").strip()
-        if not label:
-            continue
-        options.append(label)
-        mapping[label] = {
-            "goal_id": str(row.get("goal_id", "") or ""),
-            "area_id": str(row.get("area_id", "") or ""),
-            "area_name": str(row.get("area_name", "") or ""),
-        }
-    return options, mapping
-
-
-def setup_routine_options(sheet_id: str) -> tuple[list[str], dict[str, dict[str, str]]]:
-    df = active_online_df(read_online_table(sheet_id, "routines"))
-    options: list[str] = []
-    mapping: dict[str, dict[str, str]] = {}
-    for _, row in df.iterrows():
-        label = str(row.get("title", "") or "").strip()
-        if not label:
-            continue
-        options.append(label)
-        mapping[label] = {
-            "routine_id": str(row.get("routine_id", "") or ""),
-            "area_id": str(row.get("area_id", "") or ""),
-            "area_name": str(row.get("area_name", "") or ""),
-        }
-    return options, mapping
-
-
-def setup_next_step(sheet_id: str, current_idx: int) -> tuple[bool, str]:
-    if current_idx >= len(SETUP_STEPS) - 1:
-        return save_setup_state(sheet_id, completed=True, current_step=SETUP_STEPS[-1][0])
-    return save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx + 1][0])
-
-
-def setup_back_step(sheet_id: str, current_idx: int) -> tuple[bool, str]:
-    if current_idx > 0:
-        return save_setup_state(sheet_id, status="in_progress", current_step=SETUP_STEPS[current_idx - 1][0])
-    return True, "Already at the first setup step."
-
-
-def setup_skip_for_now() -> None:
-    st.session_state["skip_online_setup_for_session"] = True
-
-
-def display_first_of_next_month() -> str:
-    today = date.today()
-    year = today.year + (1 if today.month == 12 else 0)
-    month = 1 if today.month == 12 else today.month + 1
-    return date(year, month, 1).strftime("%d-%m-%Y")
-
-
-def render_colour_preview(label: str) -> None:
-    colour = GOOGLE_COLOUR_BY_LABEL.get(label, {"hex": "#7986CB", "name": label})
-    safe_name = html.escape(str(colour.get("name", label)))
-    safe_hex = html.escape(str(colour.get("hex", "#7986CB")))
-    st.markdown(
-        f"<div class='area-colour-preview' style='border-left-color:{safe_hex}'><span class='area-colour-dot' style='background:{safe_hex}'></span><span>Selected calendar colour: <strong>{safe_name}</strong></span></div>",
-        unsafe_allow_html=True,
-    )
-
-
-def render_setup_focus_step(sheet_id: str) -> None:
-    current_focus = online_setting(sheet_id, "weekly_focus", "")
-    st.markdown("""
-    <div class='setup-example'><strong>Example:</strong> This week, protect sleep and make time for one small sketching action.</div>
-    """, unsafe_allow_html=True)
-    st.write("Choose a simple focus for the week. It helps you decide what belongs in the calendar first, before the system fills with details.")
-    with st.form("setup_focus_form"):
-        focus = st.text_area("Main focus for this week", value=current_focus, placeholder="For example, protect sleep and make time for one sketching action.", height=90)
-        save = st.form_submit_button("Save weekly focus", use_container_width=True)
-    if save:
-        if not focus.strip():
-            st.warning("Add a short weekly focus before saving, or move to the next step and come back later.")
-        else:
-            ok, message = save_online_setting(sheet_id, "weekly_focus", focus.strip())
-            if ok:
-                st.success("Weekly focus saved.")
-            else:
-                st.warning(safe_user_message(message))
-
-
-def render_setup_area_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Example Area:</strong> Body and Stability — sleep, movement, health appointments and routines that support energy.</div>
-    """, unsafe_allow_html=True)
-    name = st.text_input("Area name", placeholder="For example, Body and Stability", key="setup_area_name")
-    description = st.text_area("What belongs here?", placeholder="Sleep, movement, strength, mobility, health appointments and routines that support energy.", height=90, key="setup_area_description")
-    colour_label = st.selectbox("Calendar colour", GOOGLE_COLOUR_LABELS, index=1, key="setup_area_colour", help="Areas form the basis for calendar grouping.")
-    render_colour_preview(st.session_state.get("setup_area_colour", colour_label))
-    if st.button("Save this Area", use_container_width=True, key="setup_area_save"):
-        if not name.strip():
-            st.warning("Add an Area name before saving.")
-        else:
-            chosen_colour = st.session_state.get("setup_area_colour", colour_label)
-            colour = GOOGLE_COLOUR_BY_LABEL.get(chosen_colour, {}).get("code", chosen_colour)
-            ok, message = append_online_record(sheet_id, "areas", {
-                "area_id": f"area-{uuid.uuid4().hex}",
-                "area_name": name.strip(),
-                "description": description.strip(),
-                "colour": colour,
-                "status": "active",
-                "default_calendar": name.strip(),
-                "default_task_list": "Pathmark",
-            })
-            if ok:
-                st.success("Area saved. You can add more Areas now or continue to routines.")
-            else:
-                st.warning(safe_user_message(message))
-            if ok:
-                st.rerun()
-
-
-def render_setup_routine_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Example routine container:</strong> Strength training. <strong>Example routine activities:</strong> Strength training A on Monday, Strength training B on Tuesday.</div>
-    """, unsafe_allow_html=True)
-    st.write("Create a routine container, then add one or more routine activities. The activities are what feed the tasklist, Google Calendar blocks and Google Tasks first-step prompts.")
-    render_routine_manager(sheet_id)
-
-
-def render_setup_goal_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>SMART-style example:</strong> Build a sketching habit by completing three beginner exercises by the first day of next month.</div>
-    """, unsafe_allow_html=True)
-    st.write("Set up the goal or project as the container. Then add goal activities as one-off steps. Recurring work belongs under Routines.")
-    render_goal_manager(sheet_id)
-
-
-def render_setup_action_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Example goal activity:</strong> Purchase a beginner sketching guide. <strong>First-step prompt:</strong> search for one beginner guide and save two options.</div>
-    """, unsafe_allow_html=True)
-    st.write("Goal activities are usually one-off steps. If the same work repeats, create it as a routine activity instead.")
-    goal_options, goal_map = setup_goal_options(sheet_id)
-    if not goal_options:
-        st.info("Create at least one goal first, then add the next one or two goal activities that would move it forward.")
-        return
-    goal_label = st.selectbox("Choose the goal to add an activity to", goal_options, key="setup_goal_activity_parent")
-    goal = goal_map.get(goal_label, {})
-    _action_form(
-        sheet_id,
-        goal_id=str(goal.get("goal_id", "")),
-        default_area=str(goal.get("area_name", "")),
-        form_key=f"setup_goal_activity_{goal.get('goal_id', 'new')}",
-    )
-
-def render_setup_review_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Why this comes early:</strong> The Review Queue is Pathmark's safety check. It helps you spot missing links before you export anything.</div>
-    """, unsafe_allow_html=True)
-    st.write("As you add Areas, routines, goals and actions, this page checks whether they have enough information to work together.")
-    render_review_queue_manager(sheet_id)
-
-
-def render_setup_tasklist_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Paper option:</strong> Use the tasklist when you prefer ticking things off by hand instead of using Google Tasks.</div>
-    """, unsafe_allow_html=True)
-    st.write("Select saved routine activities and goal actions. This uses the same tasklist builder you will use later.")
-    render_tasklist_manager(sheet_id)
-
-
-def render_setup_calendar_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Make time:</strong> Calendar export is how routines and goal actions become time blocks, rather than staying as intentions.</div>
-    """, unsafe_allow_html=True)
-    st.write("Preview and export the actions that are ready for your calendar. Exported items can then move to Archive so the active workspace stays clear.")
-    render_google_calendar_export_manager(sheet_id)
-
-
-def render_setup_tasks_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Start smaller:</strong> Google Tasks prompts are for the first tiny step: put on running shoes, open the sketchbook, or pack gym clothes.</div>
-    """, unsafe_allow_html=True)
-    st.write("Preview prompts from your saved routine activities and goal actions. These use the same Google Tasks export flow you will use later.")
-    render_google_tasks_export_manager(sheet_id)
-
-
-def render_setup_archive_step(sheet_id: str) -> None:
-    st.markdown("""
-    <div class='setup-example'><strong>Keep the workspace clear:</strong> Archive exported, completed or paused work so active Pathmark stays light enough to duck in and out of.</div>
-    """, unsafe_allow_html=True)
-    st.write("Archive does not have to mean gone forever. Restore an item if you decide it belongs back in the active workspace.")
-    render_archive_manager(sheet_id)
-
-
-def render_setup_step_safe(label: str, func, sheet_id: str) -> None:
+def _wizard_from_record(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
+    rec = {k: str(row.get(k, "") or "") for k in ONLINE_TABLES.get("wizard_drafts", [])}
+    answers: dict[str, Any] = {}
+    activities: dict[str, Any] = {}
     try:
-        func(sheet_id)
-    except Exception as exc:
-        st.warning(f"Pathmark could not open this setup step just now. Please refresh online data and try again.")
-        # Keep implementation details out of the user-facing setup flow. Full
-        # details remain available in Streamlit Cloud logs.
-        return
+        answers = json.loads(rec.get("answers_json", "") or "{}")
+    except Exception:
+        answers = {}
+    try:
+        activities = json.loads(rec.get("activity_drafts_json", "") or "{}")
+    except Exception:
+        activities = {}
+    draft = _new_wizard_draft(rec.get("wizard_type") or None)
+    draft.update({
+        "draft_id": rec.get("draft_id") or draft["draft_id"],
+        "wizard_type": rec.get("wizard_type") or draft.get("wizard_type", ""),
+        "current_step_key": rec.get("current_step_key") or "choose_type",
+        "status": rec.get("status") or "in_progress",
+        "created_at": rec.get("created_at") or utc_now_text(),
+        "updated_at": rec.get("updated_at") or utc_now_text(),
+        "saved_at": rec.get("saved_at") or "",
+    })
+    draft["area"].update(answers.get("area", {}) if isinstance(answers.get("area"), dict) else {})
+    draft["project"].update(answers.get("project", {}) if isinstance(answers.get("project"), dict) else {})
+    draft["routine"].update(answers.get("routine", {}) if isinstance(answers.get("routine"), dict) else {})
+    draft["project_steps"] = activities.get("project_steps", []) if isinstance(activities.get("project_steps"), list) else []
+    draft["routine_activities"] = activities.get("routine_activities", []) if isinstance(activities.get("routine_activities"), list) else []
+    return draft
 
-def render_setup_pathway_primary(sheet_id: str) -> None:
-    state = get_setup_state(sheet_id)
-    current_idx = setup_step_index(state["current_step"])
-    key, name, desc = SETUP_STEPS[current_idx]
 
-    st.markdown("<div class='setup-step-label'>Guided setup</div>", unsafe_allow_html=True)
-    st.markdown("## Set up Pathmark")
-    st.write("Work through the real Pathmark flow once. You can edit anything later, skip setup, or return to this guide from Settings.")
+def _save_wizard_draft(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]:
+    draft["updated_at"] = utc_now_text()
+    record = _wizard_to_record(draft)
+    existing = read_online_table(sheet_id, "wizard_drafts")
+    draft_id = str(record.get("draft_id", ""))
+    if not existing.empty and draft_id and existing["draft_id"].fillna("").astype(str).eq(draft_id).any():
+        return update_online_record(sheet_id, "wizard_drafts", draft_id, record)
+    return append_online_record(sheet_id, "wizard_drafts", record)
 
-    progress = (current_idx + 1) / max(len(SETUP_STEPS), 1)
-    pct = round(min(max(progress, 0), 1) * 100)
-    st.markdown(f"<div class='setup-progress-wrap'><div class='setup-progress-fill' style='width:{pct}%'></div></div>", unsafe_allow_html=True)
-    st.caption(f"Step {current_idx + 1} of {len(SETUP_STEPS)} · {name}")
 
-    nav_left, setup_body, nav_right = st.columns([0.07, 0.86, 0.07], gap="small")
-    with nav_left:
-        st.markdown("<div class='setup-side-arrow'></div>", unsafe_allow_html=True)
-        if current_idx > 0:
-            if st.button("‹", use_container_width=True, key=f"setup_back_{key}", help="Back"):
-                setup_back_step(sheet_id, current_idx)
-                st.rerun()
-        else:
-            st.button("‹", use_container_width=True, disabled=True, key=f"setup_back_disabled_{key}", help="Back")
-    with setup_body:
-        st.markdown("<div class='setup-working-card'>", unsafe_allow_html=True)
-        st.markdown(f"### {name}")
-        st.write(desc)
+def _latest_wizard_draft(sheet_id: str) -> dict[str, Any] | None:
+    drafts = read_online_table(sheet_id, "wizard_drafts")
+    if drafts.empty:
+        return None
+    active = drafts[drafts.get("status", pd.Series(dtype=str)).fillna("").str.lower().eq("in_progress")]
+    if active.empty:
+        return None
+    active = active.copy()
+    active["_updated"] = pd.to_datetime(active.get("updated_at", ""), errors="coerce")
+    active = active.sort_values("_updated", ascending=False)
+    return _wizard_from_record(active.iloc[0])
 
-        if key == "focus":
-            render_setup_step_safe("focus", render_setup_focus_step, sheet_id)
-        elif key == "review":
-            render_setup_step_safe("review", render_setup_review_step, sheet_id)
-        elif key == "areas":
-            render_setup_step_safe("areas", render_setup_area_step, sheet_id)
-        elif key == "routines":
-            render_setup_step_safe("routines", render_setup_routine_step, sheet_id)
-        elif key == "goals":
-            render_setup_step_safe("goals", render_setup_goal_step, sheet_id)
-        elif key == "actions":
-            render_setup_step_safe("actions", render_setup_action_step, sheet_id)
-        elif key == "tasklist":
-            render_setup_step_safe("tasklist", render_setup_tasklist_step, sheet_id)
-        elif key == "calendar":
-            render_setup_step_safe("calendar", render_setup_calendar_step, sheet_id)
-        elif key == "tasks":
-            render_setup_step_safe("tasks", render_setup_tasks_step, sheet_id)
-        elif key == "archive":
-            render_setup_step_safe("archive", render_setup_archive_step, sheet_id)
-        st.markdown("</div>", unsafe_allow_html=True)
-    with nav_right:
-        st.markdown("<div class='setup-side-arrow'></div>", unsafe_allow_html=True)
-        if current_idx < len(SETUP_STEPS) - 1:
-            if st.button("›", use_container_width=True, key=f"setup_next_{key}", help="Next"):
-                setup_next_step(sheet_id, current_idx)
-                st.rerun()
-        else:
-            if st.button("›", use_container_width=True, key="setup_continue_workspace", help="Continue to workspace"):
-                with st.spinner("Opening your workspace..."):
-                    save_setup_state(sheet_id, completed=True, current_step=key)
-                st.session_state["skip_online_setup_for_session"] = True
-                st.rerun()
-    st.caption("Use the right arrow to continue to the next setup step. The final arrow opens your workspace.")
-    st.markdown("<div class='setup-skip'></div>", unsafe_allow_html=True)
-    if st.button("Skip setup for now", use_container_width=True, key=f"setup_skip_{key}"):
-        setup_skip_for_now()
+
+def _wizard_state() -> dict[str, Any] | None:
+    draft = st.session_state.get("pathmark_creation_wizard")
+    return draft if isinstance(draft, dict) else None
+
+
+def _set_wizard_state(draft: dict[str, Any]) -> None:
+    st.session_state["pathmark_creation_wizard"] = draft
+
+
+def _clear_wizard_state() -> None:
+    st.session_state.pop("pathmark_creation_wizard", None)
+
+
+def _area_options(sheet_id: str) -> list[dict[str, str]]:
+    areas = active_online_df(read_online_table(sheet_id, "areas"))
+    rows = []
+    for _, r in areas.iterrows():
+        name = str(r.get("area_name", "") or "").strip()
+        if name:
+            rows.append({"area_id": str(r.get("area_id", "") or ""), "area_name": name, "colour": str(r.get("colour", "") or "")})
+    return rows
+
+
+def _wizard_area_ready(draft: dict[str, Any]) -> bool:
+    area = draft.get("area", {})
+    if area.get("mode") == "new":
+        return bool(str(area.get("area_name", "")).strip() and str(area.get("calendar_colour_name", "")).strip())
+    return bool(str(area.get("area_name", "")).strip())
+
+
+def _find_step_by_id(items: list[dict[str, Any]], id_key: str, item_id: str) -> dict[str, Any] | None:
+    for item in items:
+        if str(item.get(id_key, "")) == str(item_id):
+            return item
+    return None
+
+
+def _append_project_step(draft: dict[str, Any]) -> dict[str, Any]:
+    step = {
+        "step_id": f"step-{uuid.uuid4().hex}",
+        "title": "",
+        "calendar_date": date.today().isoformat(),
+        "calendar_start_time": "09:00",
+        "calendar_end_time": "10:00",
+        "ends_next_day": False,
+        "include_on_tasklist": True,
+        "has_helper_tasks": False,
+        "helper_tasks": [],
+    }
+    draft.setdefault("project_steps", []).append(step)
+    draft["current_step_id"] = step["step_id"]
+    draft["current_task_id"] = ""
+    return step
+
+
+def _append_routine_activity(draft: dict[str, Any]) -> dict[str, Any]:
+    activity = {
+        "activity_id": f"activity-{uuid.uuid4().hex}",
+        "title": "",
+        "calendar_start_time": "22:30",
+        "calendar_end_time": "06:30",
+        "ends_next_day": True,
+        "location": "",
+        "include_on_tasklist": True,
+        "has_helper_tasks": False,
+        "helper_tasks": [],
+    }
+    draft.setdefault("routine_activities", []).append(activity)
+    draft["current_activity_id"] = activity["activity_id"]
+    draft["current_task_id"] = ""
+    return activity
+
+
+def _append_helper_task(parent: dict[str, Any]) -> dict[str, Any]:
+    task = {"task_id": f"task-{uuid.uuid4().hex}", "title": "", "due": date.today().isoformat(), "task_kind": "helper"}
+    parent.setdefault("helper_tasks", []).append(task)
+    return task
+
+
+def _routine_rrule(routine: dict[str, Any]) -> str:
+    freq = str(routine.get("frequency", "Daily") or "Daily")
+    if freq == "Daily":
+        return "RRULE:FREQ=DAILY"
+    days = routine.get("preferred_days", []) or []
+    codes = [DAY_CODE.get(d, d) for d in days if d]
+    if codes:
+        return "RRULE:FREQ=WEEKLY;BYDAY=" + ",".join(codes)
+    if freq == "Weekly":
+        return "RRULE:FREQ=WEEKLY"
+    return "RRULE:FREQ=DAILY"
+
+
+def _routine_days_text(routine: dict[str, Any]) -> str:
+    freq = str(routine.get("frequency", "Daily") or "Daily")
+    if freq == "Daily":
+        return "Every day"
+    days = routine.get("preferred_days", []) or []
+    return ", ".join(days) if days else "Weekly"
+
+
+def _validate_project_step(step: dict[str, Any]) -> list[str]:
+    problems = []
+    if not str(step.get("title", "")).strip():
+        problems.append("Add a project step.")
+    if not _date_to_text(step.get("calendar_date")):
+        problems.append("Choose the day you will make time for this step.")
+    if not _time_to_text(step.get("calendar_start_time")):
+        problems.append("Choose a start time.")
+    if not _time_to_text(step.get("calendar_end_time")):
+        problems.append("Choose an end time.")
+    if _minutes_between(step.get("calendar_start_time", ""), step.get("calendar_end_time", ""), bool(step.get("ends_next_day"))) <= 0:
+        problems.append("End time must be after start time. Tick 'ends next day' for overnight time.")
+    return problems
+
+
+def _validate_routine_activity(activity: dict[str, Any]) -> list[str]:
+    problems = []
+    if not str(activity.get("title", "")).strip():
+        problems.append("Add a routine activity.")
+    if not _time_to_text(activity.get("calendar_start_time")):
+        problems.append("Choose a start time.")
+    if not _time_to_text(activity.get("calendar_end_time")):
+        problems.append("Choose an end time.")
+    if _minutes_between(activity.get("calendar_start_time", ""), activity.get("calendar_end_time", ""), bool(activity.get("ends_next_day"))) <= 0:
+        problems.append("End time must be after start time. Tick 'ends next day' for overnight time.")
+    return problems
+
+
+def _validate_helper_task(task: dict[str, Any]) -> list[str]:
+    problems = []
+    if not str(task.get("title", "")).strip():
+        problems.append("Add the checklist item text.")
+    if not _date_to_text(task.get("due")):
+        problems.append("Choose the date the checklist item should appear.")
+    return problems
+
+
+def _wizard_next_step(draft: dict[str, Any], current: str, answer: Any = None) -> str:
+    wt = draft.get("wizard_type")
+    if current == "choose_type":
+        return "choose_area"
+    if current == "choose_area":
+        if draft.get("area", {}).get("mode") == "new":
+            return "area_name"
+        return "project_title" if wt == "project" else "routine_title"
+    if current == "area_name":
+        return "area_colour"
+    if current == "area_colour":
+        return "area_review"
+    if current == "area_review":
+        return "project_title" if wt == "project" else "routine_title"
+    if wt == "project":
+        order = ["project_title", "project_reason", "project_done", "project_target", "project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice"]
+        if current in order:
+            if current == "project_helper_task_choice":
+                return "project_helper_task_item" if answer else "project_add_step"
+            return order[order.index(current)+1]
+        if current == "project_helper_task_item":
+            return "project_helper_task_due"
+        if current == "project_helper_task_due":
+            return "project_add_helper_task_item"
+        if current == "project_add_helper_task_item":
+            return "project_helper_task_item" if answer else "project_add_step"
+        if current == "project_add_step":
+            return "project_step_title" if answer else "project_review"
+    else:
+        order = ["routine_title", "routine_purpose", "routine_frequency"]
+        if current in order:
+            if current == "routine_frequency":
+                return "routine_days" if str(draft.get("routine", {}).get("frequency")) == "Selected days" else "routine_start_date"
+            return order[order.index(current)+1]
+        if current == "routine_days":
+            return "routine_start_date"
+        if current == "routine_start_date":
+            return "routine_activity_title"
+        order2 = ["routine_activity_title", "routine_calendar_start_time", "routine_calendar_end_time", "routine_calendar_location", "routine_helper_task_choice"]
+        if current in order2:
+            if current == "routine_helper_task_choice":
+                return "routine_helper_task_item" if answer else "routine_add_activity"
+            return order2[order2.index(current)+1]
+        if current == "routine_helper_task_item":
+            return "routine_helper_task_due"
+        if current == "routine_helper_task_due":
+            return "routine_add_helper_task_item"
+        if current == "routine_add_helper_task_item":
+            return "routine_helper_task_item" if answer else "routine_add_activity"
+        if current == "routine_add_activity":
+            return "routine_activity_title" if answer else "routine_review"
+    return current
+
+
+def _wizard_back_stack_key(draft_id: str) -> str:
+    return f"wizard_back_stack::{draft_id}"
+
+
+def _wizard_go(sheet_id: str, draft: dict[str, Any], next_step: str, push_current: bool = True) -> None:
+    current = draft.get("current_step_key", "choose_type")
+    if push_current and next_step != current:
+        stack_key = _wizard_back_stack_key(str(draft.get("draft_id", "")))
+        st.session_state.setdefault(stack_key, []).append(current)
+    draft["current_step_key"] = next_step
+    _set_wizard_state(draft)
+    _save_wizard_draft(sheet_id, draft)
+    st.rerun()
+
+
+def _wizard_back(sheet_id: str, draft: dict[str, Any]) -> None:
+    stack_key = _wizard_back_stack_key(str(draft.get("draft_id", "")))
+    stack = st.session_state.get(stack_key, [])
+    if stack:
+        draft["current_step_key"] = stack.pop()
+        st.session_state[stack_key] = stack
+        _set_wizard_state(draft)
+        _save_wizard_draft(sheet_id, draft)
         st.rerun()
 
-def render_setup_pathway(sheet_id: str) -> None:
-    """Compatibility wrapper retained for older calls."""
-    render_setup_pathway_primary(sheet_id)
+
+def _wizard_area_id(sheet_id: str, draft: dict[str, Any]) -> tuple[str, str, str]:
+    area = draft.get("area", {})
+    if area.get("mode") == "new":
+        name = str(area.get("area_name", "")).strip()
+        existing = find_area_id(sheet_id, name)
+        if existing:
+            return existing, name, str(area.get("calendar_colour_name", "") or "Sage")
+        area_id = f"area-{uuid.uuid4().hex}"
+        colour = str(area.get("calendar_colour_name", "") or "Sage")
+        append_online_record(sheet_id, "areas", {"area_id": area_id, "area_name": name, "description": "Created from the Pathmark creation wizard.", "colour": colour, "status": "Active", "default_calendar": name, "default_task_list": "Pathmark", "notes": "Created from the Pathmark creation wizard."})
+        return area_id, name, colour
+    name = str(area.get("area_name", "")).strip()
+    return str(area.get("area_id", "") or find_area_id(sheet_id, name)), name, str(area.get("calendar_colour_name", "") or "")
+
+
+def _append_task_prompt_records(sheet_id: str, prompts: list[dict[str, Any]]) -> tuple[bool, str]:
+    if not prompts:
+        return True, "No helper checklist items to save."
+    return append_many_online_records(sheet_id, {"task_prompts": prompts})
+
+
+def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]:
+    if not _wizard_area_ready(draft):
+        return False, "Choose or create an Area before saving."
+    area_id, area_name, _colour = _wizard_area_id(sheet_id, draft)
+    now = utc_now_text()
+    records: dict[str, list[dict[str, Any]]] = {"goals": [], "routines": [], "actions": [], "task_prompts": []}
+    if draft.get("wizard_type") == "project":
+        project = draft.get("project", {})
+        if not str(project.get("title", "")).strip() or not str(project.get("definition_of_done", "")).strip():
+            return False, "Project title and definition of done are required."
+        steps = draft.get("project_steps", []) or []
+        if not steps:
+            return False, "Add at least one project step before saving."
+        for step in steps:
+            problems = _validate_project_step(step)
+            if problems:
+                return False, " ".join(problems)
+        goal_id = f"goal-{uuid.uuid4().hex}"
+        records["goals"].append({"goal_id": goal_id, "area_id": area_id, "area_name": area_name, "title": str(project.get("title", "")).strip(), "description": str(project.get("reason", "")).strip(), "specific_area": "", "status": "Active", "target_date": _date_to_text(project.get("target_date")), "purpose": str(project.get("reason", "")).strip(), "desired_outcome": str(project.get("definition_of_done", "")).strip(), "closure_criteria": str(project.get("definition_of_done", "")).strip(), "notes": "Created from the Pathmark creation wizard."})
+        for idx, step in enumerate(steps, start=1):
+            action_id = f"action-{uuid.uuid4().hex}"
+            minutes = str(_minutes_between(step.get("calendar_start_time"), step.get("calendar_end_time"), bool(step.get("ends_next_day"))))
+            scheduled = _date_to_text(step.get("calendar_date"))
+            helper_titles = [str(t.get("title", "")).strip() for t in step.get("helper_tasks", []) if str(t.get("title", "")).strip()]
+            notes = "Created from the Pathmark creation wizard."
+            if bool(step.get("ends_next_day")):
+                notes += " Ends next day."
+            if helper_titles:
+                notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
+            title = str(step.get("title", "")).strip()
+            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_location": "", "notes": notes})
+            for task in step.get("helper_tasks", []) or []:
+                if str(task.get("title", "")).strip():
+                    records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or scheduled, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Helper checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
+    else:
+        routine = draft.get("routine", {})
+        if not str(routine.get("title", "")).strip():
+            return False, "Routine title is required."
+        if str(routine.get("frequency", "")) == "Selected days" and not routine.get("preferred_days"):
+            return False, "Choose at least one day for this routine."
+        activities = draft.get("routine_activities", []) or []
+        if not activities:
+            return False, "Add at least one routine activity before saving."
+        for activity in activities:
+            problems = _validate_routine_activity(activity)
+            if problems:
+                return False, " ".join(problems)
+        routine_id = f"routine-{uuid.uuid4().hex}"
+        preferred = ", ".join(routine.get("preferred_days", []) or [])
+        freq = str(routine.get("frequency") or "Daily")
+        start_date = _date_to_text(routine.get("start_date")) or date.today().isoformat()
+        records["routines"].append({"routine_id": routine_id, "area_id": area_id, "area_name": area_name, "title": str(routine.get("title", "")).strip(), "description": str(routine.get("purpose", "")).strip(), "frequency": "Daily" if freq == "Daily" else "Weekly", "preferred_days": preferred or ("Every day" if freq == "Daily" else ""), "duration_minutes": "", "status": "Active", "purpose": str(routine.get("purpose", "")).strip(), "next_due": start_date, "checklist": "", "notes": "Created from the Pathmark creation wizard."})
+        activity_days = preferred or ("Every day" if freq == "Daily" else "")
+        for activity in activities:
+            action_id = f"action-{uuid.uuid4().hex}"
+            minutes = str(_minutes_between(activity.get("calendar_start_time"), activity.get("calendar_end_time"), bool(activity.get("ends_next_day"))))
+            helper_titles = [str(t.get("title", "")).strip() for t in activity.get("helper_tasks", []) if str(t.get("title", "")).strip()]
+            notes = "Created from the Pathmark creation wizard."
+            if bool(activity.get("ends_next_day")):
+                notes += " Ends next day."
+            if helper_titles:
+                notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
+            title = str(activity.get("title", "")).strip()
+            records["actions"].append({"action_id": action_id, "goal_id": "", "routine_id": routine_id, "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Included", "priority": "Medium", "specific_area": "", "due_date": start_date, "scheduled_date": "", "activity_days": activity_days, "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(activity.get("calendar_start_time")), "calendar_end_time": _time_to_text(activity.get("calendar_end_time")), "calendar_location": str(activity.get("location", "")).strip(), "notes": notes})
+            for task in activity.get("helper_tasks", []) or []:
+                if str(task.get("title", "")).strip():
+                    records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or start_date, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "routine_activity", "linked_parent_id": routine_id, "linked_parent_type": "routine", "task_list": "Pathmark", "notes": f"Helper checklist item for routine activity: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
+    ok, msg = append_many_online_records(sheet_id, records)
+    if ok:
+        draft["status"] = "saved"
+        draft["saved_at"] = utc_now_text()
+        _save_wizard_draft(sheet_id, draft)
+        clear_online_cache(sheet_id)
+        return True, "Saved from the Pathmark creation wizard."
+    return ok, msg
+
+
+def render_pathmark_creation_wizard_entry(sheet_id: str) -> bool:
+    """Render the wizard entry/restore card. Return True when wizard is active."""
+    draft = _wizard_state()
+    if draft and draft.get("status") == "in_progress":
+        render_pathmark_creation_wizard(sheet_id)
+        return True
+    latest = _latest_wizard_draft(sheet_id)
+    st.markdown("### Design something new")
+    st.write("Use the Pathmark creation wizard to create a project or routine one question at a time. Pathmark will make time in your calendar, keep each step available for your weekly tasklist, and add each step or activity to Google Tasks as a checklist item.")
+    if latest:
+        label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
+        label = label or ("Project draft" if latest.get("wizard_type") == "project" else "Routine draft")
+        st.info(f"You have an unfinished Pathmark creation draft: {label}.")
+        c1, c2, c3 = st.columns(3)
+        if c1.button("Restore draft", use_container_width=True):
+            _set_wizard_state(latest)
+            st.rerun()
+        if c2.button("Discard draft", use_container_width=True):
+            latest["status"] = "discarded"
+            _save_wizard_draft(sheet_id, latest)
+            _clear_wizard_state()
+            st.rerun()
+        if c3.button("Start new", use_container_width=True):
+            _set_wizard_state(_new_wizard_draft())
+            st.rerun()
+    else:
+        if st.button("Start Pathmark creation wizard", use_container_width=True):
+            _set_wizard_state(_new_wizard_draft())
+            st.rerun()
+    return False
+
+
+def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, next_step: str | None = None, next_answer: Any = None) -> tuple[bool, bool]:
+    back_col, mid_col, next_col = st.columns([0.15, 0.70, 0.15])
+    with back_col:
+        go_back = st.button("‹", key=f"wiz_back_{draft.get('current_step_key')}", use_container_width=True, disabled=not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), [])), help="Back")
+    with mid_col:
+        st.caption("Use the side arrows to move back and forward. Required questions must be completed before you can continue.")
+    with next_col:
+        go_next = st.button("›", key=f"wiz_next_{draft.get('current_step_key')}", use_container_width=True, disabled=not can_next, help="Next")
+    if go_back:
+        _wizard_back(sheet_id, draft)
+    if go_next:
+        if next_step is None:
+            next_step = _wizard_next_step(draft, draft.get("current_step_key", "choose_type"), next_answer)
+        _wizard_go(sheet_id, draft, next_step, push_current=True)
+    return go_back, go_next
+
+
+def render_pathmark_creation_wizard(sheet_id: str) -> None:
+    draft = _wizard_state() or _new_wizard_draft()
+    step = draft.get("current_step_key", "choose_type")
+    st.markdown("### Pathmark creation wizard")
+    st.markdown("<div class='guide-box'><strong>Projects have a definition of done. Routines repeat.</strong><br>Pathmark helps you decide what matters, then make time for it.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='step-card'>", unsafe_allow_html=True)
+
+    if step == "choose_type":
+        st.subheader("What are you creating?")
+        st.caption("ⓘ Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
+        choice = st.radio("Choose one", ["Project", "Routine"], horizontal=True, index=0 if draft.get("wizard_type") != "routine" else 1)
+        draft["wizard_type"] = "project" if choice == "Project" else "routine"
+        _set_wizard_state(draft)
+        _render_wizard_nav(sheet_id, draft, bool(choice))
+
+    elif step == "choose_area":
+        st.subheader("Which area of your life does this belong to?")
+        st.caption("ⓘ Areas help Pathmark keep similar projects and routines together. This area can also become the Google Calendar grouping or subcalendar where you place related time in your calendar.")
+        options = _area_options(sheet_id)
+        names = [o["area_name"] for o in options]
+        choices = names + ["+ Add a new area"]
+        existing = draft.get("area", {}).get("area_name", "")
+        idx = choices.index(existing) if existing in choices else (len(choices)-1 if not names else 0)
+        selected = st.selectbox("Area", choices, index=idx)
+        if selected == "+ Add a new area":
+            draft["area"].update({"mode": "new", "area_id": "", "area_name": ""})
+        else:
+            match = next((o for o in options if o["area_name"] == selected), {})
+            colour = normalise_google_colour_label(match.get("colour", "Sage")) if 'normalise_google_colour_label' in globals() else (match.get("colour") or "Sage")
+            draft["area"].update({"mode": "existing", "area_id": match.get("area_id", ""), "area_name": selected, "calendar_colour_name": colour})
+        _set_wizard_state(draft)
+        _render_wizard_nav(sheet_id, draft, _wizard_area_ready(draft))
+
+    elif step in {"area_name", "area_colour", "area_review"}:
+        area = draft.setdefault("area", {"mode": "new"})
+        if step == "area_name":
+            st.subheader("What should this area be called?")
+            st.caption("ⓘ Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
+            area["area_name"] = st.text_input("Area name", value=str(area.get("area_name", "")), placeholder="Body and Stability")
+            _set_wizard_state(draft)
+            _render_wizard_nav(sheet_id, draft, bool(str(area.get("area_name", "")).strip()))
+        elif step == "area_colour":
+            st.subheader("What calendar colour should this area use?")
+            current = str(area.get("calendar_colour_name", "Sage") or "Sage")
+            idx = GOOGLE_COLOUR_LABELS.index(current) if current in GOOGLE_COLOUR_LABELS else 1
+            colour = st.selectbox("Calendar colour", GOOGLE_COLOUR_LABELS, index=idx)
+            area["calendar_colour_name"] = colour
+            area["calendar_colour_id"] = GOOGLE_COLOUR_BY_LABEL.get(colour, {}).get("code", "2")
+            hx = GOOGLE_COLOUR_BY_LABEL.get(colour, {}).get("hex", "#33B679")
+            st.markdown(f"<div style='border-left: 12px solid {hx}; padding: 0.6rem 0.8rem; border-radius: 0.6rem; background: var(--secondary-background-color);'>Selected colour: <strong>{html.escape(colour)}</strong></div>", unsafe_allow_html=True)
+            _set_wizard_state(draft)
+            _render_wizard_nav(sheet_id, draft, True)
+        else:
+            st.subheader("Review this area")
+            st.write(f"Area: **{area.get('area_name','')}**")
+            st.write(f"Calendar colour: **{area.get('calendar_colour_name','Sage')}**")
+            _render_wizard_nav(sheet_id, draft, True)
+
+    elif step.startswith("project_"):
+        render_project_wizard_step(sheet_id, draft, step)
+    elif step.startswith("routine_"):
+        render_routine_wizard_step(sheet_id, draft, step)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.button("Cancel wizard", use_container_width=True):
+        st.session_state["wizard_cancel_confirm"] = True
+    if st.session_state.get("wizard_cancel_confirm"):
+        st.warning("Do you want to keep this draft for later?")
+        c1, c2, c3 = st.columns(3)
+        if c1.button("Keep draft", use_container_width=True):
+            draft["status"] = "in_progress"
+            _save_wizard_draft(sheet_id, draft)
+            _clear_wizard_state()
+            st.session_state.pop("wizard_cancel_confirm", None)
+            st.rerun()
+        if c2.button("Discard draft", use_container_width=True):
+            draft["status"] = "discarded"
+            _save_wizard_draft(sheet_id, draft)
+            _clear_wizard_state()
+            st.session_state.pop("wizard_cancel_confirm", None)
+            st.rerun()
+        if c3.button("Continue editing", use_container_width=True):
+            st.session_state.pop("wizard_cancel_confirm", None)
+            st.rerun()
+
+
+def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) -> None:
+    project = draft.setdefault("project", {})
+    if step == "project_title":
+        st.subheader("What project do you want to move forward?")
+        project["title"] = st.text_input("Project", value=str(project.get("title", "")), placeholder="Complete a beginner sketching course")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("title", "").strip()))
+    elif step == "project_reason":
+        st.subheader("Why does this project matter?")
+        project["reason"] = st.text_area("Why it matters", value=str(project.get("reason", "")), placeholder="I want to sketch stronger pottery forms before decorating them.")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step == "project_done":
+        st.subheader("What would “done” look like?")
+        project["definition_of_done"] = st.text_area("Definition of done", value=str(project.get("definition_of_done", "")), placeholder="I have completed 10 exercises and saved the sketches in my design folder.")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("definition_of_done", "").strip()))
+    elif step == "project_target":
+        st.subheader("When would you like this project to be done?")
+        use_date = st.checkbox("Add a target date", value=bool(project.get("target_date")))
+        if use_date:
+            project["target_date"] = st.date_input("Target date", value=_text_to_date(project.get("target_date"))).isoformat()
+            project["target_label"] = ""
+        else:
+            project["target_date"] = ""
+            project["target_label"] = st.text_input("Target timeframe", value=str(project.get("target_label", "")), placeholder="By the first day of next month")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step in {"project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice", "project_helper_task_item", "project_helper_task_due", "project_add_helper_task_item", "project_add_step"}:
+        if not draft.get("current_step_id") or _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) is None:
+            _append_project_step(draft)
+        current = _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) or draft["project_steps"][-1]
+        if step == "project_step_title":
+            st.subheader("What is the first or next step in your project?")
+            st.caption("Project steps are distinct one-off actions. If something needs to repeat, create it as a routine instead.")
+            current["title"] = st.text_input("Project step", value=str(current.get("title", "")), placeholder="Choose a beginner sketching guide")
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
+        elif step == "project_calendar_date":
+            st.subheader("What day will you make time for this step?")
+            current["calendar_date"] = st.date_input("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "project_calendar_start_time":
+            st.subheader("What time will you start?")
+            current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(9,0))))
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "project_calendar_end_time":
+            st.subheader("What time will you finish?")
+            current["calendar_end_time"] = _time_to_text(st.time_input("End time", value=_text_to_time(current.get("calendar_end_time"), time(10,0))))
+            current["ends_next_day"] = st.checkbox("This ends the next day", value=bool(current.get("ends_next_day")))
+            problems = _validate_project_step(current)
+            for p in problems: st.warning(p)
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
+        elif step == "project_helper_task_choice":
+            st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
+            st.caption("ⓘ Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as “put sketchbook on desk” or “open the course page”.")
+            choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
+            current["has_helper_tasks"] = choice == "Yes"
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_answer=current["has_helper_tasks"])
+        elif step == "project_helper_task_item":
+            if not current.get("helper_tasks") or not draft.get("current_task_id"):
+                task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
+            task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current["helper_tasks"][-1]
+            st.subheader("What extra checklist item would help you begin or prepare?")
+            task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="Put sketchbook on the desk")
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
+        elif step == "project_helper_task_due":
+            task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
+            st.subheader("What date should this checklist item appear?")
+            st.caption("ⓘ Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(current.get("calendar_date")))).isoformat()
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "project_add_helper_task_item":
+            st.subheader("Would you like to add another helper checklist item for this step?")
+            choice = st.radio("Add another helper item?", ["No", "Yes"], horizontal=True)
+            if choice == "Yes" and st.button("Add another helper item", use_container_width=True):
+                task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
+                _wizard_go(sheet_id, draft, "project_helper_task_item")
+            elif choice == "No":
+                _render_wizard_nav(sheet_id, draft, True, next_step="project_add_step", next_answer=False)
+        elif step == "project_add_step":
+            st.subheader("Would you like to add another project step?")
+            choice = st.radio("Add another project step?", ["No", "Yes"], horizontal=True)
+            if choice == "Yes" and st.button("Add another project step", use_container_width=True):
+                _append_project_step(draft); _wizard_go(sheet_id, draft, "project_step_title")
+            elif choice == "No":
+                _render_wizard_nav(sheet_id, draft, True, next_step="project_review", next_answer=False)
+    elif step == "project_review":
+        render_wizard_review(sheet_id, draft)
+
+
+def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) -> None:
+    routine = draft.setdefault("routine", {})
+    if step == "routine_title":
+        st.subheader("What routine do you want to protect?")
+        routine["title"] = st.text_input("Routine", value=str(routine.get("title", "")), placeholder="Sleep 8 hours a night")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(routine.get("title", "").strip()))
+    elif step == "routine_purpose":
+        st.subheader("What is this routine meant to support?")
+        routine["purpose"] = st.text_area("Purpose", value=str(routine.get("purpose", "")), placeholder="Better energy, mood and concentration.")
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step == "routine_frequency":
+        st.subheader("How often should this routine repeat?")
+        current = str(routine.get("frequency", "Daily") or "Daily")
+        idx = WIZARD_FREQ_OPTIONS.index(current) if current in WIZARD_FREQ_OPTIONS else 0
+        routine["frequency"] = st.selectbox("Repeat", WIZARD_FREQ_OPTIONS, index=idx)
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step == "routine_days":
+        st.subheader("Which days should it repeat?")
+        routine["preferred_days"] = st.multiselect("Days", VALID_DAYS, default=[d for d in routine.get("preferred_days", []) if d in VALID_DAYS])
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(routine.get("preferred_days")))
+    elif step == "routine_start_date":
+        st.subheader("When should this routine start?")
+        routine["start_date"] = st.date_input("Start date", value=_text_to_date(routine.get("start_date"))).isoformat()
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step in {"routine_activity_title", "routine_calendar_start_time", "routine_calendar_end_time", "routine_calendar_location", "routine_helper_task_choice", "routine_helper_task_item", "routine_helper_task_due", "routine_add_helper_task_item", "routine_add_activity"}:
+        if not draft.get("current_activity_id") or _find_step_by_id(draft.get("routine_activities", []), "activity_id", draft.get("current_activity_id")) is None:
+            _append_routine_activity(draft)
+        current = _find_step_by_id(draft.get("routine_activities", []), "activity_id", draft.get("current_activity_id")) or draft["routine_activities"][-1]
+        if step == "routine_activity_title":
+            st.subheader("What activity belongs inside this routine?")
+            st.caption("The routine sets the repeat pattern. Each activity inside it repeats according to that pattern, but can have its own start and end time.")
+            current["title"] = st.text_input("Routine activity", value=str(current.get("title", "")), placeholder="Sleep")
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
+        elif step == "routine_calendar_start_time":
+            st.subheader("What time will this activity start?")
+            current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(22,30))))
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "routine_calendar_end_time":
+            st.subheader("What time will this activity finish?")
+            current["calendar_end_time"] = _time_to_text(st.time_input("End time", value=_text_to_time(current.get("calendar_end_time"), time(6,30))))
+            current["ends_next_day"] = st.checkbox("This ends the next day", value=bool(current.get("ends_next_day", True)))
+            problems = _validate_routine_activity(current)
+            for p in problems: st.warning(p)
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
+        elif step == "routine_calendar_location":
+            st.subheader("Where does this happen?")
+            current["location"] = st.text_input("Location", value=str(current.get("location", "")), placeholder="Bedroom")
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "routine_helper_task_choice":
+            st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
+            st.caption("ⓘ Pathmark will already add the routine activity itself to Google Tasks as a checklist item. For sleep, a helper checklist item might be “no screen time three hours before bed”, “dim the lights”, or “put phone outside the bedroom”.")
+            choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
+            current["has_helper_tasks"] = choice == "Yes"
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_answer=current["has_helper_tasks"])
+        elif step == "routine_helper_task_item":
+            if not current.get("helper_tasks") or not draft.get("current_task_id"):
+                task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
+            task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current["helper_tasks"][-1]
+            st.subheader("What extra checklist item would help you begin or prepare?")
+            task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="No screen time three hours before bed")
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
+        elif step == "routine_helper_task_due":
+            task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
+            st.subheader("When should this checklist item appear?")
+            st.caption("ⓘ Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(routine.get("start_date")))).isoformat()
+            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+        elif step == "routine_add_helper_task_item":
+            st.subheader("Would you like to add another helper checklist item for this activity?")
+            choice = st.radio("Add another helper item?", ["No", "Yes"], horizontal=True)
+            if choice == "Yes" and st.button("Add another helper item", use_container_width=True):
+                task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
+                _wizard_go(sheet_id, draft, "routine_helper_task_item")
+            elif choice == "No":
+                _render_wizard_nav(sheet_id, draft, True, next_step="routine_add_activity", next_answer=False)
+        elif step == "routine_add_activity":
+            st.subheader("Would you like to add another activity to this routine?")
+            choice = st.radio("Add another routine activity?", ["No", "Yes"], horizontal=True)
+            if choice == "Yes" and st.button("Add another routine activity", use_container_width=True):
+                _append_routine_activity(draft); _wizard_go(sheet_id, draft, "routine_activity_title")
+            elif choice == "No":
+                _render_wizard_nav(sheet_id, draft, True, next_step="routine_review", next_answer=False)
+    elif step == "routine_review":
+        render_wizard_review(sheet_id, draft)
+
+
+def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
+    wt = draft.get("wizard_type")
+    st.subheader("Review before saving")
+    area = draft.get("area", {})
+    st.write(f"Area: **{area.get('area_name','')}**")
+    if wt == "project":
+        project = draft.get("project", {})
+        st.markdown(f"### Project\n**{html.escape(str(project.get('title','')))}**")
+        st.write(f"Definition of done: {project.get('definition_of_done','')}")
+        st.markdown("#### Project steps")
+        for i, step in enumerate(draft.get("project_steps", []), start=1):
+            due = _date_to_text(step.get("calendar_date"))
+            st.write(f"{i}. **{step.get('title','')}** — {display_date(due) if 'display_date' in globals() else due}, {_format_time_range(step.get('calendar_start_time'), step.get('calendar_end_time'), bool(step.get('ends_next_day')))}")
+            st.caption("Google Tasks checklist item: " + str(step.get("title", "")))
+            helpers = [t.get("title", "") for t in step.get("helper_tasks", []) if t.get("title")]
+            if helpers:
+                st.caption("Helper checklist items: " + "; ".join(helpers))
+        if st.button("Save project", use_container_width=True):
+            ok, msg = _final_save_wizard(sheet_id, draft)
+            if ok:
+                st.success(msg); _clear_wizard_state(); st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
+        _render_wizard_nav(sheet_id, draft, False)
+    else:
+        routine = draft.get("routine", {})
+        st.markdown(f"### Routine\n**{html.escape(str(routine.get('title','')))}**")
+        st.write(f"Repeats: {_routine_days_text(routine)}")
+        st.markdown("#### Routine activities")
+        for i, activity in enumerate(draft.get("routine_activities", []), start=1):
+            st.write(f"{i}. **{activity.get('title','')}** — {_format_time_range(activity.get('calendar_start_time'), activity.get('calendar_end_time'), bool(activity.get('ends_next_day')))}")
+            st.caption("Google Tasks checklist item: " + str(activity.get("title", "")))
+            helpers = [t.get("title", "") for t in activity.get("helper_tasks", []) if t.get("title")]
+            if helpers:
+                st.caption("Helper checklist items: " + "; ".join(helpers))
+        if st.button("Save routine", use_container_width=True):
+            ok, msg = _final_save_wizard(sheet_id, draft)
+            if ok:
+                st.success(msg); _clear_wizard_state(); st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
+        _render_wizard_nav(sheet_id, draft, False)
+
 
 def render_online_overview(sheet_id: str) -> None:
     st.subheader("Home")
@@ -4953,16 +5462,19 @@ def render_online_overview(sheet_id: str) -> None:
         else:
             st.warning(safe_user_message(message))
 
+    if render_pathmark_creation_wizard_entry(sheet_id):
+        return
+
     st.markdown("""
     <div class="guide-box"><strong>Your active workspace.</strong><br>
-    Pathmark is designed so you can duck in and out: keep active routines, routine activities and goal activities visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
+    Pathmark is designed so you can duck in and out: keep active routines, routine activities and project steps visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("Use Settings to revisit guided setup, or start by creating an Area, then routines, then goals.")
+        st.info("Start with the Pathmark creation wizard above. It will help you create an Area, then build either a Project or a Routine from start to finish.")
     st.markdown("""
     <div class="grid-3">
-      <div class="process-card"><h4>Make time</h4><p>Calendar exports turn routines and goal actions into time blocks rather than leaving them as vague intentions.</p></div>
-      <div class="process-card"><h4>Start smaller</h4><p>Google Tasks prompts can be written as the first tiny step, such as putting on running shoes or opening the sketchbook.</p></div>
+      <div class="process-card"><h4>Make time</h4><p>Pathmark turns routine activities and project steps into time in your calendar rather than leaving them as vague intentions.</p></div>
+      <div class="process-card"><h4>Start smaller</h4><p>Google Tasks checklist items can hold the activity itself, plus small helper items such as putting out gym clothes or opening the sketchbook.</p></div>
       <div class="process-card"><h4>Keep it clear</h4><p>Move exported or completed items to Archive, then restore them if you need them again.</p></div>
     </div>
     """, unsafe_allow_html=True)
@@ -4977,12 +5489,12 @@ def download_tab() -> None:
       <div class="eyebrow">Routines. Prompts. Progress.</div>
       <h1>Pathmark</h1>
       <p class="lead">Make time for routines, keep goals moving, and start the next action with less friction.</p>
-      <p class="sublead">Pathmark helps you put routines and goal actions into your calendar, then create Google Tasks prompts or a printable tasklist so the day has a clear first step.</p>
+      <p class="sublead">Pathmark helps you put routines and project steps into your calendar, then create Google Tasks prompts or a printable tasklist so the day has a clear first step.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Put it in the calendar</h3><p>Routine activities and goal activities become calendar blocks, so the work has a real place in the week.</p></div>
+      <div class="card"><h3>Put it in the calendar</h3><p>Routine activities and project steps become calendar blocks, so the work has a real place in the week.</p></div>
       <div class="card"><h3>Keep goals from drifting</h3><p>Track competing goals and interests in one place, then define only the next one or two useful actions.</p></div>
       <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks prompts for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
     </div>
@@ -5110,7 +5622,7 @@ def about_privacy_tab() -> None:
         Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets, outside the GitHub repository.
 
         **Supabase**  
-        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Supabase does not store your goals, routines, tasklists, calendar rows or private planning content.
+        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Supabase does not store your projects, routines, tasklists, calendar rows or private planning content.
 
         **GitHub**  
         Stores code, release packages, documentation and database migration files. The release package has been checked so it does not contain private planning sheets, Workspace folders, Google OAuth tokens, Supabase secret keys or Google client secrets.
@@ -5177,10 +5689,8 @@ def on_the_go_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
-    setup_state = get_setup_state(sheet_id)
-    if setup_state.get("status") != "completed" and not st.session_state.get("skip_online_setup_for_session"):
-        render_setup_pathway_primary(sheet_id)
-        return
+    # Pathmark Online opens directly to the workspace. The Pathmark creation
+    # wizard is the main first-run and ongoing creation flow.
 
     sections = st.tabs([
         "Home",
@@ -5266,7 +5776,7 @@ def developer_tab() -> None:
     """)
     actor = current_user().get("email", "")
     if supabase_available():
-        st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark goals, routines, task prompts, Workspace files, or on-the-go planning entries.")
+        st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark projects, routines, task prompts, Workspace files, or on-the-go planning entries.")
     else:
         st.info("Persistent role management is not configured yet. Bootstrap developer and beta access can still be supplied through Streamlit secrets, but role assignments cannot be saved from this page until Supabase is configured.")
         with st.expander("Supabase access-layer setup", expanded=True):
@@ -5375,7 +5885,7 @@ def developer_tab() -> None:
         - **Supabase access records** decide whether that verified user is standard, beta tester, developer, active, or disabled.
         - **User-owned Google sync sheets** are separate and are used only for on-the-go planning captures when the user authorises them.
 
-        Supabase should not store goals, routines, Google Tasks prompts, calendar blocks, Workspace files, or other private planning content at this stage.
+        Supabase should not store projects, routines, Google Tasks prompts, calendar blocks, Workspace files, or other private planning content at this stage.
         """)
 
 

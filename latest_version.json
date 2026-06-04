@@ -1,21 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.13",
+  "version": "0.6.14",
   "release_date": "2026-06-04",
   "notes": [
-    "Added a unified Pathmark creation wizard on the Pathmark Online home screen.",
-    "Wizard starts by asking whether the user is creating a Project or Routine, with user-facing information icons for the distinction.",
-    "Projects create one-off project steps; routines create repeating activities using the routine-level repeat pattern.",
-    "Calendar timing is mandatory for every wizard-created step or activity, using start and end time with next-day support.",
-    "Each wizard-created step/activity is automatically available for the weekly tasklist and Google Tasks checklist export.",
-    "Added optional helper Google Tasks checklist items, with one row per helper item and safe append logic for repeated loops.",
-    "Added wizard_drafts storage so interrupted progress can be restored from the Pathmark Online home screen."
+    "Retired the guided setup gate from Pathmark Online.",
+    "Pathmark Online now opens directly to the normal workspace after Google Sheets preparation.",
+    "The Pathmark creation wizard on Home replaces setup as the main first-run and ongoing creation flow.",
+    "Settings now points users to the Creation wizard and any unfinished wizard draft instead of offering guided setup controls.",
+    "Updated Home wording so empty workspaces direct users to the creation wizard rather than setup."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_13.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_14.zip",
   "mac_package": "",
-  "release": "v0.6.13 Creation wizard beta",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_13.zip",
-  "release_name": "Creation wizard beta",
-  "release_notes": "Adds a unified Pathmark creation wizard for projects and routines, with draft restore, required calendar timing, automatic tasklist and Google Tasks checklist rows, optional helper checklist items, and safe loop handling so repeated entries append rather than overwrite.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_13.zip"
+  "release": "v0.6.14 Creation wizard replaces setup",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_14.zip",
+  "release_name": "Creation wizard replaces setup",
+  "release_notes": "Retires the guided setup gate. Pathmark Online now opens directly to the workspace, with the Pathmark creation wizard on Home replacing setup as the first-run and ongoing flow for creating Projects and Routines.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_14.zip"
 }
