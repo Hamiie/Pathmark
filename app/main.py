@@ -255,7 +255,7 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], m
 .stApp, [data-testid="stAppViewContainer"] {{
   background-color: var(--bg) !important;
 }}
-.block-container {{ max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem; }}
+.block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; color: var(--ink) !important; }}
 p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hero {{ padding: 2.6rem 0 1.2rem 0; }}
@@ -287,21 +287,17 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hr {{ height: 1px; background: var(--line); margin: 1.6rem 0; }}
 .step-card {{ border-radius: 1.2rem; padding: 1rem 1.05rem; margin-bottom: .8rem; }}
 .step-card strong {{ color: var(--ink); }}
-.wizard-shell {{ max-width: 920px; margin: 0 auto 3rem auto; }}
-.wizard-topline {{ display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: .25rem 0 1rem 0; }}
-.wizard-hero {{ border-radius: 1.2rem; padding: 1rem 1.15rem; margin: 0 0 .9rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 10px 24px var(--shadow); }}
-.wizard-hero h2 {{ margin: .05rem 0 .22rem 0; font-size: clamp(1.85rem, 3.4vw, 2.65rem); letter-spacing: -.045em; }}
-.wizard-hero p {{ margin: 0; color: var(--muted); }}
-.wizard-progress {{ display: flex; flex-wrap: wrap; gap: .45rem; margin: .45rem 0 1rem 0; }}
-.wizard-progress-pill {{ border: 1px solid var(--line); border-radius: 999px; padding: .34rem .58rem; font-size: .86rem; color: var(--muted); background: var(--surface-2); font-weight: 700; }}
-.wizard-progress-pill.current {{ background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); }}
-.wizard-choice-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; margin: .35rem 0 .65rem 0; }}
-.wizard-choice-card {{ border: 1px solid var(--line); border-radius: 1.05rem; padding: .95rem 1rem; background: var(--surface-2); }}
-.wizard-choice-card strong {{ display: block; margin-bottom: .3rem; color: var(--ink); }}
-.wizard-choice-card p {{ margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.45; }}
-.wizard-entry-card {{ border-radius: 1.35rem; padding: 1.2rem 1.25rem; margin: 1rem 0 1.2rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 14px 34px var(--shadow); }}
+.wizard-shell {{ max-width: 860px; margin: 0 auto 3rem auto; }}
+.wizard-hero {{ padding: .25rem 0 .8rem 0; margin: 0 0 .35rem 0; border-bottom: 1px solid var(--line); }}
+.wizard-hero h2 {{ margin: .05rem 0 .18rem 0; font-size: clamp(1.85rem, 3.2vw, 2.45rem); letter-spacing: -.05em; }}
+.wizard-hero p {{ margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.45; }}
+.wizard-progress {{ margin: .75rem 0 1.1rem 0; }}
+.wizard-progress-text {{ color: var(--muted); font-size: .9rem; font-weight: 700; letter-spacing: .01em; margin-bottom: .45rem; }}
+.wizard-progress-track {{ height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); overflow: hidden; border: 1px solid var(--line); }}
+.wizard-progress-fill {{ height: 100%; background: var(--accent); border-radius: 999px; }}
+.wizard-entry-card {{ border-radius: 1.15rem; padding: 1rem 1.05rem; margin: 1rem 0 1.2rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 10px 22px var(--shadow); }}
 .wizard-nav-note {{ margin: .1rem 0; color: var(--muted); font-size: .92rem; text-align: center; }}
-.wizard-exit-note {{ color: var(--muted); font-size: .92rem; margin-top: .35rem; }}
+.wizard-exit-note {{ color: var(--muted); font-size: .9rem; margin-top: .35rem; }}
 .beta-note {{ background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }}
 [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
 [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
@@ -321,6 +317,11 @@ input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-basewe
   border-color: var(--line) !important;
 }}
 [role="listbox"], [role="option"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
+/* Keep typed text comfortably away from borders and accent stripes. */
+input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
+[data-baseweb="textarea"] textarea, [data-baseweb="input"] input {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
+.guide-box {{ padding: 1rem 1.15rem 1rem 1.45rem !important; }}
+
 .setup-shell {{ border-radius: 1.25rem; padding: 1.1rem 1.15rem; margin: 1rem 0 1.2rem 0; }}
 .setup-example {{ border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: var(--ink) !important; }}
 .setup-step-label {{ display:inline-flex; gap:.35rem; align-items:center; padding:.28rem .62rem; border-radius:999px; background:var(--accent-soft); color:var(--ink); font-weight:760; font-size:.9rem; }}
@@ -2201,6 +2202,7 @@ def inject_theme_css(theme_name: str) -> None:
           border-left: 5px solid var(--pathmark-accent) !important;
           background: var(--pathmark-surface) !important;
           color: var(--pathmark-ink) !important;
+          padding-left: 1.45rem !important;
         }}
         .setup-progress-wrap {{ width: 100%; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--pathmark-muted) 20%, transparent); overflow: hidden; margin: 0.7rem 0 0.25rem; }}
         .setup-progress-fill {{ height: 100%; background: var(--pathmark-accent-strong); border-radius: 999px; }}
@@ -4370,15 +4372,12 @@ def render_online_settings(sheet_id: str) -> None:
         revoke_google_session_token()
         st.rerun()
     with st.expander("Creation wizard", expanded=False):
-        st.write("The creation wizard now opens in its own Pathmark Online workspace so the creation flow is not tucked inside Home.")
+        st.write("The creation wizard now has its own Pathmark Online tab beside Home.")
         latest = _latest_wizard_draft(sheet_id)
         if latest:
             label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
             label = label or ("Project draft" if latest.get("wizard_type") == "project" else "Routine draft")
-            st.write(f"Unfinished draft available: **{label}**")
-            if st.button("Restore draft in wizard", use_container_width=True, key="settings_restore_wizard_draft"):
-                _open_pathmark_wizard_view(latest)
-                st.rerun()
+            st.write(f"Unfinished draft available: **{label}**. Open the Creation Wizard tab to continue editing it.")
         else:
             st.write("No unfinished creation wizard draft is currently saved.")
     with st.expander("Advanced Google Sheet settings", expanded=False):
@@ -5197,8 +5196,8 @@ def _wizard_enable_next_when_text_nonempty() -> None:
           }
           function nextButton() {
             const buttons = Array.from(doc.querySelectorAll('button')).filter(visible);
-            const arrows = buttons.filter(btn => (btn.textContent || '').trim() === '›');
-            return arrows.length ? arrows[arrows.length - 1] : null;
+            const matches = buttons.filter(btn => { const txt = (btn.textContent || '').trim(); return txt === 'Next ›' || txt === 'Next' || txt === '›'; });
+            return matches.length ? matches[matches.length - 1] : null;
           }
           function sync() {
             const field = candidateTextBox();
@@ -5263,6 +5262,18 @@ def render_pathmark_creation_wizard_entry(sheet_id: str) -> bool:
             st.rerun()
     return False
 
+def _wizard_info_button(label: str, text: str) -> None:
+    """Small inline information control for wizard guidance.
+
+    This avoids large dropdown-style guidance boxes in the main wizard flow.
+    """
+    try:
+        with st.popover(f"ⓘ {label}"):
+            st.write(text)
+    except Exception:
+        st.caption(f"ⓘ {label}: {text}")
+
+
 def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, next_step: str | None = None, next_answer: Any = None) -> tuple[bool, bool]:
     back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
     back_col, note_col, next_col = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
@@ -5314,20 +5325,27 @@ def _wizard_progress_context(draft: dict[str, Any], step: str) -> tuple[list[str
 
 def _render_wizard_progress(draft: dict[str, Any], step: str) -> None:
     stages, current, label = _wizard_progress_context(draft, step)
-    parts = []
-    for stage in stages:
-        cls = "wizard-progress-pill current" if stage == current else "wizard-progress-pill"
-        parts.append(f"<span class='{cls}'>{html.escape(stage)}</span>")
-    parts.append(f"<span class='wizard-progress-pill current'>{html.escape(label)}</span>")
-    st.markdown(f"<div class='wizard-progress'>{''.join(parts)}</div>", unsafe_allow_html=True)
+    try:
+        index = stages.index(current)
+    except ValueError:
+        index = 0
+    percent = int(((index + 1) / max(len(stages), 1)) * 100)
+    stage_text = " → ".join(stages)
+    st.markdown(
+        f"<div class='wizard-progress'>"
+        f"<div class='wizard-progress-text'>{html.escape(label)} · {html.escape(current)} · {html.escape(stage_text)}</div>"
+        f"<div class='wizard-progress-track'><div class='wizard-progress-fill' style='width:{percent}%;'></div></div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_wizard_header(draft: dict[str, Any], step: str) -> None:
     st.markdown("""
     <div class='wizard-hero'>
-      <div class='kicker'>Creation workspace</div>
+      <div class='kicker'>Creation wizard</div>
       <h2>Pathmark creation wizard</h2>
-      <p><strong>Projects have a definition of done. Routines repeat.</strong><br>Pathmark helps you decide what matters, then make time for it.</p>
+      <p><strong>Projects have a definition of done. Routines repeat.</strong> Pathmark helps you decide what matters, then make time for it.</p>
     </div>
     """, unsafe_allow_html=True)
     _render_wizard_progress(draft, step)
@@ -5336,27 +5354,11 @@ def _render_wizard_header(draft: dict[str, Any], step: str) -> None:
 def render_pathmark_creation_wizard(sheet_id: str) -> None:
     draft = _wizard_state() or _new_wizard_draft()
     step = draft.get("current_step_key", "choose_type")
-    if st.button("← Return to dashboard", use_container_width=False):
-        _return_to_pathmark_dashboard()
-        st.rerun()
     _render_wizard_header(draft, step)
 
     if step == "choose_type":
         st.subheader("What are you creating?")
-        st.markdown("""
-        <div class='wizard-choice-grid'>
-          <div class='wizard-choice-card'>
-            <strong>Project</strong>
-            <p>A one-off outcome with a definition of done. Example: Complete a beginner sketching course.</p>
-          </div>
-          <div class='wizard-choice-card'>
-            <strong>Routine</strong>
-            <p>A repeating pattern you want to protect. Example: Sleep 8 hours a night.</p>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        with st.expander("ⓘ Which should I choose?", expanded=False):
-            st.write("Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
+        _wizard_info_button("Which should I choose?", "Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
         choice = st.radio("Choose one", ["Project", "Routine"], horizontal=True, index=0 if draft.get("wizard_type") != "routine" else 1)
         draft["wizard_type"] = "project" if choice == "Project" else "routine"
         _set_wizard_state(draft)
@@ -5364,8 +5366,7 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
 
     elif step == "choose_area":
         st.subheader("Which area of your life does this belong to?")
-        with st.expander("ⓘ What is an Area?", expanded=False):
-            st.write("Areas help Pathmark keep similar projects and routines together. This area can also become the Google Calendar grouping or subcalendar where you place related time in your calendar.")
+        _wizard_info_button("What is an Area?", "Areas help Pathmark keep similar projects and routines together. This area can also become the Google Calendar grouping or subcalendar where you place related time in your calendar.")
         options = _area_options(sheet_id)
         names = [o["area_name"] for o in options]
         choices = names + ["+ Add a new area"]
@@ -5385,8 +5386,7 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
         area = draft.setdefault("area", {"mode": "new"})
         if step == "area_name":
             st.subheader("What should this area be called?")
-            with st.expander("ⓘ Naming an Area", expanded=False):
-                st.write("Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
+            _wizard_info_button("Naming an Area", "Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
             area["area_name"] = st.text_input("Area name", value=str(area.get("area_name", "")), placeholder="Body and Stability")
             _set_wizard_state(draft)
             _render_wizard_nav(sheet_id, draft, bool(str(area.get("area_name", "")).strip()))
@@ -5494,8 +5494,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
         elif step == "project_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
-            with st.expander("ⓘ What is a helper checklist item?", expanded=False):
-                st.write("Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as ‘put sketchbook on desk’ or ‘open the course page’.")
+            _wizard_info_button("What is a helper checklist item?", "Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as ‘put sketchbook on desk’ or ‘open the course page’.")
             choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
             current["has_helper_tasks"] = choice == "Yes"
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_step=("project_helper_task_item" if current["has_helper_tasks"] else "project_add_step"))
@@ -5510,8 +5509,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         elif step == "project_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("What date should this checklist item appear?")
-            with st.expander("ⓘ Why only a date?", expanded=False):
-                st.write("Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            _wizard_info_button("Why only a date?", "Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
             task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(current.get("calendar_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_add_helper_task_item":
@@ -5587,8 +5585,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
-            with st.expander("ⓘ What is a helper checklist item?", expanded=False):
-                st.write("Pathmark will already add the routine activity itself to Google Tasks as a checklist item. For sleep, a helper checklist item might be ‘no screen time three hours before bed’, ‘dim the lights’, or ‘put phone outside the bedroom’.")
+            _wizard_info_button("What is a helper checklist item?", "Pathmark will already add the routine activity itself to Google Tasks as a checklist item. For sleep, a helper checklist item might be ‘no screen time three hours before bed’, ‘dim the lights’, or ‘put phone outside the bedroom’.")
             choice = st.radio("Add helper checklist items?", ["No", "Yes"], horizontal=True, index=1 if current.get("has_helper_tasks") else 0)
             current["has_helper_tasks"] = choice == "Yes"
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True, next_step=("routine_helper_task_item" if current["has_helper_tasks"] else "routine_add_activity"))
@@ -5603,8 +5600,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         elif step == "routine_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("When should this checklist item appear?")
-            with st.expander("ⓘ Why only a date?", expanded=False):
-                st.write("Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
+            _wizard_info_button("Why only a date?", "Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
             task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(routine.get("start_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_add_helper_task_item":
@@ -5692,15 +5688,12 @@ def render_online_overview(sheet_id: str) -> None:
         else:
             st.warning(safe_user_message(message))
 
-    if render_pathmark_creation_wizard_entry(sheet_id):
-        return
-
     st.markdown("""
     <div class="guide-box"><strong>Your active workspace.</strong><br>
     Pathmark is designed so you can duck in and out: keep active routines, routine activities and project steps visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
     """, unsafe_allow_html=True)
     if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("Start with the Pathmark creation wizard above. It will help you create an Area, then build either a Project or a Routine from start to finish.")
+        st.info("Use the Creation Wizard tab to create your first Area, then build either a Project or a Routine from start to finish.")
     st.markdown("""
     <div class="grid-3">
       <div class="process-card"><h4>Make time</h4><p>Pathmark turns routine activities and project steps into time in your calendar rather than leaving them as vague intentions.</p></div>
@@ -5919,16 +5912,10 @@ def on_the_go_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
-    # Pathmark Online opens to the workspace, but the Creation Wizard now has
-    # its own immersive in-tab workspace rather than being embedded inside Home.
-    active_draft = _wizard_state()
-    if st.session_state.get("pathmark_online_view") == "wizard" or (active_draft and active_draft.get("status") == "in_progress"):
-        st.session_state["pathmark_online_view"] = "wizard"
-        render_safe_section("Creation Wizard", render_pathmark_creation_wizard, sheet_id)
-        return
-
+    # The Creation Wizard now has its own Pathmark Online tab beside Home.
     sections = st.tabs([
         "Home",
+        "Creation Wizard",
         "Review Queue",
         "Areas",
         "Routines",
@@ -5942,22 +5929,24 @@ def on_the_go_tab() -> None:
     with sections[0]:
         render_safe_section("Home", render_online_overview, sheet_id)
     with sections[1]:
-        render_safe_section("Review Queue", render_review_queue_manager, sheet_id)
+        render_safe_section("Creation Wizard", render_pathmark_creation_wizard, sheet_id)
     with sections[2]:
-        render_safe_section("Areas", render_area_manager, sheet_id)
+        render_safe_section("Review Queue", render_review_queue_manager, sheet_id)
     with sections[3]:
-        render_safe_section("Routines", render_routine_manager, sheet_id)
+        render_safe_section("Areas", render_area_manager, sheet_id)
     with sections[4]:
-        render_safe_section("Goals and Projects", render_goal_manager, sheet_id)
+        render_safe_section("Routines", render_routine_manager, sheet_id)
     with sections[5]:
-        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
+        render_safe_section("Goals and Projects", render_goal_manager, sheet_id)
     with sections[6]:
-        render_safe_section("Google Calendar Export", render_google_calendar_export_manager, sheet_id)
+        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
     with sections[7]:
-        render_safe_section("Google Tasks Export", render_google_tasks_export_manager, sheet_id)
+        render_safe_section("Google Calendar Export", render_google_calendar_export_manager, sheet_id)
     with sections[8]:
-        render_safe_section("Archive", render_archive_manager, sheet_id)
+        render_safe_section("Google Tasks Export", render_google_tasks_export_manager, sheet_id)
     with sections[9]:
+        render_safe_section("Archive", render_archive_manager, sheet_id)
+    with sections[10]:
         render_safe_section("Settings", render_online_settings, sheet_id)
 
 def spending_plan_beta_tab() -> None:
