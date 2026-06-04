@@ -1,6 +1,6 @@
 # Pathmark release hub
 
-## v0.6.22 Manual project/routine output alignment
+## v0_6_23 Helper checklist and NZ date repair
 
 This repository hosts the Streamlit release hub and Pathmark Online app for Pathmark.
 
@@ -33,7 +33,7 @@ app/
     pathmark-icon-192.png
     pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_22.zip
+  Pathmark_Local_App_Windows_v0_6_23.zip
 .streamlit/
   config.toml
 supabase/

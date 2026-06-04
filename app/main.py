@@ -2375,6 +2375,27 @@ def normalise_online_date(value: Any) -> str:
     return d.isoformat() if d else str(value or "").strip()
 
 
+def nz_date_text(value: Any) -> str:
+    """Return a user-facing New Zealand date string while preserving ISO storage elsewhere."""
+    d = parse_online_date(value)
+    return d.strftime("%d/%m/%Y") if d else str(value or "").strip()
+
+
+def display_date(value: Any) -> str:
+    """User-facing date label for simple date-only previews."""
+    return nz_date_text(value)
+
+
+def date_input_nz(label: str, value: date | None = None, *, key: str | None = None, help: str | None = None) -> date:
+    """Streamlit date input with New Zealand day/month/year display."""
+    kwargs: dict[str, Any] = {"value": value or date.today(), "format": "DD/MM/YYYY"}
+    if key is not None:
+        kwargs["key"] = key
+    if help is not None:
+        kwargs["help"] = help
+    return st.date_input(label, **kwargs)
+
+
 def valid_online_time(value: Any, *, allow_blank: bool = True) -> bool:
     text = str(value or "").strip()
     if not text:
@@ -2419,9 +2440,9 @@ def calculated_end_time(start_text: Any, minutes: int | float | str | None, *, f
 def validate_online_action_dates_and_times(*, scheduled: str = "", due: str = "", start_time: str = "", end_time: str = "", prompt_time: str = "") -> list[str]:
     problems: list[str] = []
     if not valid_online_date(scheduled):
-        problems.append("Scheduled date must be blank or a real date. Use DD-MM-YYYY, for example 08-06-2026.")
+        problems.append("Scheduled date must be blank or a real date. Use DD/MM/YYYY, for example 08/06/2026.")
     if not valid_online_date(due):
-        problems.append("Due date must be blank or a real date. Use DD-MM-YYYY, for example 08-06-2026.")
+        problems.append("Due date must be blank or a real date. Use DD/MM/YYYY, for example 08/06/2026.")
     for label, value in [("Calendar start time", start_time), ("Calendar end time", end_time), ("Prompt reference time", prompt_time)]:
         if not valid_online_time(value):
             problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
@@ -2722,6 +2743,70 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
             })
     return pd.DataFrame(rows)
 
+
+def helper_prompts_for_action(sheet_id: str, action_id: str) -> pd.DataFrame:
+    """Return active helper Google Tasks checklist items linked to a manual step/activity."""
+    prompts = read_online_table(sheet_id, "task_prompts")
+    if prompts.empty or not action_id:
+        return pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
+    df = prompts.copy()
+    mask = (
+        (df.get("linked_record_id", pd.Series(dtype=str)).fillna("").astype(str) == str(action_id))
+        & (df.get("task_kind", pd.Series(dtype=str)).fillna("").astype(str).str.lower() == "helper")
+        & (~df.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"archived", "done", "completed"}))
+    )
+    return df[mask].copy()
+
+
+def replace_helper_prompts_for_action(
+    sheet_id: str,
+    *,
+    action_id: str,
+    action_title: str,
+    area_name: str,
+    linked_record_type: str,
+    linked_parent_id: str,
+    linked_parent_type: str,
+    helper_text: str,
+    helper_due: str,
+) -> None:
+    """Replace helper checklist items for a manual action without touching the automatic activity item."""
+    if not action_id:
+        return
+    existing = helper_prompts_for_action(sheet_id, action_id)
+    for _, prompt in existing.iterrows():
+        pid = str(prompt.get("prompt_id", "") or "")
+        if pid:
+            update_online_record(sheet_id, "task_prompts", pid, {"status": "Archived", "updated_at": now_iso()})
+
+    due = normalise_online_date(helper_due) if str(helper_due or "").strip() else ""
+    rows = []
+    for line in str(helper_text or "").splitlines():
+        title = line.strip(" -•	")
+        if not title:
+            continue
+        rows.append({
+            "prompt_id": f"prompt-{uuid.uuid4().hex}",
+            "area_name": area_name,
+            "title": title,
+            "prompt_text": title,
+            "due_date": due,
+            "task_kind": "helper",
+            "linked_record_id": action_id,
+            "linked_record_type": linked_record_type,
+            "linked_parent_id": linked_parent_id,
+            "linked_parent_type": linked_parent_type,
+            "task_list": "Pathmark",
+            "notes": f"Helper checklist item for {linked_record_type.replace('_', ' ')}: {action_title}",
+            "status": "Staged",
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+            "source": "manual_project_routine_form",
+        })
+    if rows:
+        append_many_online_records(sheet_id, {"task_prompts": rows})
+
+
 def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
@@ -3018,12 +3103,18 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
         if recurrence:
             date_bits.append(recurrence)
         detail = " · ".join([str(x) for x in date_bits if str(x).strip()])
+        helper_df = helper_prompts_for_action(sheet_id, rid) if rid else pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
+        helper_titles = [str(r.get("title", "") or r.get("prompt_text", "") or "").strip() for _, r in helper_df.iterrows() if str(r.get("title", "") or r.get("prompt_text", "") or "").strip()]
+        helper_line = ""
+        if helper_titles:
+            helper_line = "<p><strong>Small action checklist items:</strong> " + html.escape("; ".join(helper_titles)) + "</p>"
         st.markdown(
             f"""
             <div class='step-card'>
               <h3>{html.escape(title)}</h3>
               <p>{html.escape(outputs)}</p>
               <p>{html.escape(detail)}</p>
+              {helper_line}
             </div>
             """,
             unsafe_allow_html=True,
@@ -3075,6 +3166,11 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
     default_end_date = str(action.get("calendar_end_date", "") or default_start_date or "")
     default_start_time = str(action.get("calendar_start_time", "") or routine.get("calendar_start_time", "") or "")
     default_end_time = str(action.get("calendar_end_time", "") or routine.get("calendar_end_time", "") or "")
+    existing_helpers = helper_prompts_for_action(sheet_id, record_id) if record_id else pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
+    existing_helper_text = "\n".join([str(r.get("title", "") or r.get("prompt_text", "") or "").strip() for _, r in existing_helpers.iterrows() if str(r.get("title", "") or r.get("prompt_text", "") or "").strip()])
+    existing_helper_due = ""
+    if not existing_helpers.empty:
+        existing_helper_due = str(existing_helpers.iloc[0].get("due_date", "") or "")
 
     with st.form(form_id, clear_on_submit=not bool(record_id)):
         st.markdown(f"### {'Edit' if record_id else 'Add'} {title_word.lower()}")
@@ -3098,12 +3194,17 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         st.markdown("#### 2. Make time in your calendar")
         st.markdown("<div class='pathmark-note'>Calendar time, the weekly tasklist row and the Google Tasks checklist item are created automatically for every saved project step or routine activity.</div>", unsafe_allow_html=True)
         c3, c4 = st.columns(2)
-        scheduled = c3.text_input("Start date", value=default_start_date, placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        scheduled = c3.text_input("Start date", value=nz_date_text(default_start_date), placeholder="DD/MM/YYYY")
         start_time = c4.text_input("Start time", value=default_start_time, placeholder="HH:MM, for example 09:00")
         c5, c6 = st.columns(2)
-        end_date = c5.text_input("Finish date", value=default_end_date, placeholder="DD-MM-YYYY or YYYY-MM-DD")
+        end_date = c5.text_input("Finish date", value=nz_date_text(default_end_date), placeholder="DD/MM/YYYY")
         end_time = c6.text_input("Finish time", value=default_end_time, placeholder="HH:MM, for example 10:00")
         location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
+
+        st.markdown("#### 3. Optional small action checklist items")
+        st.caption("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Add any extra small actions that would reduce the activation energy. Enter one item per line.")
+        helper_text = st.text_area("Additional small Google Tasks checklist items", value=existing_helper_text, height=90, placeholder="Put sketchbook on desk\nOpen the course page" if not is_routine_activity else "No screen time three hours before bed\nPut phone outside the bedroom")
+        helper_due = st.text_input("Date these small checklist items should appear", value=nz_date_text(existing_helper_due or default_start_date), placeholder="DD/MM/YYYY")
 
         activity_days = ""
         if is_routine_activity:
@@ -3126,6 +3227,8 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
             elif problems:
                 for problem in problems:
                     st.error(problem)
+            elif helper_text.strip() and not valid_online_date(helper_due, allow_blank=False):
+                st.error("The small checklist item date must be a real date. Use DD/MM/YYYY, for example 08/06/2026.")
             else:
                 start_date_norm = normalise_online_date(scheduled)
                 end_date_norm = normalise_online_date(end_date)
@@ -3154,12 +3257,25 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     "calendar_location": location.strip(),
                     "notes": description.strip(),
                 }
+                saved_action_id = record_id
                 if record_id:
                     ok, message = update_online_record(sheet_id, "actions", record_id, payload)
                 else:
                     payload["action_id"] = f"action-{uuid.uuid4().hex}"
+                    saved_action_id = payload["action_id"]
                     ok, message = append_online_record(sheet_id, "actions", payload)
                 if ok:
+                    replace_helper_prompts_for_action(
+                        sheet_id,
+                        action_id=saved_action_id,
+                        action_title=title.strip(),
+                        area_name=default_area or str(action.get("area_name", "") or ""),
+                        linked_record_type="routine_activity" if is_routine_activity else "project_step",
+                        linked_parent_id=routine_id or goal_id,
+                        linked_parent_type="routine" if is_routine_activity else "project",
+                        helper_text=helper_text,
+                        helper_due=helper_due or scheduled,
+                    )
                     st.success(message)
                 else:
                     st.warning(safe_user_message(message))
@@ -3184,7 +3300,7 @@ def render_goal_manager(sheet_id: str) -> None:
                 title = st.text_input("Title")
                 specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
                 status = st.selectbox("Status", ["Captured", "Active", "On hold", "Closed", "Abandoned"], index=1)
-                target_date = st.text_input("Target date", placeholder="Optional, YYYY-MM-DD. Example: the first day of next month")
+                target_date = st.text_input("Target date", placeholder="Optional, DD/MM/YYYY")
                 purpose = st.text_area("Why this matters", height=75)
                 desired = st.text_area("Specific outcome", height=75, placeholder="What will be different when this is done?")
                 closure = st.text_area("Measure of success / definition of done", height=75)
@@ -3196,7 +3312,7 @@ def render_goal_manager(sheet_id: str) -> None:
                     elif not str(area).strip():
                         st.error("Choose or create an Area before saving this goal.")
                     elif not valid_online_date(target_date):
-                        st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
+                        st.error("Target date must be blank or a real date. Use DD/MM/YYYY, for example 30/06/2026.")
                     else:
                         ok, message = append_online_record(sheet_id, "goals", {
                             "goal_id": f"goal-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(),
@@ -3239,7 +3355,7 @@ def render_goal_manager(sheet_id: str) -> None:
                         if not title.strip():
                             st.error("Add a project title before saving.")
                         elif not valid_online_date(target_date):
-                            st.error("Target date must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-30.")
+                            st.error("Target date must be blank or a real date. Use DD/MM/YYYY, for example 30/06/2026.")
                         else:
                             ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
                             if ok:
@@ -3302,7 +3418,7 @@ def render_routine_manager(sheet_id: str) -> None:
                     elif not str(area).strip():
                         st.error("Choose or create an Area before saving this routine.")
                     elif not valid_online_date(next_due):
-                        st.error("Repeat starts must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+                        st.error("Repeat starts must be blank or a real date. Use DD/MM/YYYY, for example 08/06/2026.")
                     elif validate_routine_schedule(frequency, preferred_days):
                         for problem in validate_routine_schedule(frequency, preferred_days):
                             st.error(problem)
@@ -3374,7 +3490,7 @@ def render_routine_manager(sheet_id: str) -> None:
                     if submitted:
                         problems = []
                         if not valid_online_date(next_due):
-                            problems.append("Repeat starts must be blank or a real date. Use YYYY-MM-DD, for example 2026-06-08.")
+                            problems.append("Repeat starts must be blank or a real date. Use DD/MM/YYYY, for example 08/06/2026.")
                         for label, value in [("Default start time", start), ("Default end time", end)]:
                             if not valid_online_time(value):
                                 problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
@@ -5838,13 +5954,9 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         _wizard_enable_next_when_text_nonempty()
     elif step == "project_target":
         st.subheader("When would you like this project to be done?")
-        use_date = st.checkbox("Add a target date", value=bool(project.get("target_date")))
-        if use_date:
-            project["target_date"] = st.date_input("Target date", value=_text_to_date(project.get("target_date"))).isoformat()
-            project["target_label"] = ""
-        else:
-            project["target_date"] = ""
-            project["target_label"] = st.text_input("Target timeframe", value=str(project.get("target_label", "")), placeholder="By the first day of next month")
+        st.caption("This is optional, but Pathmark now uses a date field by default. Dates are shown in New Zealand day/month/year format.")
+        project["target_date"] = date_input_nz("Target date", value=_text_to_date(project.get("target_date"))).isoformat()
+        project["target_label"] = ""
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
     elif step in {"project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice", "project_helper_task_item", "project_helper_task_due", "project_add_helper_task_item", "project_add_step"}:
         if not draft.get("current_step_id") or _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) is None:
@@ -5858,21 +5970,58 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             _wizard_enable_next_when_text_nonempty()
         elif step == "project_calendar_date":
             st.subheader("What day will you make time for this step?")
-            current["calendar_date"] = st.date_input("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
+            current["calendar_date"] = date_input_nz("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_calendar_start_time":
             st.subheader("What time will you start?")
-            current["calendar_start_time"] = _time_to_text(st.time_input("Start time", value=_text_to_time(current.get("calendar_start_time"), time(9,0))))
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+            st.caption("Enter the start time once, then continue. Use 24-hour time, for example 09:00.")
+            back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
+            with st.form(key=f"wiz_form_project_start_{current.get('step_id','')}"):
+                start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="09:00")
+                c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
+                with c1:
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                with c2:
+                    st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
+                with c3:
+                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                current["calendar_start_time"] = _time_to_text(start_text) if _is_valid_time_text(start_text) else str(start_text or "").strip()
+                _set_wizard_state(draft)
+                if _is_valid_time_text(current.get("calendar_start_time")):
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Enter a valid start time, such as 09:00.")
         elif step == "project_calendar_end_time":
             st.subheader("When will you finish?")
             start_date = _text_to_date(current.get("calendar_date"))
-            current["calendar_end_date"] = st.date_input("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}").isoformat()
-            current["calendar_end_time"] = _time_to_text(st.time_input("Finish time", value=_text_to_time(current.get("calendar_end_time"), time(10,0))))
-            current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(current.get("calendar_date"))
-            problems = _validate_project_step(current)
-            for p in problems: st.warning(p)
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, not problems)
+            st.caption("Set the finish date and time. Dates are shown in New Zealand day/month/year format.")
+            back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
+            with st.form(key=f"wiz_form_project_finish_{current.get('step_id','')}"):
+                end_date_value = date_input_nz("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}")
+                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00")
+                c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
+                with c1:
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                with c2:
+                    st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
+                with c3:
+                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                current["calendar_end_date"] = end_date_value.isoformat()
+                current["calendar_end_time"] = _time_to_text(end_text) if _is_valid_time_text(end_text) else str(end_text or "").strip()
+                current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(current.get("calendar_date"))
+                problems = _validate_project_step(current)
+                _set_wizard_state(draft)
+                if problems:
+                    for p in problems:
+                        st.warning(p)
+                else:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
         elif step == "project_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
             _wizard_info_button("What is a helper checklist item?", "Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as ‘put sketchbook on desk’ or ‘open the course page’.")
@@ -5891,7 +6040,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("What date should this checklist item appear?")
             _wizard_info_button("Why only a date?", "Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
-            task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(current.get("calendar_date")))).isoformat()
+            task["due"] = date_input_nz("Date", value=_text_to_date(task.get("due"), _text_to_date(current.get("calendar_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_add_helper_task_item":
             st.subheader("Would you like to add another helper checklist item for this step?")
@@ -5953,7 +6102,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 st.warning("Choose at least one day before continuing.")
     elif step == "routine_start_date":
         st.subheader("When should this routine start?")
-        routine["start_date"] = st.date_input("Start date", value=_text_to_date(routine.get("start_date"))).isoformat()
+        routine["start_date"] = date_input_nz("Start date", value=_text_to_date(routine.get("start_date"))).isoformat()
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
     elif step in {"routine_activity_title", "routine_calendar_start_time", "routine_calendar_end_time", "routine_calendar_location", "routine_helper_task_choice", "routine_helper_task_item", "routine_helper_task_due", "routine_add_helper_task_item", "routine_add_activity"}:
         if not draft.get("current_activity_id") or _find_step_by_id(draft.get("routine_activities", []), "activity_id", draft.get("current_activity_id")) is None:
@@ -5993,7 +6142,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.caption("Set the finish date and time for the first occurrence. Use the next day for overnight activities such as sleep.")
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
             with st.form(key=f"wiz_form_routine_finish_{current.get('activity_id','')}"):
-                end_date_value = st.date_input("Finish date for the first occurrence", value=_calendar_end_date_default(current, routine_start))
+                end_date_value = date_input_nz("Finish date for the first occurrence", value=_calendar_end_date_default(current, routine_start))
                 end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="06:30")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
@@ -6037,7 +6186,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("When should this checklist item appear?")
             _wizard_info_button("Why only a date?", "Google Tasks items are date-based in Pathmark. If something needs a specific time, it belongs in your calendar.")
-            task["due"] = st.date_input("Date", value=_text_to_date(task.get("due"), _text_to_date(routine.get("start_date")))).isoformat()
+            task["due"] = date_input_nz("Date", value=_text_to_date(task.get("due"), _text_to_date(routine.get("start_date")))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "routine_add_helper_task_item":
             st.subheader("Would you like to add another helper checklist item for this activity?")
