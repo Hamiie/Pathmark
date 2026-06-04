@@ -1,19 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.12",
-  "release_date": "2026-06-03",
+  "version": "0.6.13",
+  "release_date": "2026-06-04",
   "notes": [
-    "Changed What you spend into an editable common-expense checklist so users can work down familiar categories, add amounts where relevant, rename items, or add a missing expense.",
-    "Replaced the jargony sinking funds wording with planned irregular costs in the user-facing Spending Plan beta UI.",
-    "Removed the account-creation form from Spending Plan beta; the flow now assumes five account roles and explains what goes where.",
-    "Clarified the priority order: pay debt first, rebuild the emergency account next, then divert remaining money to savings or longer-term goals.",
-    "Replaced remaining bare Streamlit success/warning conditional expressions to reduce the chance of raw DeltaGenerator output appearing in user-facing pages."
+    "Added a unified Pathmark creation wizard on the Pathmark Online home screen.",
+    "Wizard starts by asking whether the user is creating a Project or Routine, with user-facing information icons for the distinction.",
+    "Projects create one-off project steps; routines create repeating activities using the routine-level repeat pattern.",
+    "Calendar timing is mandatory for every wizard-created step or activity, using start and end time with next-day support.",
+    "Each wizard-created step/activity is automatically available for the weekly tasklist and Google Tasks checklist export.",
+    "Added optional helper Google Tasks checklist items, with one row per helper item and safe append logic for repeated loops.",
+    "Added wizard_drafts storage so interrupted progress can be restored from the Pathmark Online home screen."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_12.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_13.zip",
   "mac_package": "",
-  "release": "v0.6.12 Spending Plan flow polish",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_12.zip",
-  "release_name": "Spending Plan flow polish",
-  "release_notes": "Makes Spending Plan beta more intuitive by replacing the account-creation form with a five-account flow map, renaming sinking funds to planned irregular costs, and turning What you spend into an editable common-expense checklist.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_12.zip"
+  "release": "v0.6.13 Creation wizard beta",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_13.zip",
+  "release_name": "Creation wizard beta",
+  "release_notes": "Adds a unified Pathmark creation wizard for projects and routines, with draft restore, required calendar timing, automatic tasklist and Google Tasks checklist rows, optional helper checklist items, and safe loop handling so repeated entries append rather than overwrite.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_13.zip"
 }
