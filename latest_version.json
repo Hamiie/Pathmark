@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.44",
+  "version": "0.6.45",
   "release_date": "2026-06-05",
   "notes": [
-    "Removes the remaining legacy Pathmark light/dark data-attribute styling that could override Streamlit's built-in appearance menu.",
-    "Keeps Theme as a top-level tab for seasonal accent only.",
-    "Uses Streamlit's own CSS variables for page background, cards, inputs and text so Dark mode should become a true dark page when Streamlit Dark is selected.",
-    "Stops applying a default light Pathmark token set from the seasonal theme injector.",
-    "Preserves the existing Pathmark seasonal themes and mobile/PWA branding metadata."
+    "Simplifies Pathmark theming so Streamlit fully owns Light, Dark and System appearance.",
+    "Keeps seasonal themes as accent-only choices: Summer, Autumn, Winter and Spring.",
+    "Removes Pathmark JavaScript appearance watching and legacy light/dark override styling.",
+    "Stops overriding Streamlit page backgrounds, core text, inputs, popovers and settings menu styling.",
+    "Keeps Pathmark custom cards and buttons styled with seasonal accent variables only."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_44.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_45.zip",
   "mac_package": "",
-  "release": "v0.6.44 Streamlit-native appearance cleanup",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip",
-  "release_name": "Streamlit-native appearance cleanup",
-  "release_notes": "Removes remaining Pathmark light/dark overrides and lets Streamlit's built-in appearance CSS variables control the actual light or dark page styling.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip",
-  "label": "Streamlit-native appearance cleanup",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip"
+  "release": "v0.6.45 Streamlit-native seasonal accent themes",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip",
+  "release_name": "Streamlit-native seasonal accent themes",
+  "release_notes": "Simplifies the theme system: Streamlit controls appearance, while Pathmark seasonal themes only set accents and custom component styling.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip",
+  "label": "Streamlit-native seasonal accent themes",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip"
 }

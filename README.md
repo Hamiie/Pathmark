@@ -1,26 +1,26 @@
 # Pathmark release hub
 
-Current release: **v0.6.44 Streamlit-native appearance cleanup**
+Current release: **v0.6.45 Streamlit-native seasonal accent themes**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_44_streamlit_native_appearance_cleanup.zip`
-- `Pathmark_Local_App_Windows_v0_6_44.zip`
+- `pathmark_release_hub_v0_6_45_streamlit_native_seasonal_accent_themes.zip`
+- `Pathmark_Local_App_Windows_v0_6_45.zip`
 
-## v0.6.44 Streamlit-native appearance cleanup
+## v0.6.45 Streamlit-native seasonal accent themes
 
-This release keeps the top-level **Theme** tab for Pathmark's seasonal accent, while leaving the actual Light/Dark/System appearance entirely to Streamlit's built-in menu.
+This release simplifies the theme system so Streamlit owns the full Light, Dark and System appearance mode, while Pathmark seasonal themes only set accents and Pathmark-owned custom component styling.
 
 Changes:
 
-- Removes remaining legacy Pathmark light/dark data-attribute styling that could keep the app looking light after Streamlit Dark was selected.
-- Stops the seasonal theme injector from applying a default light token set.
-- Uses Streamlit's own CSS variables for page background, card surfaces, text, borders, inputs and popovers.
-- Removes the old manual appearance sync approach from the practical theme flow.
-- Keeps seasonal themes as accent choices only: **Summer**, **Autumn**, **Winter** and **Spring**.
-- Preserves existing mobile/PWA branding metadata and favicon support.
+- Removes Pathmark JavaScript appearance watching and Light/Dark/System mirroring.
+- Removes Pathmark CSS that attempted to control global page background, global text colour, inputs, popovers and Streamlit settings menu colours.
+- Keeps **Theme** as a top-level tab for seasonal accent only: **Summer**, **Autumn**, **Winter** and **Spring**.
+- Lets Streamlit's built-in Settings menu control the page's actual light/dark appearance.
+- Keeps Pathmark custom cards, badges, progress bars and buttons styled with seasonal accent variables.
+- Simplifies `.streamlit/config.toml` so Pathmark no longer defines competing full light and dark theme palettes.
 
 ## Structure
 
@@ -35,7 +35,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_44.zip
+  Pathmark_Local_App_Windows_v0_6_45.zip
 .streamlit/
   config.toml
 supabase/

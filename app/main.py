@@ -294,37 +294,17 @@ inject_pwa_metadata()
 
 
 def inject_appearance_watcher() -> None:
-    """Clear legacy Pathmark appearance attributes.
+    """No-op compatibility hook.
 
-    Pathmark now follows Streamlit's CSS variables directly instead of trying to
-    mirror the Settings menu through click handlers. This avoids stale
-    Pathmark-set light/dark attributes overriding Streamlit's actual mode.
+    Pathmark no longer watches or mirrors Streamlit Light/Dark/System. Streamlit
+    owns full appearance; Pathmark only supplies seasonal accents for custom
+    Pathmark components.
     """
-    components.html(
-        """
-        <script>
-        (function () {
-          try {
-            const win = window.parent || window;
-            const doc = win.document;
-            doc.documentElement.removeAttribute('data-pathmark-mode');
-            doc.documentElement.removeAttribute('data-pathmark-appearance');
-            if (doc.body) {
-              doc.body.removeAttribute('data-pathmark-mode');
-              doc.body.removeAttribute('data-pathmark-appearance');
-            }
-            try {
-              win.localStorage.removeItem('pathmark.resolvedAppearanceMode.v0642');
-              win.localStorage.removeItem('pathmark.streamlitAppearanceChoice.v0642');
-            } catch (e) {}
-          } catch (e) {}
-        })();
-        </script>
-        """,
-        height=0,
-    )
+    return
+
 
 inject_appearance_watcher()
+
 
 def streamlit_appearance_mode() -> str:
     """Return Streamlit's active appearance mode when available.
@@ -396,53 +376,38 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark owns seasonal accent and custom card styling. Streamlit owns the
-actual appearance mode. This block deliberately does not force the app shell to
-light; the Streamlit Settings menu can therefore turn the whole page dark.
+Pathmark v0.6.45 theme model
+--------------------------------
+Streamlit owns the full appearance mode: page background, text, widgets,
+inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
+and styles Pathmark-owned custom cards/badges. Avoid global body/app/text/input
+colour overrides so Streamlit's Light/Dark/System menu behaves natively.
 */
 :root {{
-  color-scheme: light dark;
   --accent: #334E68;
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
-{pathmark_theme_tokens_css()}
-}}
-html[data-pathmark-mode="dark"], body[data-pathmark-mode="dark"] {{
-{pathmark_theme_tokens_css('dark')}
-}}
-html[data-pathmark-mode="light"], body[data-pathmark-mode="light"] {{
-{pathmark_theme_tokens_css('light')}
-}}
-html[data-pathmark-mode="dark"] .stApp, html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"] {{
-  background-color: var(--bg) !important;
-  color: var(--ink) !important;
-}}
-html[data-pathmark-mode="light"] .stApp, html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"] {{
-  background-color: var(--bg) !important;
-  color: var(--ink) !important;
-}}
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {{
-  color: var(--ink) !important;
-}}
-/* Let Streamlit control the page background. Only remove any old forced-white
-   Pathmark wash that may remain from a cached style block. */
-.stApp, [data-testid="stAppViewContainer"] {{
-  background-color: var(--bg) !important;
+  --ink: var(--text-color, inherit);
+  --muted: color-mix(in srgb, var(--text-color, #1F2221) 62%, var(--background-color, #FFFFFF));
+  --surface: var(--secondary-background-color, transparent);
+  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 88%, var(--background-color, transparent));
+  --line: color-mix(in srgb, var(--text-color, #1F2221) 18%, transparent);
+  --shadow: color-mix(in srgb, #000000 14%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--secondary-background-color, transparent));
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
-h1, h2, h3 {{ letter-spacing: -0.035em; color: var(--ink) !important; }}
+h1, h2, h3 {{ letter-spacing: -0.035em; }}
 p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hero {{ padding: 2.6rem 0 1.2rem 0; }}
 .eyebrow {{ display: inline-flex; padding: .42rem .72rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 760; font-size: .92rem; margin-bottom: 1.1rem; }}
 .hero h1 {{ font-size: clamp(3.7rem, 8.2vw, 7.2rem); line-height: .84; margin: 0 0 1rem 0; letter-spacing: -.085em; }}
-.lead {{ color: var(--ink); font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }}
+.lead {{ font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }}
 .sublead {{ color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }}
 .grid-3 {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }}
 .grid-2 {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0 2rem; }}
 .card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {{
-  background: var(--surface) !important;
-  border: 1px solid var(--line) !important;
-  color: var(--ink) !important;
+  background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow: 0 14px 34px var(--shadow);
 }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
@@ -451,7 +416,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
 .meta-card {{ border-radius: 1.25rem; padding: 1rem 1.15rem; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
-.meta-value {{ color: var(--ink); font-size: 1.9rem; line-height: 1.05; font-weight: 780; }}
+.meta-value {{ font-size: 1.9rem; line-height: 1.05; font-weight: 780; }}
 .download-panel {{ border-radius: 1.35rem; padding: 1.2rem; margin: 1.2rem 0 2rem; }}
 .account-card, .connection-card {{ border-radius: 1.2rem; padding: 1rem 1.15rem; }}
 .safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
@@ -460,7 +425,6 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .small-muted {{ color: var(--muted); font-size: .94rem; }}
 .hr {{ height: 1px; background: var(--line); margin: 1.6rem 0; }}
 .step-card {{ border-radius: 1.2rem; padding: 1rem 1.05rem; margin-bottom: .8rem; }}
-.step-card strong {{ color: var(--ink); }}
 .wizard-shell {{ max-width: 860px; margin: 0 auto 3rem auto; }}
 .wizard-hero {{ padding: .25rem 0 .8rem 0; margin: 0 0 .35rem 0; border-bottom: 1px solid var(--line); }}
 .wizard-hero h2 {{ margin: .05rem 0 .18rem 0; font-size: clamp(1.85rem, 3.2vw, 2.45rem); letter-spacing: -.05em; }}
@@ -469,48 +433,13 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .wizard-progress-text {{ color: var(--muted); font-size: .9rem; font-weight: 700; letter-spacing: .01em; margin-bottom: .45rem; }}
 .wizard-progress-track {{ height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); overflow: hidden; border: 1px solid var(--line); }}
 .wizard-progress-fill {{ height: 100%; background: var(--accent); border-radius: 999px; }}
-.wizard-entry-card {{ border-radius: 1.15rem; padding: 1rem 1.05rem; margin: 1rem 0 1.2rem 0; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: 0 10px 22px var(--shadow); }}
+.wizard-entry-card {{ border-radius: 1.15rem; padding: 1rem 1.05rem; margin: 1rem 0 1.2rem 0; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 22px var(--shadow); }}
 .wizard-nav-note {{ margin: .1rem 0; color: var(--muted); font-size: .92rem; text-align: center; }}
 .wizard-exit-note {{ color: var(--muted); font-size: .9rem; margin-top: .35rem; }}
-.beta-note {{ background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; color: var(--ink); }}
-[data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
-[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
-[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *, .stMarkdown, .stMarkdown * {{
-  color: var(--ink) !important;
-}}
-[data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] * {{
-  color: var(--ink) !important;
-  opacity: 1 !important;
-}}
-[data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
-button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {{ color: var(--accent) !important; font-weight: 760 !important; }}
-input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
-[data-testid="stDateInput"] input, [data-testid="stTimeInput"] input, [data-baseweb="popover"] div {{
-  background: var(--surface) !important;
-  padding-left: .8rem !important;
-  padding-right: .8rem !important;
-  color: var(--ink) !important;
-  border-color: var(--line) !important;
-}}
-[role="listbox"], [role="option"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
-html[data-pathmark-mode="dark"] [data-baseweb="popover"], html[data-pathmark-mode="dark"] [data-baseweb="popover"] * {{
-  background-color: var(--surface) !important;
-  color: var(--ink) !important;
-  border-color: var(--line) !important;
-}}
-html[data-pathmark-mode="light"] [data-baseweb="popover"], html[data-pathmark-mode="light"] [data-baseweb="popover"] * {{
-  background-color: #FFFFFF !important;
-  color: #1F2221 !important;
-  border-color: #D8D4CB !important;
-}}
-/* Keep typed text comfortably away from borders and accent stripes. */
-input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
-[data-baseweb="textarea"] textarea, [data-baseweb="input"] input {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
-.guide-box {{ padding: 1rem 1.15rem 1rem 1.45rem !important; }}
-
+.beta-note {{ background: color-mix(in srgb, #F6BF26 18%, var(--surface)); border: 1px solid color-mix(in srgb, #F6BF26 48%, var(--line)); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
 .setup-shell {{ border-radius: 1.25rem; padding: 1.1rem 1.15rem; margin: 1rem 0 1.2rem 0; }}
-.setup-example {{ border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; color: var(--ink) !important; }}
-.setup-step-label {{ display:inline-flex; gap:.35rem; align-items:center; padding:.28rem .62rem; border-radius:999px; background:var(--accent-soft); color:var(--ink); font-weight:760; font-size:.9rem; }}
+.setup-example {{ border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.85rem 1rem; border-radius: 12px; margin: 0.75rem 0 1rem 0; }}
+.setup-step-label {{ display:inline-flex; gap:.35rem; align-items:center; padding:.28rem .62rem; border-radius:999px; background:var(--accent-soft); font-weight:760; font-size:.9rem; }}
 .setup-progress-wrap {{ width: 100%; max-width: 760px; height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 20%, transparent); overflow: hidden; margin: 0.75rem 0 1rem 0; border: 1px solid var(--line); }}
 .setup-progress-fill {{ height: 100%; background: var(--accent); border-radius: 999px; }}
 .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {{
@@ -521,75 +450,58 @@ input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !impor
   font-weight: 650 !important;
   box-shadow: none !important;
 }}
-.stButton button *, .stButton button p, .stButton button span, .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
-[data-testid="stLinkButton"] a *, a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * {{ color: var(--button-ink) !important; }}
+.stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a *, a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * {{ color: var(--button-ink) !important; }}
 .stButton button:hover, .stDownloadButton button:hover, [data-testid="stLinkButton"] a:hover, .pathmark-link-button:hover {{ filter: brightness(.96); color: var(--button-ink) !important; text-decoration: none !important; }}
-.stButton button:disabled, .stDownloadButton button:disabled {{
-  background: color-mix(in srgb, var(--surface) 82%, var(--muted)) !important;
-  color: var(--muted) !important;
-  border-color: var(--line) !important;
-}}
-.stButton button:disabled *, .stDownloadButton button:disabled * {{ color: var(--muted) !important; }}
+.stButton button:disabled, .stDownloadButton button:disabled {{ filter: grayscale(.25); opacity: .55; }}
 .pathmark-link-button {{ display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: .55rem .85rem; }}
+.pathmark-note, .pathmark-hint {{ background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; }}
+.swatch-row {{ display:flex; flex-wrap:wrap; gap:.45rem; margin:.4rem 0 .7rem; }}
+.swatch {{ display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); padding:.25rem .55rem; font-size:.85rem; }}
+.swatch-dot {{ width:.9rem; height:.9rem; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.22); }}
+.area-colour-preview {{ display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:var(--surface); padding:.8rem 1rem; margin:.35rem 0 1rem; }}
+.area-colour-dot {{ width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }}
+.process-card {{ border-radius:1rem; padding:1rem; margin:.55rem 0; }}
+.process-card h4 {{ margin:.05rem 0 .35rem 0; }}
+.process-card p {{ margin:0; color:var(--muted); }}
+.dashboard-hero {{ padding:.15rem 0 .55rem 0; margin:0 0 .85rem 0; border-bottom:1px solid var(--line); }}
+.dashboard-hero h2 {{ margin:.05rem 0 .25rem 0; font-size:clamp(1.9rem,3vw,2.55rem); letter-spacing:-.055em; }}
+.dashboard-hero p {{ margin:0; color:var(--muted); max-width:820px; line-height:1.48; }}
+.pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; margin:1rem 0 1.35rem; align-items:stretch; }}
+.pillar-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:230px; display:flex; flex-direction:column; }}
+.pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
+.pillar-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; margin-bottom:.55rem; }}
+.pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
+.pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
+.pillar-stat {{ font-size:1.55rem; font-weight:780; line-height:1.1; }}
+.pillar-foot {{ color:var(--muted); font-size:.88rem; margin-top:.2rem; }}
+.dashboard-section {{ margin:1.45rem 0 .65rem; }}
+.dashboard-section h3 {{ margin-bottom:.25rem; }}
+.metric-strip {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.7rem; margin:.85rem 0 1.2rem; }}
+.metric-tile {{ background:var(--surface); border:1px solid var(--line); border-radius:.95rem; padding:.9rem .95rem; box-shadow:none; }}
+.metric-label {{ color:var(--muted); font-size:.84rem; font-weight:750; margin-bottom:.35rem; }}
+.metric-value {{ font-size:1.35rem; font-weight:780; line-height:1.1; }}
+.attention-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1rem; padding:1rem 1.05rem; margin:.55rem 0; box-shadow:none; }}
+.attention-card.high {{ border-left:5px solid #C2410C; }}
+.attention-card.medium {{ border-left:5px solid var(--accent); }}
+.attention-label {{ color:var(--muted); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.2rem; }}
+.attention-text {{ font-size:.98rem; line-height:1.45; }}
+.next-action-card {{ background:var(--accent-soft); border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line)); border-radius:1rem; padding:1rem 1.05rem; margin:.9rem 0 1.2rem; }}
+.money-summary-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1rem; padding:1rem 1.05rem; margin:.8rem 0 1.1rem; box-shadow:none; }}
+.money-flow-table {{ width:100%; border-collapse:collapse; font-size:.96rem; }}
+.money-flow-table th {{ text-align:left; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.055em; padding:.55rem .45rem; border-bottom:1px solid var(--line); }}
+.money-flow-table td {{ padding:.7rem .45rem; border-bottom:1px solid var(--line); }}
+.money-flow-table tr:last-child td {{ border-bottom:none; }}
+.money-amount {{ font-weight:780; white-space:nowrap; }}
+.helper-row-card {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .9rem; margin:.55rem 0; }}
+.helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
+.repeat-summary {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; }}
 @media (max-width: 640px) {{
   .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 1rem; }}
   .hero h1 {{ font-size: clamp(3rem, 17vw, 5.2rem); }}
   .lead {{ font-size: 1.15rem; }}
   .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 3.2rem; font-size: 1rem !important; }}
 }}
-.pathmark-note, .pathmark-hint {{ background: var(--accent-soft); border: 1px solid var(--line); border-radius: 1rem; padding: .9rem 1rem; margin: .65rem 0 1rem; color: var(--ink); }}
-.swatch-row {{ display:flex; flex-wrap:wrap; gap:.45rem; margin:.4rem 0 .7rem; }}
-.swatch {{ display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); border-radius:999px; background:var(--surface); padding:.25rem .55rem; font-size:.85rem; }}
-.swatch-dot {{ width:.9rem; height:.9rem; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.22); }}
-.area-colour-preview {{ display:flex; align-items:center; gap:.6rem; border:1px solid var(--line); border-left:8px solid var(--accent); border-radius:1rem; background:var(--surface); padding:.8rem 1rem; margin:.35rem 0 1rem; color:var(--ink) !important; }}
-.area-colour-dot {{ width:1.15rem; height:1.15rem; border-radius:999px; border:1px solid rgba(0,0,0,.22); display:inline-block; flex:0 0 auto; }}
-.setup-nav-row {{ margin-top:1.25rem; }}
-.setup-skip {{ margin-top:.65rem; opacity:.96; }}
-.setup-working-card {{ padding: 0 .1rem; }}
-.setup-side-arrow {{ min-height: 10rem; }}
-
-[data-testid="stIFrame"] {{ min-height:0 !important; }}
-.process-card {{ border-radius:1rem; padding:1rem; margin:.55rem 0; }}
-.process-card h4 {{ margin:.05rem 0 .35rem 0; color:var(--ink); }}
-.process-card p {{ margin:0; color:var(--muted); }}
-
-.dashboard-hero {{ padding:.15rem 0 .55rem 0; margin:0 0 .85rem 0; border-bottom:1px solid var(--line); }}
-.dashboard-hero h2 {{ margin:.05rem 0 .25rem 0; font-size:clamp(1.9rem,3vw,2.55rem); letter-spacing:-.055em; }}
-.dashboard-hero p {{ margin:0; color:var(--muted); max-width:820px; line-height:1.48; }}
-.pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; margin:1rem 0 1.35rem; align-items:stretch; }}
-.pillar-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:230px; display:flex; flex-direction:column; }}
-.pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
-.pillar-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; margin-bottom:.55rem; }}
-.pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
-.pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
-.pillar-stat {{ color:var(--ink); font-size:1.55rem; font-weight:780; line-height:1.1; }}
-.pillar-foot {{ color:var(--muted); font-size:.88rem; margin-top:.2rem; }}
-.dashboard-section {{ margin:1.45rem 0 .65rem; }}
-.dashboard-section h3 {{ margin-bottom:.25rem; }}
-.metric-strip {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.7rem; margin:.85rem 0 1.2rem; }}
-.metric-tile {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.9rem .95rem; box-shadow:none; }}
-.metric-label {{ color:var(--muted); font-size:.84rem; font-weight:750; margin-bottom:.35rem; }}
-.metric-value {{ color:var(--ink); font-size:1.35rem; font-weight:780; line-height:1.1; }}
-.attention-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1rem; padding:1rem 1.05rem; margin:.55rem 0; box-shadow:none; }}
-.attention-card.high {{ border-left:5px solid #C2410C!important; }}
-.attention-card.medium {{ border-left:5px solid var(--accent)!important; }}
-.attention-label {{ color:var(--muted); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.2rem; }}
-.attention-text {{ color:var(--ink); font-size:.98rem; line-height:1.45; }}
-.next-action-card {{ background:var(--accent-soft)!important; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line))!important; border-radius:1rem; padding:1rem 1.05rem; margin:.9rem 0 1.2rem; }}
-.next-action-card strong {{ color:var(--ink); }}
-.money-summary-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1rem; padding:1rem 1.05rem; margin:.8rem 0 1.1rem; box-shadow:none; }}
-.money-flow-table {{ width:100%; border-collapse:collapse; font-size:.96rem; }}
-.money-flow-table th {{ text-align:left; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.055em; padding:.55rem .45rem; border-bottom:1px solid var(--line); }}
-.money-flow-table td {{ padding:.7rem .45rem; border-bottom:1px solid var(--line); color:var(--ink); }}
-.money-flow-table tr:last-child td {{ border-bottom:none; }}
-.money-amount {{ font-weight:780; white-space:nowrap; }}
-.helper-row-card {{ background:var(--surface-2)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.85rem .9rem; margin:.55rem 0; }}
-.helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
-.repeat-summary {{ background:var(--surface-2)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; color:var(--ink)!important; }}
-@media (max-width: 860px) {{ .pillar-grid, .metric-strip {{ grid-template-columns:1fr; }} }}
-[data-testid="stHeader"] {{ background: transparent !important; }}
-section[data-testid="stSidebar"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
-@media (max-width: 860px) {{ .grid-3, .grid-2, .meta-grid {{ grid-template-columns: 1fr; }} }}
+@media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -2380,143 +2292,50 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
 
 
 def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
-    """Apply the seasonal Pathmark accent while letting Streamlit own appearance.
+    """Apply seasonal accent variables only.
 
-    v0.6.44 deliberately removes Pathmark's old light/dark data attributes and
-    JavaScript appearance mirroring. Streamlit's built-in System/Light/Dark menu
-    already changes its CSS variables; Pathmark now reads those variables
-    directly and only adds seasonal accent/tint values.
+    Streamlit's built-in System/Light/Dark menu owns full appearance. This
+    function deliberately does not set app backgrounds, body text, inputs,
+    popovers, or Streamlit widget colours. Seasonal themes only alter accent
+    colour and Pathmark-owned decorative surfaces.
     """
     theme_name = normalise_online_theme(theme_name)
     theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
     accent = theme.get("accent", "#334E68")
-    soft_light = theme.get("soft_light", "#E7EEF4")
-    soft_dark = theme.get("soft_dark", "#1D3142")
     seasonal_icon = theme.get("seasonal_icon", "")
     st.markdown(
         f"""
         <style>
-        :root, [data-testid="stAppViewContainer"] {{
-          color-scheme: light dark;
+        :root {{
           --accent: {accent};
+          --accent-2: {accent};
           --pathmark-accent: {accent};
-          --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
-          --pathmark-button-text: #FFFFFF;
-          --pathmark-season-soft-light: {soft_light};
-          --pathmark-season-soft-dark: {soft_dark};
-          --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 14%, var(--secondary-background-color, #FFFFFF));
-          --accent-soft: var(--pathmark-season-soft);
-          --pathmark-bg: var(--background-color, #F7F6F2);
-          --pathmark-surface: var(--secondary-background-color, #FFFFFF);
-          --pathmark-surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 86%, var(--background-color, #F7F6F2));
-          --pathmark-ink: var(--text-color, #1F2221);
-          --pathmark-muted: color-mix(in srgb, var(--text-color, #1F2221) 64%, var(--background-color, #F7F6F2));
-          --pathmark-line: var(--border-color, color-mix(in srgb, var(--text-color, #1F2221) 18%, var(--background-color, #F7F6F2)));
-        }}
-        @media (prefers-color-scheme: dark) {{
-          :root {{ --pathmark-system-dark: 1; }}
-        }}
-        .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {{
-          background-color: var(--background-color, #F7F6F2) !important;
-          color: var(--text-color, #1F2221) !important;
-        }}
-        [data-testid="stHeader"] {{
-          background: transparent !important;
-        }}
-        .card, .meta-card, .connection-card, .download-panel, .process-card, .step-card,
-        .pathmark-card, .issue-card, .setup-shell, .workspace-card,
-        .pillar-card, .metric-tile, .attention-card, .money-summary-card, .helper-row-card,
-        .repeat-summary, .safe-rule, .wizard-entry-card {{
-          background: var(--secondary-background-color, #FFFFFF) !important;
-          color: var(--text-color, #1F2221) !important;
-          border: 1px solid var(--pathmark-line) !important;
-        }}
-        .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview,
-        .next-action-card {{
-          background: var(--pathmark-season-soft) !important;
-          color: var(--text-color, #1F2221) !important;
-          border-color: var(--pathmark-line) !important;
+          --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 78%, black);
+          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 14%, var(--secondary-background-color, transparent));
         }}
         .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
+        .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview, .next-action-card {{
+          background: var(--accent-soft);
+        }}
         .guide-box {{
-          border-left: 5px solid var(--pathmark-accent) !important;
-          background: var(--secondary-background-color, #FFFFFF) !important;
-          color: var(--text-color, #1F2221) !important;
-          padding-left: 1.45rem !important;
+          border-left: 5px solid var(--pathmark-accent);
+          padding-left: 1.45rem;
         }}
-        .setup-progress-wrap {{
-          width: 100%; height: 10px; border-radius: 999px;
-          background: color-mix(in srgb, var(--text-color, #1F2221) 16%, transparent);
-          overflow: hidden; margin: 0.7rem 0 0.25rem;
-          border: 1px solid var(--pathmark-line);
-        }}
-        .setup-progress-fill {{ height: 100%; background: var(--pathmark-accent-strong); border-radius: 999px; }}
-        .setup-step-label {{
-          display: inline-flex; gap: .3rem; padding: .25rem .6rem; border-radius: 999px;
-          background: var(--pathmark-season-soft); color: var(--text-color, #1F2221); font-weight: 720;
+        .setup-progress-fill, .wizard-progress-fill {{ background: var(--pathmark-accent); }}
+        .kicker, [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
+          color: var(--pathmark-accent) !important;
         }}
         .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a,
-        [data-testid="stLinkButton"] a:visited, [data-testid="stLinkButton"] a:hover,
-        a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"] {{
-          background: var(--pathmark-accent-strong) !important;
-          color: var(--pathmark-button-text) !important;
-          border-color: color-mix(in srgb, var(--pathmark-accent-strong) 70%, #000000) !important;
-          text-decoration: none !important;
-          font-weight: 650 !important;
+        a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {{
+          background: var(--pathmark-accent) !important;
+          border-color: color-mix(in srgb, var(--pathmark-accent) 72%, black) !important;
+          color: #FFFFFF !important;
         }}
-        .stButton button *, .stButton button p, .stButton button span,
-        .stDownloadButton button *, .stDownloadButton button p, .stDownloadButton button span,
-        [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a *,
-        a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] * {{ color: var(--pathmark-button-text) !important; }}
-        .stButton button:disabled, .stDownloadButton button:disabled {{
-          background: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 82%, var(--text-color, #1F2221)) !important;
-          color: color-mix(in srgb, var(--text-color, #1F2221) 62%, var(--background-color, #F7F6F2)) !important;
-          border-color: var(--pathmark-line) !important;
+        .stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a *,
+        a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] *, .pathmark-link-button * {{
+          color: #FFFFFF !important;
         }}
-        [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] *,
-        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *,
-        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {{
-          color: var(--text-color, #1F2221) !important;
-          opacity: 1 !important;
-        }}
-        [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
-        button[data-baseweb="tab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] * {{
-          color: var(--pathmark-accent) !important;
-          font-weight: 760 !important;
-        }}
-        input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
-        [data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {{
-          background: var(--secondary-background-color, #FFFFFF) !important;
-          color: var(--text-color, #1F2221) !important;
-          border-color: var(--pathmark-line) !important;
-        }}
-        [role="listbox"], [role="option"] {{
-          background: var(--secondary-background-color, #FFFFFF) !important;
-          color: var(--text-color, #1F2221) !important;
-        }}
-        .swatch-row {{ display: flex; flex-wrap: wrap; gap: .45rem; margin: .35rem 0 .65rem; }}
-        .swatch {{
-          display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .45rem;
-          border: 1px solid var(--pathmark-line); border-radius: 999px;
-          background: var(--secondary-background-color, #FFFFFF);
-        }}
-        .swatch-dot, .area-colour-dot {{ width: .9rem; height: .9rem; border-radius: 999px; display: inline-block; border: 1px solid color-mix(in srgb, #000 22%, transparent); }}
-        .area-colour-preview {{ display:flex; align-items:center; gap:.6rem; padding:.75rem .85rem; border-left: 5px solid var(--pathmark-accent); border-radius: 12px; margin: .5rem 0 1rem; }}
         </style>
-        <script>
-        (function() {{
-          const doc = window.parent && window.parent.document ? window.parent.document : document;
-          // Remove legacy Pathmark appearance attributes from older versions.
-          // They forced light/dark variants independently of Streamlit and made
-          // the built-in menu appear broken.
-          try {{
-            ['data-pathmark-mode','data-pathmark-appearance'].forEach(function(attr) {{
-              doc.documentElement.removeAttribute(attr);
-              if (doc.body) doc.body.removeAttribute(attr);
-            }});
-          }} catch(e) {{}}
-        }})();
-        </script>
         """,
         unsafe_allow_html=True,
     )
