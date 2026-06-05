@@ -1,20 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.23",
-  "release_date": "2026-06-04",
+  "version": "0.6.25",
+  "release_date": "2026-06-05",
   "notes": [
-    "Restores optional helper/small-action Google Tasks checklist items to manual project steps and routine activities.",
-    "Manual project/routine activity forms now preserve the automatic main checklist item while allowing one or more extra small action checklist items.",
-    "Creation Wizard target dates now use a date field by default.",
-    "Wizard date inputs display in New Zealand day/month/year format while retaining ISO storage for exports.",
-    "Project start and finish time wizard steps now use form-style text entry to avoid Streamlit time-input refresh/React instability and let Next submit the entered time.",
+    "Rebuilds Spending Plan beta from a one-off finance wizard into a setup-and-assessment flow.",
+    "Adds a maintained income setup table with common income sources from the spreadsheet.",
+    "Keeps spending setup aligned to validated money-flow buckets and spreadsheet sections.",
+    "Adds an Assessment tab with safe weekly spend, weekly AP/transfer instructions, warnings, and emergency/debt/savings guidance.",
+    "Keeps five fixed account roles and removes the user-facing finance creation wizard from the Spending Plan beta tabs.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_23.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_25.zip",
   "mac_package": "",
-  "release": "v0.6.23 Helper checklist and NZ date repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_23.zip",
-  "release_name": "Helper checklist and NZ date repair",
-  "release_notes": "Restores optional helper checklist items for manual project/routine activities, uses NZ date display in the Creation Wizard, defaults the project target checkpoint to a date, and repairs project time-entry steps by using form submission rather than Streamlit time_input.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_23.zip"
+  "release": "v0.6.25 Spending Plan setup and assessment rebuild",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_25.zip",
+  "release_name": "Spending Plan setup and assessment rebuild",
+  "release_notes": "Rebuilds Spending Plan beta as income setup, spending setup, cash-flow assessment, and AP/account-role guidance rather than a one-off finance wizard.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_25.zip"
 }

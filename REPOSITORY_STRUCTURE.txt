@@ -1,16 +1,25 @@
+Pathmark repository structure
+
 .gitignore
-.streamlit/config.toml
 README.md
-REPOSITORY_STRUCTURE.txt
-app/assets/pathmark.png
-app/main.py
-app/static/apple-touch-icon.png
-app/static/manifest.json
-app/static/pathmark-icon-192.png
-app/static/pathmark-icon-512.png
-downloads/Pathmark_Local_App_Windows_v0_6_23.zip
-latest_version.json
 requirements.txt
-supabase/README.md
-supabase/migrations/20260531000000_create_pathmark_access_tables.sql
-supabase/migrations/20260601000000_add_pathmark_user_theme_preference.sql
+latest_version.json
+REPOSITORY_STRUCTURE.txt
+app/
+  main.py
+  assets/
+    pathmark.png
+  static/
+    apple-touch-icon.png
+    manifest.json
+    pathmark-icon-192.png
+    pathmark-icon-512.png
+downloads/
+  Pathmark_Local_App_Windows_v0_6_25.zip
+.streamlit/
+  config.toml
+supabase/
+  README.md
+  migrations/
+    20260531000000_create_pathmark_access_tables.sql
+    20260601000000_add_pathmark_user_theme_preference.sql

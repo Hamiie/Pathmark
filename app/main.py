@@ -2662,6 +2662,12 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
     goals, routines = parent_lookup(sheet_id)
     blocks = staged_calendar_blocks(sheet_id)
     rows = []
+    action_by_id: dict[str, dict[str, Any]] = {}
+    if not actions.empty and "action_id" in actions.columns:
+        for _, action_row in actions.iterrows():
+            aid_key = str(action_row.get("action_id", "") or "").strip()
+            if aid_key:
+                action_by_id[aid_key] = {k: action_row.get(k, "") for k in actions.columns}
 
     explicit_activity_linked_ids: set[str] = set()
     if not extra_prompts.empty:
@@ -2722,21 +2728,30 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 continue
             area_name = str(prompt.get("area_name", "") or "")
             linked_id = str(prompt.get("linked_record_id", "") or "")
+            linked_action = action_by_id.get(linked_id, {})
+            parent_activity_title = str(linked_action.get("title", "") or "").strip()
+            linked_record_type = str(prompt.get("linked_record_type", "") or "").replace("_", " ").strip()
             linked = ""
             if linked_id and not blocks.empty:
                 match = blocks[blocks["linked_record_id"].fillna("") == linked_id]
                 if not match.empty:
                     b = match.iloc[0]
                     linked = f"Related Google Calendar item: {b.get('title','Calendar time')} ({b.get('start','')})"
+            note_parts = [
+                str(prompt.get("notes", "") or "Checklist item created by Pathmark."),
+                f"Parent {linked_record_type}: {parent_activity_title}" if parent_activity_title and linked_record_type else f"Parent activity: {parent_activity_title}" if parent_activity_title else "",
+                f"Linked record ID: {linked_id}" if linked_id else "",
+                linked,
+            ]
             rows.append({
                 "id": pid,
                 "title": title,
                 "area_name": area_name,
-                "parent": str(prompt.get("linked_parent_type", "") or ""),
+                "parent": parent_activity_title or str(prompt.get("linked_parent_type", "") or ""),
                 "due_date": str(prompt.get("due_date", "") or ""),
                 "reminder_time": "",
                 "task_list": str(prompt.get("task_list", "") or "Pathmark"),
-                "notes": str(prompt.get("notes", "") or "Checklist item created by Pathmark."),
+                "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
                 "repeat_pattern": "",
                 "linked_calendar_summary": linked,
                 "status": "needsAction",
@@ -2758,6 +2773,45 @@ def helper_prompts_for_action(sheet_id: str, action_id: str) -> pd.DataFrame:
     return df[mask].copy()
 
 
+def helper_prompt_editor_rows(existing_helpers: pd.DataFrame, default_due: str = "") -> pd.DataFrame:
+    """Build editable helper-checklist rows with one due date per item."""
+    rows: list[dict[str, str]] = []
+    if existing_helpers is not None and not existing_helpers.empty:
+        for _, row in existing_helpers.iterrows():
+            title = str(row.get("title", "") or row.get("prompt_text", "") or "").strip()
+            due = nz_date_text(row.get("due_date", "") or default_due)
+            if title:
+                rows.append({"Checklist item": title, "Date to appear": due})
+    # Keep a blank row visible so users discover that multiple helper items are possible.
+    rows.append({"Checklist item": "", "Date to appear": nz_date_text(default_due) if default_due else ""})
+    return pd.DataFrame(rows, columns=["Checklist item", "Date to appear"])
+
+
+def clean_helper_prompt_rows(raw_rows: Any, default_due: str = "") -> tuple[list[dict[str, str]], list[str]]:
+    """Normalise helper rows from the manual project/routine activity editor."""
+    problems: list[str] = []
+    cleaned: list[dict[str, str]] = []
+    try:
+        rows = raw_rows.to_dict("records") if isinstance(raw_rows, pd.DataFrame) else list(raw_rows or [])
+    except Exception:
+        rows = []
+    for idx, row in enumerate(rows, start=1):
+        title = str(row.get("Checklist item", "") or row.get("title", "") or "").strip(" -•\t")
+        due_text = str(row.get("Date to appear", "") or row.get("due_date", "") or "").strip()
+        if not title and not due_text:
+            continue
+        if not title:
+            problems.append(f"Small checklist item {idx} needs a title, or remove its date.")
+            continue
+        if not due_text:
+            due_text = default_due
+        if not valid_online_date(due_text, allow_blank=False):
+            problems.append(f"Small checklist item {idx} has an invalid date. Use DD/MM/YYYY, for example 08/06/2026.")
+            continue
+        cleaned.append({"title": title, "due_date": normalise_online_date(due_text)})
+    return cleaned, problems
+
+
 def replace_helper_prompts_for_action(
     sheet_id: str,
     *,
@@ -2767,10 +2821,17 @@ def replace_helper_prompts_for_action(
     linked_record_type: str,
     linked_parent_id: str,
     linked_parent_type: str,
-    helper_text: str,
-    helper_due: str,
+    helper_rows: list[dict[str, str]] | None = None,
+    helper_text: str = "",
+    helper_due: str = "",
 ) -> None:
-    """Replace helper checklist items for a manual action without touching the automatic activity item."""
+    """Replace helper checklist items for a manual action without touching the automatic activity item.
+
+    Each helper item is saved as a separate Google Tasks export row with its own
+    due date and a stable link back to the project step or routine activity it
+    came from. ``helper_text``/``helper_due`` are retained for compatibility with
+    older callers, but new UI code should pass ``helper_rows``.
+    """
     if not action_id:
         return
     existing = helper_prompts_for_action(sheet_id, action_id)
@@ -2779,12 +2840,22 @@ def replace_helper_prompts_for_action(
         if pid:
             update_online_record(sheet_id, "task_prompts", pid, {"status": "Archived", "updated_at": now_iso()})
 
-    due = normalise_online_date(helper_due) if str(helper_due or "").strip() else ""
+    rows_in = helper_rows
+    if rows_in is None:
+        default_due = normalise_online_date(helper_due) if str(helper_due or "").strip() else ""
+        rows_in = []
+        for line in str(helper_text or "").splitlines():
+            title = line.strip(" -•	")
+            if title:
+                rows_in.append({"title": title, "due_date": default_due})
+
     rows = []
-    for line in str(helper_text or "").splitlines():
-        title = line.strip(" -•	")
+    parent_label = linked_record_type.replace("_", " ")
+    for item in rows_in or []:
+        title = str(item.get("title", "") or item.get("Checklist item", "") or "").strip(" -•	")
         if not title:
             continue
+        due = normalise_online_date(item.get("due_date", "") or item.get("Date to appear", "") or helper_due)
         rows.append({
             "prompt_id": f"prompt-{uuid.uuid4().hex}",
             "area_name": area_name,
@@ -2797,7 +2868,7 @@ def replace_helper_prompts_for_action(
             "linked_parent_id": linked_parent_id,
             "linked_parent_type": linked_parent_type,
             "task_list": "Pathmark",
-            "notes": f"Helper checklist item for {linked_record_type.replace('_', ' ')}: {action_title}",
+            "notes": f"Helper checklist item for {parent_label}: {action_title}",
             "status": "Staged",
             "created_at": now_iso(),
             "updated_at": now_iso(),
@@ -3167,10 +3238,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
     default_start_time = str(action.get("calendar_start_time", "") or routine.get("calendar_start_time", "") or "")
     default_end_time = str(action.get("calendar_end_time", "") or routine.get("calendar_end_time", "") or "")
     existing_helpers = helper_prompts_for_action(sheet_id, record_id) if record_id else pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
-    existing_helper_text = "\n".join([str(r.get("title", "") or r.get("prompt_text", "") or "").strip() for _, r in existing_helpers.iterrows() if str(r.get("title", "") or r.get("prompt_text", "") or "").strip()])
-    existing_helper_due = ""
-    if not existing_helpers.empty:
-        existing_helper_due = str(existing_helpers.iloc[0].get("due_date", "") or "")
+    helper_editor_default_due = default_start_date or date.today().isoformat()
 
     with st.form(form_id, clear_on_submit=not bool(record_id)):
         st.markdown(f"### {'Edit' if record_id else 'Add'} {title_word.lower()}")
@@ -3202,9 +3270,18 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
 
         st.markdown("#### 3. Optional small action checklist items")
-        st.caption("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Add any extra small actions that would reduce the activation energy. Enter one item per line.")
-        helper_text = st.text_area("Additional small Google Tasks checklist items", value=existing_helper_text, height=90, placeholder="Put sketchbook on desk\nOpen the course page" if not is_routine_activity else "No screen time three hours before bed\nPut phone outside the bedroom")
-        helper_due = st.text_input("Date these small checklist items should appear", value=nz_date_text(existing_helper_due or default_start_date), placeholder="DD/MM/YYYY")
+        st.caption("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Add extra small actions that reduce the activation energy. Each helper item can have its own Google Tasks date and remains linked to the parent step or activity for future editing.")
+        helper_rows_input = st.data_editor(
+            helper_prompt_editor_rows(existing_helpers, helper_editor_default_due),
+            key=f"helper_rows_{form_id}",
+            hide_index=True,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "Checklist item": st.column_config.TextColumn("Additional small Google Tasks checklist item", help="One small action, such as ‘put phone outside the bedroom’."),
+                "Date to appear": st.column_config.TextColumn("Date this checklist item should appear", help="Use DD/MM/YYYY. Google Tasks checklist items are date-based in Pathmark."),
+            },
+        )
 
         activity_days = ""
         if is_routine_activity:
@@ -3227,9 +3304,12 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
             elif problems:
                 for problem in problems:
                     st.error(problem)
-            elif helper_text.strip() and not valid_online_date(helper_due, allow_blank=False):
-                st.error("The small checklist item date must be a real date. Use DD/MM/YYYY, for example 08/06/2026.")
             else:
+                helper_rows_clean, helper_row_problems = clean_helper_prompt_rows(helper_rows_input, scheduled)
+                if helper_row_problems:
+                    for problem in helper_row_problems:
+                        st.error(problem)
+                    return
                 start_date_norm = normalise_online_date(scheduled)
                 end_date_norm = normalise_online_date(end_date)
                 minutes = _minutes_between_calendar_bounds(scheduled, start_time, end_date, end_time)
@@ -3273,8 +3353,8 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                         linked_record_type="routine_activity" if is_routine_activity else "project_step",
                         linked_parent_id=routine_id or goal_id,
                         linked_parent_type="routine" if is_routine_activity else "project",
-                        helper_text=helper_text,
-                        helper_due=helper_due or scheduled,
+                        helper_rows=helper_rows_clean,
+                        helper_due=scheduled,
                     )
                     st.success(message)
                 else:
@@ -3674,6 +3754,23 @@ SPENDING_BUCKET_EXPLANATIONS = {
 }
 SPENDING_FREQUENCIES = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"]
 
+SPENDING_INCOME_STARTERS = [
+    "After-tax employment income",
+    "Other income",
+    "Government benefits",
+    "Child support",
+    "Investment property income",
+    "Other investment income",
+]
+
+SPENDING_ACCOUNT_ROLES = [
+    ("Hub account", "All income lands here. Fixed bills and direct debits come from here."),
+    ("Everyday card account", "Only weekly spend money moves here for groceries, fuel, cafes, eating out and day-to-day card spending."),
+    ("Emergency savings", "Money for genuine unexpected costs. Rebuild this before increasing optional savings."),
+    ("Planned irregular costs", "Money set aside for gifts, Christmas, clothes, holidays, annual fees and other predictable but less frequent costs."),
+    ("Debt reduction or savings goals", "The real leftover after planned spending. Use this for debt first, then emergency savings, then longer-term goals."),
+]
+
 
 def normalise_spending_kind(value: Any) -> str:
     text = str(value or "").strip().lower()
@@ -3962,218 +4059,8 @@ def load_spending_starter_categories(sheet_id: str) -> tuple[bool, str]:
 
 
 
-FINANCE_WIZARD_STEPS = ["Income", "Everyday spend", "Fixed costs", "Irregular costs", "Review"]
-
-
-def finance_wizard_default_draft() -> dict[str, Any]:
-    return {
-        "draft_id": f"finance-draft-{uuid.uuid4().hex[:12]}",
-        "current_step": "income",
-        "income": [],
-        "expenses": [],
-        "created_at": utc_now_text(),
-        "updated_at": utc_now_text(),
-    }
-
-
-def finance_wizard_draft() -> dict[str, Any]:
-    draft = st.session_state.get("finance_setup_wizard_draft")
-    if not isinstance(draft, dict):
-        draft = finance_wizard_default_draft()
-        st.session_state["finance_setup_wizard_draft"] = draft
-    draft.setdefault("income", [])
-    draft.setdefault("expenses", [])
-    draft.setdefault("current_step", "income")
-    return draft
-
-
-def finance_wizard_reset() -> None:
-    st.session_state["finance_setup_wizard_draft"] = finance_wizard_default_draft()
-
-
-def finance_wizard_set_step(step: str) -> None:
-    draft = finance_wizard_draft()
-    draft["current_step"] = step
-    draft["updated_at"] = utc_now_text()
-    st.session_state["finance_setup_wizard_draft"] = draft
-
-
-def finance_wizard_progress_index(step: str) -> int:
-    order = ["income", "everyday", "fixed", "sinking", "review"]
-    try:
-        return order.index(step)
-    except ValueError:
-        return 0
-
-
-def render_finance_wizard_progress(step: str) -> None:
-    idx = finance_wizard_progress_index(step)
-    percent = int(((idx + 1) / 5) * 100)
-    label = FINANCE_WIZARD_STEPS[idx]
-    st.markdown(
-        f"""
-<div class='wizard-progress'>
-  <div class='wizard-progress-text'>Finance setup wizard · {html.escape(label)} · Step {idx + 1} of 5</div>
-  <div class='wizard-progress-track'><div class='wizard-progress-fill' style='width:{percent}%;'></div></div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def finance_wizard_rows_for_kind(draft: dict[str, Any], kind: str) -> list[dict[str, Any]]:
-    return [row for row in draft.get("expenses", []) if normalise_spending_kind(row.get("expense_kind")) == kind]
-
-
-def finance_wizard_annual_income(draft: dict[str, Any]) -> float:
-    total = 0.0
-    for row in draft.get("income", []):
-        total += annualise_amount(money_value(row.get("amount", 0)), str(row.get("frequency", "Weekly")))
-    return total
-
-
-def finance_wizard_annual_expenses(draft: dict[str, Any]) -> dict[str, float]:
-    totals = {"Everyday spend": 0.0, "Fixed cost": 0.0, "Sinking fund": 0.0}
-    for row in draft.get("expenses", []):
-        kind = normalise_spending_kind(row.get("expense_kind"))
-        totals[kind] = totals.get(kind, 0.0) + annualise_amount(money_value(row.get("amount", 0)), str(row.get("frequency", "Weekly")))
-    return totals
-
-
-def render_finance_wizard_summary_cards(draft: dict[str, Any]) -> dict[str, float]:
-    income_annual = finance_wizard_annual_income(draft)
-    expense_totals = finance_wizard_annual_expenses(draft)
-    everyday = expense_totals.get("Everyday spend", 0.0)
-    fixed = expense_totals.get("Fixed cost", 0.0)
-    sinking = expense_totals.get("Sinking fund", 0.0)
-    surplus = income_annual - everyday - fixed - sinking
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        render_money_metric("Income / week", income_annual / 52 if income_annual else 0.0)
-    with c2:
-        render_money_metric("Everyday spend", everyday / 52 if everyday else 0.0)
-    with c3:
-        render_money_metric("Bills + irregular", (fixed + sinking) / 52 if fixed + sinking else 0.0)
-    with c4:
-        render_money_metric("Left / week", surplus / 52 if surplus else 0.0)
-    return {
-        "income_annual": income_annual,
-        "everyday_annual": everyday,
-        "fixed_annual": fixed,
-        "sinking_annual": sinking,
-        "surplus_annual": surplus,
-        "income_weekly": income_annual / 52 if income_annual else 0.0,
-        "everyday_weekly": everyday / 52 if everyday else 0.0,
-        "fixed_weekly": fixed / 52 if fixed else 0.0,
-        "sinking_weekly": sinking / 52 if sinking else 0.0,
-        "surplus_weekly": surplus / 52 if surplus else 0.0,
-        "emergency_target": (everyday + fixed + sinking) / 4 if everyday + fixed + sinking else 0.0,
-    }
-
-
-def render_finance_wizard_income_step(draft: dict[str, Any]) -> None:
-    st.markdown("### What comes in?")
-    _wizard_info_button("What to enter", "Enter take-home income or other regular money that reliably arrives. You can add more than one inflow.")
-    if draft.get("income"):
-        st.markdown("#### Added inflows")
-        preview = pd.DataFrame(draft["income"])
-        preview["annual_amount"] = preview.apply(lambda row: annualise_amount(money_value(row.get("amount", 0)), row.get("frequency", "Weekly")), axis=1)
-        st.dataframe(preview[["person", "category", "amount", "frequency", "annual_amount"]], use_container_width=True, hide_index=True)
-    with st.form("finance_wizard_income_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            person = st.text_input("Whose income is this?", placeholder="e.g. Me")
-            category = st.text_input("Income source", placeholder="e.g. Salary, wages, benefit, board")
-        with c2:
-            frequency = st.selectbox("How often does it arrive?", ["Weekly", "Fortnightly", "Monthly", "Yearly"], key="finance_income_frequency")
-            amount = st.number_input("Amount received", min_value=0.0, step=10.0, format="%.2f", key="finance_income_amount")
-        notes = st.text_area("Notes", placeholder="Optional")
-        add_income = st.form_submit_button("Add inflow", use_container_width=True)
-    if add_income:
-        if not category.strip() or amount <= 0:
-            st.warning("Add an income source and an amount before continuing.")
-        else:
-            draft["income"].append({
-                "income_id": f"income-{uuid.uuid4().hex[:12]}",
-                "person": person.strip() or "Me",
-                "category": category.strip(),
-                "amount": str(amount),
-                "frequency": frequency,
-                "notes": notes.strip(),
-            })
-            draft["updated_at"] = utc_now_text()
-            st.session_state["finance_setup_wizard_draft"] = draft
-            st.rerun()
-    st.markdown("---")
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        st.button("Reset finance wizard", on_click=finance_wizard_reset, use_container_width=True)
-    with c2:
-        st.button("Next: everyday spend", disabled=not bool(draft.get("income")), on_click=finance_wizard_set_step, args=("everyday",), use_container_width=True)
-
-
-def render_finance_wizard_expense_step(draft: dict[str, Any], kind: str, next_step: str, back_step: str) -> None:
-    label = SPENDING_BUCKET_LABELS[kind]
-    st.markdown(f"### {html.escape(label)}")
-    st.caption(SPENDING_BUCKET_EXPLANATIONS[kind])
-    if kind == "Everyday spend":
-        help_text = "This is the weekly money you deliberately allow yourself to spend from the card/account you use day to day."
-        default_group = "Weekly spend money"
-        examples = "Groceries, fuel, cafes, eating out, parking, hobbies."
-    elif kind == "Fixed cost":
-        help_text = "These are regular bills, subscriptions, direct debits, rent, insurance, minimum debt repayments and other commitments."
-        default_group = "Regular bills and commitments"
-        examples = "Rent, mortgage, insurance, phone, power, subscriptions, loan minimums."
-    else:
-        help_text = "These are predictable costs that are not weekly but should not feel like emergencies when they arrive."
-        default_group = "Gifts, clothes, Christmas and travel"
-        examples = "Birthdays, Christmas, clothes, holidays, annual fees, car registration."
-    _wizard_info_button("What belongs here?", f"{help_text} Examples: {examples}")
-    rows = finance_wizard_rows_for_kind(draft, kind)
-    if rows:
-        st.markdown("#### Added items")
-        preview = pd.DataFrame(rows)
-        preview["annual_amount"] = preview.apply(lambda row: annualise_amount(money_value(row.get("amount", 0)), row.get("frequency", "Weekly")), axis=1)
-        st.dataframe(preview[["group_name", "item", "amount", "frequency", "annual_amount"]], use_container_width=True, hide_index=True)
-    with st.form(f"finance_wizard_expense_form_{kind.replace(' ', '_').lower()}", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            group_name = st.text_input("Section", value=default_group)
-            item = st.text_input("Item", placeholder=examples.split(",")[0])
-        with c2:
-            frequency = st.selectbox("How often is this paid or set aside?", SPENDING_FREQUENCIES, key=f"finance_expense_frequency_{kind}")
-            amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f", key=f"finance_expense_amount_{kind}")
-        notes = st.text_area("Notes", placeholder="Optional")
-        add_item = st.form_submit_button("Add item", use_container_width=True)
-    if add_item:
-        if not item.strip() or amount <= 0:
-            st.warning("Add an item name and amount before adding it.")
-        else:
-            draft["expenses"].append({
-                "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
-                "expense_kind": kind,
-                "group_name": group_name.strip() or default_group,
-                "item": item.strip(),
-                "amount": str(amount),
-                "frequency": frequency,
-                "notes": notes.strip(),
-            })
-            draft["updated_at"] = utc_now_text()
-            st.session_state["finance_setup_wizard_draft"] = draft
-            st.rerun()
-    st.markdown("---")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button("Back", on_click=finance_wizard_set_step, args=(back_step,), use_container_width=True)
-    with c2:
-        button_label = "Review plan" if next_step == "review" else "Next"
-        st.button(button_label, disabled=not bool(rows), on_click=finance_wizard_set_step, args=(next_step,), use_container_width=True)
-    if not rows:
-        st.caption("Add at least one item in this section before continuing. This helps Pathmark calculate the weekly money flow.")
-
-
-def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, Any]]:
-    now_note = "Created by the Finance setup wizard."
+def spending_account_role_records(summary: dict[str, float]) -> list[dict[str, Any]]:
+    now_note = "Created by Spending Plan setup."
     return [
         {
             "account_id": f"account-{uuid.uuid4().hex[:12]}",
@@ -4184,7 +4071,7 @@ def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, 
             "current_balance": "0",
             "notes": f"Keep at least {money_text(summary.get('fixed_weekly', 0.0))} per week available for regular bills and commitments. {now_note}",
             "status": "active",
-            "source": "Finance setup wizard",
+            "source": "Spending Plan setup",
         },
         {
             "account_id": f"account-{uuid.uuid4().hex[:12]}",
@@ -4195,7 +4082,7 @@ def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, 
             "current_balance": "0",
             "notes": f"Set up a weekly automatic payment of {money_text(summary.get('everyday_weekly', 0.0))} from the hub account. {now_note}",
             "status": "active",
-            "source": "Finance setup wizard",
+            "source": "Spending Plan setup",
         },
         {
             "account_id": f"account-{uuid.uuid4().hex[:12]}",
@@ -4206,7 +4093,7 @@ def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, 
             "current_balance": "0",
             "notes": f"Suggested emergency target: {money_text(summary.get('emergency_target', 0.0))}. Build this after minimum debt repayments are covered. {now_note}",
             "status": "active",
-            "source": "Finance setup wizard",
+            "source": "Spending Plan setup",
         },
         {
             "account_id": f"account-{uuid.uuid4().hex[:12]}",
@@ -4217,7 +4104,7 @@ def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, 
             "current_balance": "0",
             "notes": f"Set up a weekly automatic payment of {money_text(summary.get('sinking_weekly', 0.0))} from the hub account. {now_note}",
             "status": "active",
-            "source": "Finance setup wizard",
+            "source": "Spending Plan setup",
         },
         {
             "account_id": f"account-{uuid.uuid4().hex[:12]}",
@@ -4228,150 +4115,204 @@ def finance_wizard_account_records(summary: dict[str, float]) -> list[dict[str, 
             "current_balance": "0",
             "notes": f"Potential leftover after planned spending: {money_text(summary.get('surplus_weekly', 0.0))} per week. {now_note}",
             "status": "active",
-            "source": "Finance setup wizard",
+            "source": "Spending Plan setup",
         },
     ]
 
 
-def save_finance_wizard_to_sheet(sheet_id: str, draft: dict[str, Any], summary: dict[str, float]) -> tuple[bool, str]:
-    records: dict[str, list[dict[str, Any]]] = {"spending_income": [], "spending_expenses": [], "spending_accounts": []}
-    for row in draft.get("income", []):
-        record = {
-            "income_id": row.get("income_id") or f"income-{uuid.uuid4().hex[:12]}",
-            "person": row.get("person", "Me"),
-            "category": row.get("category", "Income"),
-            "notes": row.get("notes", ""),
+def load_spending_income_starters(sheet_id: str) -> tuple[bool, str]:
+    existing = active_online_df(read_online_table(sheet_id, "spending_income"))
+    if not existing.empty:
+        return False, "Income sources already exist. Edit the income setup table rather than loading another starter set."
+    records = []
+    for category in SPENDING_INCOME_STARTERS:
+        records.append({
+            "income_id": f"income-{uuid.uuid4().hex[:12]}",
+            "person": "Me",
+            "category": category,
+            "weekly_amount": "0",
+            "fortnightly_amount": "0",
+            "monthly_amount": "0",
+            "yearly_amount": "0",
+            "annual_amount": "0",
+            "notes": "Starter income source. Add an amount if this applies, or archive it later.",
             "status": "active",
-            "source": "Finance setup wizard",
-        }
-        record.update(amount_columns_for_frequency(money_value(row.get("amount", 0)), str(row.get("frequency", "Weekly"))))
-        records["spending_income"].append(record)
-    for row in draft.get("expenses", []):
-        record = {
-            "expense_id": row.get("expense_id") or f"expense-{uuid.uuid4().hex[:12]}",
-            "expense_kind": normalise_spending_kind(row.get("expense_kind")),
-            "group_name": row.get("group_name", spending_bucket_label(row.get("expense_kind"))),
-            "item": row.get("item", "Spending item"),
-            "notes": row.get("notes", ""),
-            "status": "active",
-            "source": "Finance setup wizard",
-        }
-        record.update(amount_columns_for_frequency(money_value(row.get("amount", 0)), str(row.get("frequency", "Weekly")), include_quarterly=True))
-        records["spending_expenses"].append(record)
-    existing_accounts = active_online_df(read_online_table(sheet_id, "spending_accounts"))
-    existing_names = set(existing_accounts.get("account_name", pd.Series(dtype=str)).astype(str).str.strip().tolist()) if not existing_accounts.empty else set()
-    for account in finance_wizard_account_records(summary):
-        if account["account_name"] not in existing_names:
-            records["spending_accounts"].append(account)
-    return append_many_online_records(sheet_id, records)
+            "source": "Pathmark Spending Plan income setup",
+        })
+    return append_many_online_records(sheet_id, {"spending_income": records})
 
 
-def render_finance_wizard_review_step(sheet_id: str, draft: dict[str, Any]) -> None:
-    st.markdown("### Review your money flow")
-    summary = render_finance_wizard_summary_cards(draft)
-    if summary["surplus_annual"] < 0:
-        st.warning("This draft currently spends more than the income entered. Go back and adjust the amounts before setting automatic payments.")
-    st.markdown("#### Where your income should go")
-    st.markdown(
-        f"""
-<div class='info-card'>
-<strong>Income</strong><br>
-Have income paid into <strong>Account 1 — Hub account</strong>.<br><br>
-<strong>Automatic payments to set up</strong><br>
-• {html.escape(money_text(summary['everyday_weekly']))} weekly to <strong>Account 2 — Everyday card account</strong>.<br>
-• {html.escape(money_text(summary['sinking_weekly']))} weekly to <strong>Account 4 — Gifts, holidays, clothes and Christmas</strong>.<br>
-• Keep about {html.escape(money_text(summary['fixed_weekly']))} per week in <strong>Account 1 — Hub account</strong> for bills and direct debits.<br><br>
-<strong>Leftover priority</strong><br>
-After minimum debt repayments are covered, send surplus to extra debt repayment first, then emergency savings, then longer-term goals. Suggested emergency target: <strong>{html.escape(money_text(summary['emergency_target']))}</strong>.
-</div>
-        """,
-        unsafe_allow_html=True,
+def render_spending_assessment(sheet_id: str) -> None:
+    summary = spending_summary(sheet_id)
+    st.markdown("#### Assessment")
+    st.write(
+        "This assessment turns the income and outflow lists into a weekly money-flow plan. "
+        "It is intended to show where money should go before it gets spent."
     )
-    if draft.get("income"):
-        st.markdown("#### Inflows to save")
-        st.dataframe(pd.DataFrame(draft["income"]), use_container_width=True, hide_index=True)
-    if draft.get("expenses"):
-        st.markdown("#### Outflows to save")
-        st.dataframe(pd.DataFrame(draft["expenses"]), use_container_width=True, hide_index=True)
-    st.markdown("---")
-    c1, c2 = st.columns(2)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.button("Back", on_click=finance_wizard_set_step, args=("sinking",), use_container_width=True)
+        render_money_metric("Income / week", summary["income_weekly"])
     with c2:
-        disabled = not draft.get("income") or not draft.get("expenses") or summary["surplus_annual"] < 0
-        if st.button("Save finance setup", disabled=disabled, use_container_width=True):
-            ok, msg = save_finance_wizard_to_sheet(sheet_id, draft, summary)
-            if ok:
-                st.session_state["spending_notice"] = "Finance setup saved. Review the Summary and Cash-flow accounts tabs for your weekly transfer amounts."
-                finance_wizard_reset()
-                clear_online_cache(sheet_id)
-                st.rerun()
-            else:
-                st.warning(safe_user_message(msg))
+        render_money_metric("Safe weekly spend", summary["everyday_weekly"], "The planned weekly amount for the everyday card account.")
+    with c3:
+        render_money_metric("APs / week", summary["fixed_weekly"] + summary["sinking_weekly"], "Fixed bills plus planned irregular costs.")
+    with c4:
+        render_money_metric("Unallocated / week", summary["surplus_weekly"], "Income minus all planned outflows, divided by 52.")
 
+    income = active_online_df(read_online_table(sheet_id, "spending_income"))
+    expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
+    warnings = []
+    if income.empty or summary["income_annual"] <= 0:
+        warnings.append("Add at least one active income source before relying on the assessment.")
+    if expenses.empty:
+        warnings.append("Load the common spending checklist and enter amounts for the items that apply.")
+    if summary["surplus_annual"] < 0:
+        warnings.append("Planned outflows are higher than income. Reduce everyday spending, fixed costs, or planned irregular costs before adding savings goals.")
+    if summary["sinking_weekly"] <= 0 and not expenses.empty:
+        warnings.append("No planned irregular costs are funded yet. Annual costs such as Christmas, car costs, clothes, dental and holidays can become emergencies if they are not smoothed through the year.")
+    if summary["everyday_weekly"] <= 0 and not expenses.empty:
+        warnings.append("No everyday spending allowance is set. Add a realistic weekly amount for groceries, fuel, cafes and day-to-day spending.")
+    if warnings:
+        for warning in warnings:
+            st.warning(warning)
+    elif summary["income_annual"] > 0:
+        st.success("The plan has income, spending categories and a weekly money-flow result.")
 
-def render_finance_setup_wizard(sheet_id: str) -> None:
-    draft = finance_wizard_draft()
-    step = draft.get("current_step", "income")
-    st.markdown("### Finance setup wizard")
-    st.write("Set up what comes in, what needs to go out, and the weekly transfers or automatic payments that make the plan run.")
-    render_finance_wizard_progress(step)
-    if step == "income":
-        render_finance_wizard_income_step(draft)
-    elif step == "everyday":
-        render_finance_wizard_expense_step(draft, "Everyday spend", "fixed", "income")
-    elif step == "fixed":
-        render_finance_wizard_expense_step(draft, "Fixed cost", "sinking", "everyday")
-    elif step == "sinking":
-        render_finance_wizard_expense_step(draft, "Sinking fund", "review", "fixed")
-    else:
-        render_finance_wizard_review_step(sheet_id, draft)
+    st.markdown("#### Suggested weekly APs / transfers")
+    ap_rows = [
+        {"From": "Hub account", "To": "Everyday card account", "Weekly amount": summary["everyday_weekly"], "Purpose": "Safe weekly spend money"},
+        {"From": "Hub account", "To": "Planned irregular costs", "Weekly amount": summary["sinking_weekly"], "Purpose": "Gifts, clothes, Christmas, holidays, annual fees and other predictable irregular costs"},
+        {"From": "Hub account", "To": "Debt reduction or savings goals", "Weekly amount": max(summary["surplus_weekly"], 0.0), "Purpose": "Extra debt repayment first, then emergency savings, then longer-term goals"},
+    ]
+    ap_df = pd.DataFrame(ap_rows)
+    ap_df["Weekly amount"] = ap_df["Weekly amount"].map(lambda value: money_text(value))
+    st.dataframe(ap_df, use_container_width=True, hide_index=True)
+
+    render_spending_flow_guidance(summary)
+
 
 def render_spending_income_form(sheet_id: str) -> None:
-    st.markdown("#### What comes in")
-    st.write("Add take-home income and other regular money coming in. Pathmark converts each amount to an annual and weekly view for the cash-flow summary.")
-    with st.form("spending_income_form", clear_on_submit=False):
-        person = st.text_input("Person or source", placeholder="e.g. Me, partner, investment income")
-        category = st.selectbox("Income type", ["After-tax employment income", "Other income", "Government benefits", "Child support", "Investment income", "Other"])
-        c1, c2 = st.columns(2)
-        with c1:
-            frequency = st.selectbox("How often does this arrive?", ["Weekly", "Fortnightly", "Monthly", "Yearly"], key="income_frequency")
-        with c2:
-            amount = st.number_input("Amount received", min_value=0.0, step=10.0, format="%.2f", key="income_amount")
-        notes = st.text_area("Notes", placeholder="Optional")
-        submitted = st.form_submit_button("Add income", use_container_width=True)
-    if submitted:
-        if not person.strip():
-            st.warning("Add a person or source before saving income.")
-        elif amount <= 0:
-            st.warning("Add an amount greater than zero before saving income.")
-        else:
-            record = {
-                "income_id": f"income-{uuid.uuid4().hex[:12]}",
-                "person": person.strip(),
-                "category": category,
-                "notes": notes.strip(),
-                "status": "active",
-            }
-            record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
-            ok, msg = append_online_record(sheet_id, "spending_income", record)
+    st.markdown("#### Setup income")
+    st.write(
+        "Work through the income sources once, then return here only when income changes. "
+        "Each row is converted to weekly and annual equivalents for the assessment."
+    )
+    income = active_online_df(read_online_table(sheet_id, "spending_income"))
+    if income.empty:
+        st.info("Start with the common income source list from the spreadsheet, then enter amounts for the rows that apply.")
+        if st.button("Load common income sources", use_container_width=True):
+            ok, msg = load_spending_income_starters(sheet_id)
             if ok:
                 st.session_state["spending_notice"] = msg
                 st.rerun()
             else:
                 st.warning(safe_user_message(msg))
+        return
+
+    editor_rows = []
+    for _, row in income.iterrows():
+        amount, frequency = amount_and_frequency_from_row(row)
+        editor_rows.append({
+            "_record_id": row.get("income_id", ""),
+            "Person": row.get("person", "Me") or "Me",
+            "Income source": row.get("category", ""),
+            "Amount": float(amount),
+            "Frequency": frequency,
+            "Notes": row.get("notes", ""),
+        })
+    edit_df = pd.DataFrame(editor_rows)
+    income_options = SPENDING_INCOME_STARTERS + ["Other income"]
+    with st.form("spending_income_setup_editor", clear_on_submit=False):
+        edited = st.data_editor(
+            edit_df,
+            hide_index=True,
+            use_container_width=True,
+            column_order=["Person", "Income source", "Amount", "Frequency", "Notes"],
+            column_config={
+                "Person": st.column_config.TextColumn("Person"),
+                "Income source": st.column_config.SelectboxColumn("Income source", options=income_options, help="Use the validated source list where possible."),
+                "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=10.0, format="$%.2f"),
+                "Frequency": st.column_config.SelectboxColumn("Frequency", options=["Weekly", "Fortnightly", "Monthly", "Yearly"]),
+                "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+            },
+        )
+        save = st.form_submit_button("Save income setup", use_container_width=True)
+    if save:
+        failures: list[str] = []
+        updates_count = 0
+        for _, edited_row in edited.iterrows():
+            record_id = str(edited_row.get("_record_id", "")).strip()
+            if not record_id:
+                continue
+            category = str(edited_row.get("Income source", "")).strip()
+            person = str(edited_row.get("Person", "") or "Me").strip() or "Me"
+            frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
+            amount = money_value(edited_row.get("Amount", 0.0))
+            if not category:
+                failures.append("One income row was missing a source.")
+                continue
+            update = {
+                "person": person,
+                "category": category,
+                "notes": str(edited_row.get("Notes", "") or "").strip(),
+                "status": "active",
+            }
+            update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
+            ok, msg = update_online_record(sheet_id, "spending_income", record_id, update)
+            if ok:
+                updates_count += 1
+            else:
+                failures.append(safe_user_message(msg))
+        if failures:
+            st.warning("Some income rows could not be saved: " + "; ".join(failures[:3]))
+        else:
+            st.session_state["spending_notice"] = f"Saved {updates_count} income rows to your Pathmark Sync sheet."
+            st.rerun()
+
+    with st.expander("Add another income source"):
+        with st.form("spending_custom_income_form", clear_on_submit=False):
+            person = st.text_input("Person", value="Me")
+            category_choice = st.selectbox("Income source", income_options, key="custom_income_category_choice")
+            custom_category = st.text_input("Custom income source", placeholder="Optional")
+            c1, c2 = st.columns(2)
+            with c1:
+                frequency = st.selectbox("How often does it arrive?", ["Weekly", "Fortnightly", "Monthly", "Yearly"], key="custom_income_frequency")
+            with c2:
+                amount = st.number_input("Amount received", min_value=0.0, step=10.0, format="%.2f", key="custom_income_amount")
+            notes = st.text_area("Notes", placeholder="Optional")
+            submitted = st.form_submit_button("Add income source", use_container_width=True)
+        if submitted:
+            category = custom_category.strip() or category_choice
+            if not category.strip() or amount <= 0:
+                st.warning("Add an income source and an amount before saving.")
+            else:
+                record = {
+                    "income_id": f"income-{uuid.uuid4().hex[:12]}",
+                    "person": person.strip() or "Me",
+                    "category": category.strip(),
+                    "notes": notes.strip(),
+                    "status": "active",
+                    "source": "Pathmark Spending Plan income setup",
+                }
+                record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
+                ok, msg = append_online_record(sheet_id, "spending_income", record)
+                if ok:
+                    st.session_state["spending_notice"] = msg
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
 
 
 def render_spending_expense_form(sheet_id: str) -> None:
-    st.markdown("#### What you spend")
+    st.markdown("#### Setup spending")
     st.write(
-        "Work down the common expense list. If an item applies to you, add the amount and how often it is paid. "
-        "If it does not apply, leave it at zero. You can rename items or add your own."
+        "Work down the common expense checklist from the spreadsheet. Use the bucket and section lists for validation, "
+        "then enter amounts only where the item applies. Each row is converted into a weekly equivalent for the assessment."
     )
     st.markdown(
         """
 <div class='info-card'>
-<strong>The three buckets</strong><br>
+<strong>The three money-flow buckets</strong><br>
 <strong>Weekly spend money:</strong> groceries, fuel, cafes, eating out and other day-to-day card spending.<br>
 <strong>Regular bills and commitments:</strong> rent/mortgage, utilities, subscriptions, insurance, minimum debt repayments and other automatic costs.<br>
 <strong>Planned irregular costs:</strong> birthdays, Christmas, clothes, holidays, travel and other known costs that need to build up over time.
@@ -4382,8 +4323,8 @@ def render_spending_expense_form(sheet_id: str) -> None:
 
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
     if expenses.empty:
-        st.info("Load the common expense checklist, then work down it and add amounts only where the item applies to you.")
-        if st.button("Load common expense checklist", use_container_width=True):
+        st.info("Load the common spending checklist, then add amounts only where the item applies.")
+        if st.button("Load common spending checklist", use_container_width=True):
             ok, msg = load_spending_starter_categories(sheet_id)
             if ok:
                 st.session_state["spending_notice"] = msg
@@ -4396,6 +4337,7 @@ def render_spending_expense_form(sheet_id: str) -> None:
     for tab, kind in zip(tabs, SPENDING_BUCKET_ORDER):
         with tab:
             label = SPENDING_BUCKET_LABELS[kind]
+            section_options = spending_sections_for_kind(kind)
             st.caption(f"{SPENDING_BUCKET_EXPLANATIONS[kind]} Destination: {spending_flow_destination_for_kind(kind)}.")
             bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == kind].copy()
             if bucket_rows.empty:
@@ -4404,10 +4346,13 @@ def render_spending_expense_form(sheet_id: str) -> None:
                 editor_rows = []
                 for _, row in bucket_rows.iterrows():
                     amount, frequency = amount_and_frequency_from_row(row)
+                    section = row.get("group_name", label) or label
+                    if section not in section_options:
+                        section_options = section_options + [section]
                     editor_rows.append({
                         "_record_id": row.get("expense_id", ""),
-                        "Section": row.get("group_name", label),
-                        "Expense": row.get("item", ""),
+                        "Section": section,
+                        "Specific category": row.get("item", ""),
                         "Amount": float(amount),
                         "Frequency": frequency,
                         "Notes": row.get("notes", ""),
@@ -4418,10 +4363,10 @@ def render_spending_expense_form(sheet_id: str) -> None:
                         edit_df,
                         hide_index=True,
                         use_container_width=True,
-                        column_order=["Section", "Expense", "Amount", "Frequency", "Notes"],
+                        column_order=["Section", "Specific category", "Amount", "Frequency", "Notes"],
                         column_config={
-                            "Section": st.column_config.TextColumn("Section", help="This groups similar examples from the original sheet. You can change it if needed."),
-                            "Expense": st.column_config.TextColumn("Expense"),
+                            "Section": st.column_config.SelectboxColumn("Section", options=section_options, help="Validated grouping from the spending-plan spreadsheet."),
+                            "Specific category": st.column_config.TextColumn("Specific category", help="Rename the checklist item if needed."),
                             "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
                             "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
                             "Notes": st.column_config.TextColumn("Notes", help="Optional"),
@@ -4435,12 +4380,12 @@ def render_spending_expense_form(sheet_id: str) -> None:
                         record_id = str(edited_row.get("_record_id", "")).strip()
                         if not record_id:
                             continue
-                        item = str(edited_row.get("Expense", "")).strip()
+                        item = str(edited_row.get("Specific category", "")).strip()
                         section = str(edited_row.get("Section", "")).strip() or label
                         frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
                         amount = money_value(edited_row.get("Amount", 0.0))
                         if not item:
-                            failures.append("One row was missing an expense name.")
+                            failures.append("One row was missing a specific category.")
                             continue
                         update = {
                             "expense_kind": kind,
@@ -4467,31 +4412,30 @@ def render_spending_expense_form(sheet_id: str) -> None:
             bucket_label = st.selectbox("Where should this money flow?", list(bucket_label_map.keys()))
             kind = bucket_label_map[bucket_label]
             section_options = spending_sections_for_kind(kind)
-            if len(section_options) == 1:
-                section = section_options[0]
-                st.caption(f"Section: {section}")
-            else:
-                section = st.selectbox("Section", section_options)
-            custom_section = st.text_input("Custom section", placeholder="Optional")
-            item = st.text_input("Expense", placeholder="e.g. Dog grooming, annual software subscription")
+            section = st.selectbox("Section", section_options)
+            existing_items = sorted({item for k, group, item in SPENDING_STARTER_EXPENSES if normalise_spending_kind(k) == kind and group == section})
+            specific_choice = st.selectbox("Specific category", existing_items + ["Other"] if existing_items else ["Other"])
+            custom_item = st.text_input("Custom category / item", placeholder="Use this for Other or to rename the item")
             c1, c2 = st.columns(2)
             with c1:
                 frequency = st.selectbox("How often is this paid or set aside?", SPENDING_FREQUENCIES, key="custom_expense_frequency")
             with c2:
                 amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f", key="custom_expense_amount")
             notes = st.text_area("Notes", placeholder="Optional")
-            submitted = st.form_submit_button("Add this expense", use_container_width=True)
+            submitted = st.form_submit_button("Add this spending item", use_container_width=True)
         if submitted:
-            if not item.strip():
-                st.warning("Add an expense name before saving.")
+            item = custom_item.strip() or (specific_choice if specific_choice != "Other" else "")
+            if not item:
+                st.warning("Add a specific category or item before saving.")
             else:
                 record = {
                     "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
                     "expense_kind": kind,
-                    "group_name": custom_section.strip() or section,
-                    "item": item.strip(),
+                    "group_name": section,
+                    "item": item,
                     "notes": notes.strip(),
                     "status": "active",
+                    "source": "Pathmark Spending Plan spending setup",
                 }
                 record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
                 ok, msg = append_online_record(sheet_id, "spending_expenses", record)
@@ -4503,67 +4447,38 @@ def render_spending_expense_form(sheet_id: str) -> None:
 
 
 def render_spending_account_form(sheet_id: str) -> None:
-    st.markdown("#### What goes where")
+    st.markdown("#### APs and fixed account roles")
     st.write(
-        "This is the flow map from the original spending plan. It does not ask you to create new accounts in Pathmark; "
-        "it shows which existing bank account role each weekly amount should move to."
+        "Keep the five roles fixed so the cash-flow logic stays clear. You can use your own bank accounts for these roles; "
+        "Pathmark is naming the job each account does."
     )
     summary = spending_summary(sheet_id)
     render_spending_flow_guidance(summary)
-    st.markdown(
-        """
-<div class='info-card'>
-<strong>After the weekly flow is set</strong><br>
-Use any leftover in this order: pay down debt first, rebuild the emergency account next, then send the remaining amount to savings or longer-term goals. If the plan shows a shortfall, reduce weekly spend money, fixed costs, or planned irregular costs before adding savings goals.
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_spending_records(sheet_id: str) -> None:
-    income = active_online_df(read_online_table(sheet_id, "spending_income"))
-    expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
-    st.markdown("#### Current plan records")
-    tabs = st.tabs(["Income", "Spending"])
-    with tabs[0]:
-        if income.empty:
-            st.info("No income records yet.")
+    st.markdown("#### Account role checklist")
+    for title, purpose in SPENDING_ACCOUNT_ROLES:
+        st.markdown(f"- **{html.escape(title)}** — {html.escape(purpose)}")
+    if st.button("Save / refresh AP account role rows", use_container_width=True):
+        records = {"spending_accounts": []}
+        existing_accounts = active_online_df(read_online_table(sheet_id, "spending_accounts"))
+        existing_names = {str(row.get("account_name", "")).strip().lower() for _, row in existing_accounts.iterrows()} if not existing_accounts.empty else set()
+        for account in spending_account_role_records(summary):
+            if str(account.get("account_name", "")).strip().lower() not in existing_names:
+                records["spending_accounts"].append(account)
+        if not records["spending_accounts"]:
+            st.info("The fixed account role rows already exist. Edit the current plan records if needed.")
         else:
-            show = income[[c for c in ["person", "category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes"] if c in income.columns]].copy()
-            st.dataframe(show, use_container_width=True, hide_index=True)
-            choice_map = {f"{row.get('person','')} — {row.get('category','')} ({money_text(row.get('annual_amount','0'))}/year)": row.get("income_id", "") for _, row in income.iterrows()}
-            choice = st.selectbox("Archive an income record", [""] + list(choice_map.keys()), key="archive_income_choice")
-            if choice and st.button("Archive selected income", use_container_width=True):
-                ok, msg = archive_online_record(sheet_id, "spending_income", choice_map[choice], "Archived from Spending Plan.")
-                if ok:
-                    st.success(msg)
-                else:
-                    st.warning(safe_user_message(msg))
-    with tabs[1]:
-        if expenses.empty:
-            st.info("No spending records yet.")
-        else:
-            display = expenses.copy()
-            display["bucket"] = display["expense_kind"].apply(spending_bucket_label)
-            display["weekly_equivalent"] = display.apply(lambda row: annual_from_row(row) / 52, axis=1)
-            display["annual_equivalent"] = display.apply(annual_from_row, axis=1)
-            show = display[[c for c in ["bucket", "group_name", "item", "weekly_equivalent", "annual_equivalent", "notes"] if c in display.columns]]
-            st.dataframe(show, use_container_width=True, hide_index=True)
-            choice_map = {f"{spending_bucket_label(row.get('expense_kind',''))} — {row.get('item','')} ({money_text(annual_from_row(row))}/year)": row.get("expense_id", "") for _, row in expenses.iterrows()}
-            choice = st.selectbox("Archive a spending item", [""] + list(choice_map.keys()), key="archive_expense_choice")
-            if choice and st.button("Archive selected spending item", use_container_width=True):
-                ok, msg = archive_online_record(sheet_id, "spending_expenses", choice_map[choice], "Archived from Spending Plan.")
-                if ok:
-                    st.success(msg)
-                else:
-                    st.warning(safe_user_message(msg))
+            ok, msg = append_many_online_records(sheet_id, records)
+            if ok:
+                st.session_state["spending_notice"] = msg
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
 
 
 def render_spending_plan_manager(sheet_id: str) -> None:
-    st.subheader("Spending Plan")
-    st.write("Turn a budget spreadsheet into a working cash-flow plan. This tab keeps money planning separate from routines and goals, while still using your Pathmark Sync sheet.")
-    st.info("Structure: what comes in → what you spend → where money should move each week. Your records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+    st.subheader("Spending Plan beta")
+    st.write("Set up income and outflows once, then let Pathmark assess where money should go each week.")
+    st.info("Structure: income setup → spending setup → cash-flow assessment → AP/account-role instructions. Your records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
     summary = spending_summary(sheet_id)
@@ -4571,51 +4486,22 @@ def render_spending_plan_manager(sheet_id: str) -> None:
     with c1:
         render_money_metric("Annual income", summary["income_annual"])
     with c2:
-        render_money_metric("Annual spending", summary["expense_annual"])
+        render_money_metric("Annual outflows", summary["expense_annual"])
     with c3:
-        render_money_metric("Left per week", summary["surplus_weekly"], "Income minus planned spending, divided by 52.")
+        render_money_metric("Safe spend / week", summary["everyday_weekly"], "Money deliberately sent to the everyday card account.")
     with c4:
-        render_money_metric("Emergency target", summary["emergency_target"], "Three months of planned expenses.")
+        render_money_metric("Unallocated / week", summary["surplus_weekly"], "Income minus planned outflows, divided by 52.")
 
-    if summary["surplus_annual"] < 0:
-        st.warning("This plan currently spends more than the income entered. Review everyday spend, fixed costs, or planned irregular costs.")
-    elif summary["income_annual"] > 0:
-        st.success("This plan has money left after the entered spending categories.")
-
-    sections = st.tabs(["Setup wizard", "Summary", "What comes in", "What you spend", "Cash-flow accounts", "Records"])
+    sections = st.tabs(["Assessment", "Income setup", "Spending setup", "APs and accounts", "Records"])
     with sections[0]:
-        render_finance_setup_wizard(sheet_id)
+        render_spending_assessment(sheet_id)
     with sections[1]:
-        st.markdown("#### Weekly cash-flow view")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            render_money_metric("Everyday spend", summary["everyday_weekly"], "Money for the card/account you use day to day.")
-        with c2:
-            render_money_metric("Fixed costs", summary["fixed_weekly"], "Bills and commitments that need money set aside.")
-        with c3:
-            render_money_metric("Planned irregular costs", summary["sinking_weekly"], "Less frequent costs such as gifts, clothes, Christmas and travel.")
-        st.markdown("#### How this maps to the original spreadsheet system")
-        st.markdown("""
-- **What comes in** records take-home income and other regular money arriving.
-- **What you spend** separates the original three buckets: everyday spend money, fixed costs, and planned irregular costs.
-- **Cash-flow accounts** turns the plan into weekly transfers: hub account, everyday card, emergency fund, gifts/holidays/clothes/Christmas, and savings or debt goals.
-""")
-        render_spending_flow_guidance(summary)
-        if active_online_df(read_online_table(sheet_id, "spending_expenses")).empty:
-            if st.button("Load starter spending categories", use_container_width=True):
-                ok, msg = load_spending_starter_categories(sheet_id)
-                if ok:
-                    st.session_state["spending_notice"] = msg
-                    st.rerun()
-                else:
-                    st.warning(safe_user_message(msg))
-    with sections[2]:
         render_spending_income_form(sheet_id)
-    with sections[3]:
+    with sections[2]:
         render_spending_expense_form(sheet_id)
-    with sections[4]:
+    with sections[3]:
         render_spending_account_form(sheet_id)
-    with sections[5]:
+    with sections[4]:
         render_spending_records(sheet_id)
 
 
@@ -5664,67 +5550,17 @@ def _return_to_pathmark_dashboard() -> None:
 
 
 def _wizard_enable_next_when_text_nonempty() -> None:
-    """Client-side helper for required text questions.
+    """Deprecated compatibility hook.
 
-    Streamlit text areas usually commit on Ctrl+Enter or blur. For required
-    wizard questions, that makes a disabled Next button look stuck. This small
-    script watches the active text input/textarea in the browser and enables the
-    visible Next arrow as soon as the box contains text. The server still
-    validates the saved value after the click, so empty answers cannot progress.
+    Earlier releases used browser-side JavaScript to enable disabled Next
+    buttons while a required text box was being typed into. That made the UI
+    feel responsive, but it also risked interfering with Streamlit/React button
+    state. Required wizard text questions now use form submission instead: the
+    user types the answer and presses Next, and that click both commits the
+    text and advances the wizard after server-side validation.
     """
-    components.html(
-        """
-        <script>
-        (function () {
-          const doc = window.parent.document;
-          function visible(el) {
-            if (!el) return false;
-            const style = window.parent.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-          }
-          function candidateTextBox() {
-            const fields = Array.from(doc.querySelectorAll('textarea, input[type="text"]')).filter(visible);
-            if (!fields.length) return null;
-            const active = doc.activeElement;
-            if (fields.includes(active)) return active;
-            return fields[fields.length - 1];
-          }
-          function nextButton() {
-            const buttons = Array.from(doc.querySelectorAll('button')).filter(visible);
-            const matches = buttons.filter(btn => { const txt = (btn.textContent || '').trim(); return txt === 'Next ›' || txt === 'Next' || txt === '›'; });
-            return matches.length ? matches[matches.length - 1] : null;
-          }
-          function sync() {
-            const field = candidateTextBox();
-            const button = nextButton();
-            if (!field || !button) return;
-            const ready = (field.value || '').trim().length > 0;
-            button.disabled = !ready;
-            button.setAttribute('aria-disabled', ready ? 'false' : 'true');
-            if (ready) {
-              button.removeAttribute('disabled');
-              button.style.opacity = '';
-              button.style.cursor = '';
-            }
-          }
-          function bind() {
-            const field = candidateTextBox();
-            if (!field || field.dataset.pathmarkWizardWatcher === '1') { sync(); return; }
-            field.dataset.pathmarkWizardWatcher = '1';
-            field.addEventListener('input', sync);
-            field.addEventListener('keyup', sync);
-            field.addEventListener('change', sync);
-            sync();
-          }
-          bind();
-          setTimeout(bind, 100);
-          setTimeout(bind, 350);
-        })();
-        </script>
-        """,
-        height=0,
-    )
+    return None
+
 
 def render_pathmark_creation_wizard_entry(sheet_id: str) -> bool:
     """Render the dashboard entry point for the dedicated wizard workspace."""
@@ -5789,6 +5625,33 @@ def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, nex
             next_step = _wizard_next_step(draft, draft.get("current_step_key", "choose_type"), next_answer)
         _wizard_go(sheet_id, draft, next_step, push_current=True)
     return go_back, go_next
+
+
+def _wizard_required_text_form(
+    *,
+    draft: dict[str, Any],
+    step_key: str,
+    label: str,
+    value: str = "",
+    placeholder: str = "",
+    multiline: bool = False,
+    note: str = "Required before continuing.",
+) -> tuple[str, bool, bool]:
+    """Render a required text question where Next also commits the typed text."""
+    back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
+    with st.form(key=f"wiz_text_{step_key}_{draft.get('draft_id','')}"):
+        if multiline:
+            text = st.text_area(label, value=value, placeholder=placeholder)
+        else:
+            text = st.text_input(label, value=value, placeholder=placeholder)
+        c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
+        with c1:
+            go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+        with c2:
+            st.markdown(f"<div class='wizard-nav-note'>{html.escape(note)}</div>", unsafe_allow_html=True)
+        with c3:
+            go_next = st.form_submit_button("Next ›", use_container_width=True)
+    return str(text or ""), bool(go_back), bool(go_next)
 
 
 def _wizard_progress_context(draft: dict[str, Any], step: str) -> tuple[list[str], str, str]:
@@ -5883,10 +5746,22 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
         if step == "area_name":
             st.subheader("What should this area be called?")
             _wizard_info_button("Naming an Area", "Use a broad name that could hold several related projects or routines. This may become the calendar grouping or subcalendar for similar types of time.")
-            area["area_name"] = st.text_input("Area name", value=str(area.get("area_name", "")), placeholder="Body and Stability")
-            _set_wizard_state(draft)
-            _render_wizard_nav(sheet_id, draft, bool(str(area.get("area_name", "")).strip()))
-            _wizard_enable_next_when_text_nonempty()
+            text, go_back, go_next = _wizard_required_text_form(
+                draft=draft,
+                step_key="area_name",
+                label="Area name",
+                value=str(area.get("area_name", "")),
+                placeholder="Body and Stability",
+            )
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                area["area_name"] = text.strip()
+                _set_wizard_state(draft)
+                if area["area_name"]:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Add an area name before continuing.")
         elif step == "area_colour":
             st.subheader("What calendar colour should this area use?")
             current = str(area.get("calendar_colour_name", "Sage") or "Sage")
@@ -5940,18 +5815,45 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
     project = draft.setdefault("project", {})
     if step == "project_title":
         st.subheader("What project do you want to move forward?")
-        project["title"] = st.text_input("Project", value=str(project.get("title", "")), placeholder="Complete a beginner sketching course")
-        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("title", "").strip()))
-        _wizard_enable_next_when_text_nonempty()
+        text, go_back, go_next = _wizard_required_text_form(
+            draft=draft,
+            step_key="project_title",
+            label="Project",
+            value=str(project.get("title", "")),
+            placeholder="Complete a beginner sketching course",
+        )
+        if go_back:
+            _wizard_back(sheet_id, draft)
+        if go_next:
+            project["title"] = text.strip()
+            _set_wizard_state(draft)
+            if project["title"]:
+                _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+            else:
+                st.warning("Add a project title before continuing.")
     elif step == "project_reason":
         st.subheader("Why does this project matter?")
         project["reason"] = st.text_area("Why it matters", value=str(project.get("reason", "")), placeholder="I want to sketch stronger pottery forms before decorating them.")
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
     elif step == "project_done":
         st.subheader("What would “done” look like?")
-        project["definition_of_done"] = st.text_area("Definition of done", value=str(project.get("definition_of_done", "")), placeholder="I have completed 10 exercises and saved the sketches in my design folder.")
-        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(project.get("definition_of_done", "").strip()))
-        _wizard_enable_next_when_text_nonempty()
+        text, go_back, go_next = _wizard_required_text_form(
+            draft=draft,
+            step_key="project_done",
+            label="Definition of done",
+            value=str(project.get("definition_of_done", "")),
+            placeholder="I have completed 10 exercises and saved the sketches in my design folder.",
+            multiline=True,
+        )
+        if go_back:
+            _wizard_back(sheet_id, draft)
+        if go_next:
+            project["definition_of_done"] = text.strip()
+            _set_wizard_state(draft)
+            if project["definition_of_done"]:
+                _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+            else:
+                st.warning("Describe what done looks like before continuing.")
     elif step == "project_target":
         st.subheader("When would you like this project to be done?")
         st.caption("This is optional, but Pathmark now uses a date field by default. Dates are shown in New Zealand day/month/year format.")
@@ -5965,9 +5867,22 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         if step == "project_step_title":
             st.subheader("What is the first or next step in your project?")
             st.caption("Project steps are distinct one-off actions. If something needs to repeat, create it as a routine instead.")
-            current["title"] = st.text_input("Project step", value=str(current.get("title", "")), placeholder="Choose a beginner sketching guide")
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
-            _wizard_enable_next_when_text_nonempty()
+            text, go_back, go_next = _wizard_required_text_form(
+                draft=draft,
+                step_key=f"project_step_title_{current.get('step_id','')}",
+                label="Project step",
+                value=str(current.get("title", "")),
+                placeholder="Choose a beginner sketching guide",
+            )
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                current["title"] = text.strip()
+                _set_wizard_state(draft)
+                if current["title"]:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Add a project step before continuing.")
         elif step == "project_calendar_date":
             st.subheader("What day will you make time for this step?")
             current["calendar_date"] = date_input_nz("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
@@ -5977,7 +5892,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             st.caption("Enter the start time once, then continue. Use 24-hour time, for example 09:00.")
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
             with st.form(key=f"wiz_form_project_start_{current.get('step_id','')}"):
-                start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="09:00")
+                start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="09:00", key=f"project_start_text_{current.get('step_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
                     go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
@@ -6001,7 +5916,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
             with st.form(key=f"wiz_form_project_finish_{current.get('step_id','')}"):
                 end_date_value = date_input_nz("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}")
-                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00")
+                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00", key=f"project_finish_text_{current.get('step_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
                     go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
@@ -6033,9 +5948,22 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current["helper_tasks"][-1]
             st.subheader("What extra checklist item would help you begin or prepare?")
-            task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="Put sketchbook on the desk")
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
-            _wizard_enable_next_when_text_nonempty()
+            text, go_back, go_next = _wizard_required_text_form(
+                draft=draft,
+                step_key=f"project_helper_{task.get('task_id','')}",
+                label="Helper checklist item",
+                value=str(task.get("title", "")),
+                placeholder="Put sketchbook on the desk",
+            )
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                task["title"] = text.strip()
+                _set_wizard_state(draft)
+                if task["title"]:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Add a helper checklist item before continuing.")
         elif step == "project_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("What date should this checklist item appear?")
@@ -6065,9 +5993,22 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
     routine = draft.setdefault("routine", {})
     if step == "routine_title":
         st.subheader("What routine do you want to protect?")
-        routine["title"] = st.text_input("Routine", value=str(routine.get("title", "")), placeholder="Sleep 8 hours a night")
-        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(routine.get("title", "").strip()))
-        _wizard_enable_next_when_text_nonempty()
+        text, go_back, go_next = _wizard_required_text_form(
+            draft=draft,
+            step_key="routine_title",
+            label="Routine",
+            value=str(routine.get("title", "")),
+            placeholder="Sleep 8 hours a night",
+        )
+        if go_back:
+            _wizard_back(sheet_id, draft)
+        if go_next:
+            routine["title"] = text.strip()
+            _set_wizard_state(draft)
+            if routine["title"]:
+                _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+            else:
+                st.warning("Add a routine title before continuing.")
     elif step == "routine_purpose":
         st.subheader("What is this routine meant to support?")
         routine["purpose"] = st.text_area("Purpose", value=str(routine.get("purpose", "")), placeholder="Better energy, mood and concentration.")
@@ -6111,15 +6052,28 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         if step == "routine_activity_title":
             st.subheader("What activity belongs inside this routine?")
             st.caption("The routine sets the repeat pattern. Each activity inside it repeats according to that pattern, but can have its own start and end time.")
-            current["title"] = st.text_input("Routine activity", value=str(current.get("title", "")), placeholder="Sleep")
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(current.get("title", "").strip()))
-            _wizard_enable_next_when_text_nonempty()
+            text, go_back, go_next = _wizard_required_text_form(
+                draft=draft,
+                step_key=f"routine_activity_title_{current.get('activity_id','')}",
+                label="Routine activity",
+                value=str(current.get("title", "")),
+                placeholder="Sleep",
+            )
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                current["title"] = text.strip()
+                _set_wizard_state(draft)
+                if current["title"]:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Add a routine activity before continuing.")
         elif step == "routine_calendar_start_time":
             st.subheader("What time will this activity start?")
             st.caption("Enter the start time once, then continue. Use 24-hour time, for example 22:30.")
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
             with st.form(key=f"wiz_form_routine_start_{current.get('activity_id','')}"):
-                start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="22:30")
+                start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="22:30", key=f"routine_start_text_{current.get('activity_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
                     go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
@@ -6143,7 +6097,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
             with st.form(key=f"wiz_form_routine_finish_{current.get('activity_id','')}"):
                 end_date_value = date_input_nz("Finish date for the first occurrence", value=_calendar_end_date_default(current, routine_start))
-                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="06:30")
+                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="06:30", key=f"routine_finish_text_{current.get('activity_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
                     go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
@@ -6179,9 +6133,22 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 task = _append_helper_task(current); draft["current_task_id"] = task["task_id"]
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current["helper_tasks"][-1]
             st.subheader("What extra checklist item would help you begin or prepare?")
-            task["title"] = st.text_input("Helper checklist item", value=str(task.get("title", "")), placeholder="No screen time three hours before bed")
-            _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, bool(task.get("title", "").strip()))
-            _wizard_enable_next_when_text_nonempty()
+            text, go_back, go_next = _wizard_required_text_form(
+                draft=draft,
+                step_key=f"routine_helper_{task.get('task_id','')}",
+                label="Helper checklist item",
+                value=str(task.get("title", "")),
+                placeholder="No screen time three hours before bed",
+            )
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                task["title"] = text.strip()
+                _set_wizard_state(draft)
+                if task["title"]:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+                else:
+                    st.warning("Add a helper checklist item before continuing.")
         elif step == "routine_helper_task_due":
             task = _find_step_by_id(current.get("helper_tasks", []), "task_id", draft.get("current_task_id")) or current.get("helper_tasks", [{}])[-1]
             st.subheader("When should this checklist item appear?")
