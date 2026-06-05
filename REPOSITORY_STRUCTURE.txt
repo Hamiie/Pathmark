@@ -1,3 +1,5 @@
+Pathmark release hub repository structure
+
 .gitignore
 README.md
 requirements.txt
@@ -7,11 +9,15 @@ app/
   main.py
   assets/
     pathmark.png
+    pathmark.ico
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_37.zip
+  Pathmark_Local_App_Windows_v0_6_38.zip
 .streamlit/
   config.toml
+supabase/
+  README.md
+  migrations/
 static/
   apple-touch-icon.png
   favicon.ico
@@ -23,6 +29,3 @@ static/
   pathmark-icon-128.png
   pathmark-icon-192.png
   pathmark-icon-512.png
-supabase/
-  README.md
-  migrations/

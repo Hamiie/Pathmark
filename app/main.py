@@ -189,8 +189,8 @@ def inject_pwa_metadata() -> None:
         "theme_color": "#334E68",
         "orientation": "portrait-primary",
         "icons": [
-            {"src": "/app/static/pathmark-icon-192.png?v=0_6_37", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/app/static/pathmark-icon-512.png?v=0_6_37", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-192.png?v=0_6_38", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-512.png?v=0_6_38", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
         ],
         "categories": ["productivity", "finance", "lifestyle"],
     }
@@ -200,7 +200,7 @@ def inject_pwa_metadata() -> None:
         <script>
         (function () {{
           const doc = window.parent.document;
-          const version = '0_6_37';
+          const version = '0_6_38';
           const icon32Data = {json.dumps(icon32_data)};
           const icon192Data = {json.dumps(icon192_data)};
           const icon512Data = {json.dumps(icon512_data)};
@@ -270,18 +270,26 @@ inject_pwa_metadata()
 def inject_appearance_watcher() -> None:
     """Mirror Streamlit Light/Dark/System changes into Pathmark CSS variables.
 
-    Streamlit's Settings menu can change appearance without a Python rerun,
-    especially on mobile. This tiny watcher observes the rendered app shell,
-    works out whether Streamlit is currently light or dark, and sets an HTML
-    attribute that Pathmark's seasonal CSS uses to choose the matching variant.
+    This deliberately avoids the continuous polling and broad body observers used
+    in v0.6.37. It checks once on load, then checks again only when Streamlit
+    changes app-shell theme attributes/styles or the OS colour-scheme changes.
     """
     components.html(
         """
         <script>
         (function () {
-          const doc = window.parent.document;
+          const win = window.parent;
+          const doc = win.document;
+          if (win.__pathmarkAppearanceWatcherV0638Installed) {
+            if (typeof win.__pathmarkApplyAppearanceMode === 'function') {
+              win.__pathmarkApplyAppearanceMode();
+            }
+            return;
+          }
+          win.__pathmarkAppearanceWatcherV0638Installed = true;
+
           function parseRGB(value) {
-            const m = String(value || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+            const m = String(value || '').match(new RegExp('rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)', 'i'));
             if (!m) return null;
             return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
           }
@@ -291,35 +299,68 @@ def inject_appearance_watcher() -> None:
           }
           function resolvedMode() {
             const app = doc.querySelector('.stApp') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-            const bg = window.parent.getComputedStyle(app).backgroundColor || window.parent.getComputedStyle(doc.body).backgroundColor;
+            let bg = '';
+            try { bg = win.getComputedStyle(app).backgroundColor || win.getComputedStyle(doc.body).backgroundColor; } catch (e) {}
             const lum = luminance(parseRGB(bg));
             if (lum < 120) return 'dark';
             if (lum > 180) return 'light';
-            if (window.parent.matchMedia && window.parent.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+            if (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
             return 'light';
           }
           function applyMode() {
             const mode = resolvedMode();
-            doc.documentElement.setAttribute('data-pathmark-mode', mode);
-            doc.body && doc.body.setAttribute('data-pathmark-mode', mode);
+            if (doc.documentElement.getAttribute('data-pathmark-mode') !== mode) {
+              doc.documentElement.setAttribute('data-pathmark-mode', mode);
+            }
+            if (doc.body && doc.body.getAttribute('data-pathmark-mode') !== mode) {
+              doc.body.setAttribute('data-pathmark-mode', mode);
+            }
             let meta = doc.querySelector('meta[name="theme-color"]');
-            if (!meta) { meta = doc.createElement('meta'); meta.setAttribute('name', 'theme-color'); doc.head.appendChild(meta); }
-            meta.setAttribute('content', mode === 'dark' ? '#05080C' : '#334E68');
+            const colour = mode === 'dark' ? '#05080C' : '#334E68';
+            if (!meta) {
+              meta = doc.createElement('meta');
+              meta.setAttribute('name', 'theme-color');
+              doc.head.appendChild(meta);
+            }
+            if (meta.getAttribute('content') !== colour) {
+              meta.setAttribute('content', colour);
+            }
           }
+          win.__pathmarkApplyAppearanceMode = applyMode;
+
+          let pending = false;
+          function scheduleCheck() {
+            if (pending) return;
+            pending = true;
+            win.requestAnimationFrame(function () {
+              pending = false;
+              applyMode();
+            });
+          }
+
           applyMode();
-          const observer = new MutationObserver(applyMode);
-          observer.observe(doc.documentElement, {attributes: true, childList: false, subtree: false});
-          observer.observe(doc.body, {attributes: true, childList: true, subtree: true});
-          if (window.parent.matchMedia) {
-            const mq = window.parent.matchMedia('(prefers-color-scheme: dark)');
-            if (mq.addEventListener) mq.addEventListener('change', applyMode);
+
+          const observer = new MutationObserver(scheduleCheck);
+          const observerOptions = {attributes: true, attributeFilter: ['class', 'style', 'data-theme', 'data-baseweb']};
+          try { observer.observe(doc.documentElement, observerOptions); } catch (e) {}
+          try { observer.observe(doc.body, observerOptions); } catch (e) {}
+
+          function observeAppShell() {
+            const app = doc.querySelector('.stApp') || doc.querySelector('[data-testid="stAppViewContainer"]');
+            if (app && app !== win.__pathmarkObservedAppShell) {
+              try { observer.observe(app, observerOptions); } catch (e) {}
+              win.__pathmarkObservedAppShell = app;
+            }
+            scheduleCheck();
           }
-          let attempts = 0;
-          const timer = setInterval(function () {
-            applyMode();
-            attempts += 1;
-            if (attempts >= 60) clearInterval(timer);
-          }, 1000);
+          observeAppShell();
+          setTimeout(observeAppShell, 1200);
+
+          if (win.matchMedia) {
+            const mq = win.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.addEventListener) mq.addEventListener('change', scheduleCheck);
+            else if (mq.addListener) mq.addListener(scheduleCheck);
+          }
         })();
         </script>
         """,
@@ -5207,7 +5248,7 @@ def render_online_settings(sheet_id: str) -> None:
             st.rerun()
     st.markdown("### Theme")
     st.write("Choose the seasonal character of Pathmark. Light and dark mode are controlled separately through Streamlit's own Settings menu: System, Light or Dark. Pathmark applies the matching light or dark variant of the selected seasonal theme.")
-    st.caption("On some mobile browsers, Streamlit's appearance menu can change without a full Python rerun. Use Refresh theme display if the seasonal styling looks out of sync after changing Light/Dark/System.")
+    st.caption("Pathmark checks Streamlit's appearance when Light/Dark/System changes and applies the matching seasonal variant. Use Refresh theme display if a mobile browser still looks out of sync.")
     current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Winter"))
     theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme))
     refresh_col, save_col = st.columns([1, 2])

@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.37",
+  "version": "0.6.38",
   "release_date": "2026-06-05",
   "notes": [
-    "Strengthens mobile/PWA branding metadata so Pathmark app name and icons are preferred over Streamlit defaults where the browser allows it.",
-    "Adds a proper Pathmark manifest with app id, display override, mobile icon references and cache-busted icon paths.",
-    "Separates seasonal theme choice from light/dark appearance by applying light and dark variants for each seasonal theme.",
-    "Adds a browser-side appearance watcher so Pathmark can react when the Streamlit Settings menu changes between Light, Dark and System without needing a full app rerun.",
-    "Adds a manual theme refresh fallback in Settings for mobile browsers that cache display state."
+    "Keeps the mobile/PWA Pathmark branding metadata from v0.6.37.",
+    "Replaces the continuous appearance polling loop with an event-based theme check.",
+    "Checks the active Streamlit appearance once on load, then checks again only when Streamlit app-shell theme attributes/styles or the OS colour scheme changes.",
+    "Keeps seasonal Pathmark themes as Summer, Autumn, Winter and Spring while applying the light or dark variant based on Streamlit Light/Dark/System.",
+    "Retains the manual Refresh theme display fallback in Settings."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_37.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_38.zip",
   "mac_package": "",
-  "release": "v0.6.37 Mobile branding and theme variant repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip",
-  "release_name": "Mobile branding and theme variant repair",
-  "release_notes": "Repairs mobile/PWA branding metadata and makes Pathmark seasonal themes respond to Streamlit Light/Dark/System appearance changes.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip",
-  "label": "Mobile branding and theme variant repair",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip"
+  "release": "v0.6.38 Event-based theme change repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip",
+  "release_name": "Event-based theme change repair",
+  "release_notes": "Keeps mobile branding metadata while replacing the continuous appearance watcher with a safer event-based theme-change check.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip",
+  "label": "Event-based theme change repair",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip"
 }
