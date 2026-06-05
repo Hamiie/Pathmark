@@ -4394,130 +4394,161 @@ def render_spending_income_form(sheet_id: str) -> None:
                     st.warning(safe_user_message(msg))
 
 
-def render_spending_expense_form(sheet_id: str) -> None:
-    st.markdown("#### Setup spending")
-    st.write(
-        "Work down the common expense checklist from the spreadsheet. Use the bucket and section lists for validation, "
-        "then enter amounts only where the item applies. Each row is converted into a weekly equivalent for the assessment."
-    )
-    st.markdown(
-        """
-<div class='info-card'>
-<strong>The three money-flow buckets</strong><br>
-<strong>Weekly spend money:</strong> groceries, fuel, cafes, eating out and other day-to-day card spending.<br>
-<strong>Regular bills and commitments:</strong> rent/mortgage, utilities, subscriptions, insurance, minimum debt repayments and other automatic costs.<br>
-<strong>Planned irregular costs:</strong> birthdays, Christmas, clothes, holidays, travel and other known costs that need to build up over time.
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
 
+def spending_kind_help(kind: str) -> str:
+    normalised = normalise_spending_kind(kind)
+    if normalised == "Everyday spend":
+        return "Use this for costs you manage during the week, such as groceries, fuel, cafes, eating out and personal spending. Suggested account: Everyday card account."
+    if normalised == "Sinking fund":
+        return "Use this for predictable costs that do not happen every week, such as Christmas, clothes, dental, gifts, holidays, car registration and larger planned costs. Suggested account: Planned irregular costs."
+    return "Use this for regular commitments, bills, subscriptions, minimum debt repayments and direct debits that should remain funded from the hub account. Suggested account: Hub account."
+
+
+def spending_default_frequency(kind: str) -> str:
+    normalised = normalise_spending_kind(kind)
+    if normalised == "Sinking fund":
+        return "Yearly"
+    return "Monthly" if normalised == "Fixed cost" else "Weekly"
+
+
+def spending_editor_dataframe(rows: pd.DataFrame, fallback_label: str) -> pd.DataFrame:
+    editor_rows: list[dict[str, Any]] = []
+    for _, row in rows.iterrows():
+        amount, frequency = amount_and_frequency_from_row(row)
+        editor_rows.append(
+            {
+                "_record_id": row.get("expense_id", ""),
+                "Item": row.get("item", ""),
+                "Amount": float(amount),
+                "Frequency": frequency,
+                "Notes": row.get("notes", ""),
+                "Section": row.get("group_name", fallback_label) or fallback_label,
+            }
+        )
+    return pd.DataFrame(editor_rows)
+
+
+def save_spending_editor_rows(sheet_id: str, edited: pd.DataFrame, kind: str, section: str) -> tuple[int, list[str]]:
+    failures: list[str] = []
+    updates_count = 0
+    for _, edited_row in edited.iterrows():
+        record_id = str(edited_row.get("_record_id", "")).strip()
+        if not record_id:
+            continue
+        item = str(edited_row.get("Item", "")).strip()
+        frequency = str(edited_row.get("Frequency", spending_default_frequency(kind)) or spending_default_frequency(kind))
+        amount = money_value(edited_row.get("Amount", 0.0))
+        if not item:
+            failures.append("One row was missing an item name.")
+            continue
+        update = {
+            "expense_kind": kind,
+            "group_name": section,
+            "item": item,
+            "notes": str(edited_row.get("Notes", "") or "").strip(),
+            "status": "active",
+        }
+        update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
+        ok, msg = update_online_record(sheet_id, "spending_expenses", record_id, update)
+        if ok:
+            updates_count += 1
+        else:
+            failures.append(safe_user_message(msg))
+    return updates_count, failures
+
+
+def render_spending_expense_form(sheet_id: str) -> None:
+    st.markdown("#### Spending checklist")
+    st.caption(
+        "Work down the common costs and enter amounts only where they apply. "
+        "Pathmark sorts each item into a money-flow role in the background."
+    )
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
     if expenses.empty:
-        st.info("Load the common spending checklist, then add amounts only where the item applies.")
+        st.info("Start by loading the common spending checklist, then fill in the rows that apply to your life.")
         if st.button("Load common spending checklist", use_container_width=True):
             ok, msg = load_spending_starter_categories(sheet_id)
             if ok:
                 st.session_state["spending_notice"] = msg
                 st.rerun()
-            else:
-                st.warning(safe_user_message(msg))
+            st.warning(safe_user_message(msg))
         return
 
-    tabs = st.tabs([SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER])
-    for tab, kind in zip(tabs, SPENDING_BUCKET_ORDER):
+    kind_tabs = st.tabs([SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER])
+    for tab, kind in zip(kind_tabs, SPENDING_BUCKET_ORDER):
+        label = SPENDING_BUCKET_LABELS[kind]
         with tab:
-            label = SPENDING_BUCKET_LABELS[kind]
-            section_options = spending_sections_for_kind(kind)
-            st.caption(f"{SPENDING_BUCKET_EXPLANATIONS[kind]} Destination: {spending_flow_destination_for_kind(kind)}.")
-            bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == kind].copy()
+            bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == normalise_spending_kind(kind)].copy()
+            bucket_total = sum(annual_from_row(row) for _, row in bucket_rows.iterrows()) / 52 if not bucket_rows.empty else 0.0
+            st.markdown(f"##### {label}")
+            st.caption(spending_kind_help(kind))
+            st.metric("Weekly equivalent", money_text(bucket_total))
             if bucket_rows.empty:
-                st.info(f"No {label.lower()} items yet. Add one below if needed.")
-            else:
-                editor_rows = []
-                for _, row in bucket_rows.iterrows():
-                    amount, frequency = amount_and_frequency_from_row(row)
-                    section = row.get("group_name", label) or label
-                    if section not in section_options:
-                        section_options = section_options + [section]
-                    editor_rows.append({
-                        "_record_id": row.get("expense_id", ""),
-                        "Section": section,
-                        "Specific category": row.get("item", ""),
-                        "Amount": float(amount),
-                        "Frequency": frequency,
-                        "Notes": row.get("notes", ""),
-                    })
-                edit_df = pd.DataFrame(editor_rows)
-                with st.form(f"spending_editor_{kind.replace(' ', '_').lower()}", clear_on_submit=False):
-                    edited = st.data_editor(
-                        edit_df,
-                        hide_index=True,
-                        use_container_width=True,
-                        column_order=["Section", "Specific category", "Amount", "Frequency", "Notes"],
-                        column_config={
-                            "Section": st.column_config.SelectboxColumn("Section", options=section_options, help="Validated grouping from the spending-plan spreadsheet."),
-                            "Specific category": st.column_config.TextColumn("Specific category", help="Rename the checklist item if needed."),
-                            "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
-                            "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
-                            "Notes": st.column_config.TextColumn("Notes", help="Optional"),
-                        },
-                    )
-                    save = st.form_submit_button(f"Save {label.lower()}", use_container_width=True)
-                if save:
-                    failures: list[str] = []
-                    updates_count = 0
-                    for _, edited_row in edited.iterrows():
-                        record_id = str(edited_row.get("_record_id", "")).strip()
-                        if not record_id:
-                            continue
-                        item = str(edited_row.get("Specific category", "")).strip()
-                        section = str(edited_row.get("Section", "")).strip() or label
-                        frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
-                        amount = money_value(edited_row.get("Amount", 0.0))
-                        if not item:
-                            failures.append("One row was missing a specific category.")
-                            continue
-                        update = {
-                            "expense_kind": kind,
-                            "group_name": section,
-                            "item": item,
-                            "notes": str(edited_row.get("Notes", "") or "").strip(),
-                            "status": "active",
-                        }
-                        update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
-                        ok, msg = update_online_record(sheet_id, "spending_expenses", record_id, update)
-                        if ok:
-                            updates_count += 1
+                st.info(f"No {label.lower()} rows yet.")
+                continue
+            for section, section_df in bucket_rows.groupby(bucket_rows["group_name"].fillna(label), sort=False):
+                section_name = str(section or label)
+                section_weekly = sum(annual_from_row(row) for _, row in section_df.iterrows()) / 52 if not section_df.empty else 0.0
+                with st.expander(f"{section_name} — {money_text(section_weekly)} / week", expanded=False):
+                    st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply.")
+                    edit_df = spending_editor_dataframe(section_df, section_name)
+                    with st.form(f"spending_editor_{kind}_{section_name}".replace(" ", "_").replace("/", "_").lower(), clear_on_submit=False):
+                        edited = st.data_editor(
+                            edit_df,
+                            hide_index=True,
+                            use_container_width=True,
+                            column_order=["Item", "Amount", "Frequency", "Notes"],
+                            column_config={
+                                "Item": st.column_config.TextColumn("Item", help="Rename the item if your wording is more useful."),
+                                "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
+                                "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
+                                "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+                            },
+                        )
+                        save = st.form_submit_button(f"Save {section_name}", use_container_width=True)
+                    if save:
+                        updates_count, failures = save_spending_editor_rows(sheet_id, edited, kind, section_name)
+                        if failures:
+                            st.warning("Some rows could not be saved: " + "; ".join(failures[:3]))
                         else:
-                            failures.append(safe_user_message(msg))
-                    if failures:
-                        st.warning("Some spending rows could not be saved: " + "; ".join(failures[:3]))
-                    else:
-                        st.session_state["spending_notice"] = f"Saved {updates_count} {label.lower()} rows to your Pathmark Sync sheet."
-                        st.rerun()
+                            st.session_state["spending_notice"] = f"Saved {updates_count} {section_name.lower()} row(s)."
+                            st.rerun()
 
-    with st.expander("Add an expense that is not listed"):
-        with st.form("spending_custom_expense_form", clear_on_submit=False):
-            bucket_label_map = {SPENDING_BUCKET_LABELS[k]: k for k in SPENDING_BUCKET_ORDER}
-            bucket_label = st.selectbox("Where should this money flow?", list(bucket_label_map.keys()))
-            kind = bucket_label_map[bucket_label]
-            section_options = spending_sections_for_kind(kind)
-            section = st.selectbox("Section", section_options)
-            existing_items = sorted({item for k, group, item in SPENDING_STARTER_EXPENSES if normalise_spending_kind(k) == kind and group == section})
-            specific_choice = st.selectbox("Specific category", existing_items + ["Other"] if existing_items else ["Other"])
-            custom_item = st.text_input("Custom category / item", placeholder="Use this for Other or to rename the item")
+    st.markdown("#### Add a spending item")
+    st.caption("Use this when a cost is not already in the checklist. Start with the real-world item, then choose what kind of cost it is.")
+    with st.expander("Add custom item", expanded=False):
+        with st.form("spending_custom_expense_form_v2", clear_on_submit=False):
+            item_name = st.text_input("What is the item?", placeholder="e.g. Vet appointment, pottery clay, software subscription")
+            cost_label_map = {
+                "Weekly spending": "Everyday spend",
+                "Regular bill or commitment": "Fixed cost",
+                "Planned irregular cost": "Sinking fund",
+            }
+            cost_label = st.radio(
+                "What kind of cost is this?",
+                list(cost_label_map.keys()),
+                horizontal=True,
+                help="This decides where the money should flow. You can still rename the item however you like.",
+            )
+            kind = cost_label_map[cost_label]
+            suggested_sections = spending_sections_for_kind(kind)
+            section = st.selectbox("Group", suggested_sections, help="Validated grouping used for reporting.")
+            st.caption(spending_kind_help(kind))
             c1, c2 = st.columns(2)
             with c1:
-                frequency = st.selectbox("How often is this paid or set aside?", SPENDING_FREQUENCIES, key="custom_expense_frequency")
+                frequency = st.selectbox(
+                    "How often is it paid or set aside?",
+                    SPENDING_FREQUENCIES,
+                    index=SPENDING_FREQUENCIES.index(spending_default_frequency(kind)) if spending_default_frequency(kind) in SPENDING_FREQUENCIES else 0,
+                )
             with c2:
-                amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f", key="custom_expense_amount")
+                amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f")
             notes = st.text_area("Notes", placeholder="Optional")
             submitted = st.form_submit_button("Add this spending item", use_container_width=True)
         if submitted:
-            item = custom_item.strip() or (specific_choice if specific_choice != "Other" else "")
+            item = item_name.strip()
             if not item:
-                st.warning("Add a specific category or item before saving.")
+                st.warning("Add an item name before saving.")
             else:
                 record = {
                     "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
@@ -4535,7 +4566,6 @@ def render_spending_expense_form(sheet_id: str) -> None:
                     st.rerun()
                 else:
                     st.warning(safe_user_message(msg))
-
 
 def render_spending_account_form(sheet_id: str) -> None:
     st.markdown("#### APs and fixed account roles")

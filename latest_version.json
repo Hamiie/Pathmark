@@ -1,19 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.29",
+  "version": "0.6.30",
   "release_date": "2026-06-05",
   "notes": [
-    "Tightens Dashboard card alignment so each pillar carries its own metric inside the card.",
-    "Replaces the manual helper checklist data table with cleaner small-action rows and separate dates.",
-    "Simplifies routine repeat settings so the routine sets only the repeat pattern while activities set their own times.",
-    "Adds weekly repeat days immediately when Weekly is selected and supports monthly patterns such as first Monday or last Friday.",
+    "Reworks Spending Plan spending setup into guided sections for weekly spending, regular bills and planned irregular costs.",
+    "Users now work down common real-world costs instead of starting with abstract money-flow/category fields.",
+    "Custom spending items now start with the item name and suggest a money-flow destination based on the chosen cost type.",
+    "Keeps Assessment, Income, APs and Records structure from the previous release.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_29.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_30.zip",
   "mac_package": "",
-  "release": "v0.6.29 Dashboard, helper checklist, and repeat refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_29.zip",
-  "release_name": "Dashboard, helper checklist, and repeat refinement",
-  "release_notes": "Refines Dashboard alignment, helper checklist input, and routine repeat settings including weekly and monthly recurrence patterns.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_29.zip"
+  "release": "v0.6.30 Spending Plan guided checklist refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_30.zip",
+  "release_name": "Spending Plan guided checklist refinement",
+  "release_notes": "Reworks Spending Plan spending setup into a guided checklist grouped by real-world costs and money-flow roles, with cleaner custom item entry.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_30.zip",
+  "label": "v0.6.30 Spending Plan guided checklist refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_30.zip"
 }
