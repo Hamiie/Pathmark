@@ -1,20 +1,18 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.25",
+  "version": "0.6.26",
   "release_date": "2026-06-05",
   "notes": [
-    "Rebuilds Spending Plan beta from a one-off finance wizard into a setup-and-assessment flow.",
-    "Adds a maintained income setup table with common income sources from the spreadsheet.",
-    "Keeps spending setup aligned to validated money-flow buckets and spreadsheet sections.",
-    "Adds an Assessment tab with safe weekly spend, weekly AP/transfer instructions, warnings, and emergency/debt/savings guidance.",
-    "Keeps five fixed account roles and removes the user-facing finance creation wizard from the Spending Plan beta tabs.",
+    "Repairs the Spending Plan beta open error caused by the missing records renderer.",
+    "Makes the Spending Plan page cleaner by replacing large account cards with compact money-flow guidance.",
+    "Keeps the setup-and-assessment structure for income, spending, APs, and records.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_25.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_26.zip",
   "mac_package": "",
-  "release": "v0.6.25 Spending Plan setup and assessment rebuild",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_25.zip",
-  "release_name": "Spending Plan setup and assessment rebuild",
-  "release_notes": "Rebuilds Spending Plan beta as income setup, spending setup, cash-flow assessment, and AP/account-role guidance rather than a one-off finance wizard.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_25.zip"
+  "release": "v0.6.26 Spending Plan open and layout repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_26.zip",
+  "release_name": "Spending Plan open and layout repair",
+  "release_notes": "Repairs the Spending Plan open error and simplifies the Spending Plan layout into a cleaner assessment/setup interface.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_26.zip"
 }

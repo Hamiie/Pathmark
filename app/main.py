@@ -3826,68 +3826,42 @@ def render_spending_success(message: str) -> None:
 
 
 def render_spending_flow_guidance(summary: dict[str, float]) -> None:
-    """Show the cash-flow logic from the original spending-plan workbook."""
-    st.markdown("#### What goes where")
-    st.write(
-        "This part is about weekly money flow, not creating lots of new accounts. "
-        "The plan assumes five roles: hub, weekly card, emergency, planned irregular costs, and debt/savings."
+    """Show the cash-flow logic in a compact, readable format."""
+    st.markdown("#### Money-flow instructions")
+    st.caption(
+        "Pathmark keeps the account roles fixed so the assessment stays clear. "
+        "Use your own bank accounts for these roles if you already have them."
     )
-    st.markdown(
-        """
-<div class='info-card'>
-<strong>Order of priority</strong><br>
-1. Pay the minimum required debt repayments as fixed costs.<br>
-2. If there is extra money, direct it to debt first.<br>
-3. Once high-interest debt is under control, build the emergency account.<br>
-4. Once the emergency account is at target, divert the extra to the savings/goals account.
-</div>
-        """,
-        unsafe_allow_html=True,
+    flow_rows = pd.DataFrame(
+        [
+            {
+                "Account role": "Hub account",
+                "What it is for": "Income lands here; fixed bills and direct debits stay here.",
+                "Suggested weekly amount": money_text(summary.get("fixed_weekly", 0.0)),
+            },
+            {
+                "Account role": "Everyday card account",
+                "What it is for": "Groceries, fuel, cafes, eating out and normal weekly card spending.",
+                "Suggested weekly amount": money_text(summary.get("everyday_weekly", 0.0)),
+            },
+            {
+                "Account role": "Planned irregular costs",
+                "What it is for": "Birthdays, Christmas, clothes, holidays, travel and other known irregular costs.",
+                "Suggested weekly amount": money_text(summary.get("sinking_weekly", 0.0)),
+            },
+            {
+                "Account role": "Emergency savings",
+                "What it is for": "Unexpected costs. A useful first target is three months of planned outflows.",
+                "Suggested weekly amount": "Use surplus after essentials/debt",
+            },
+            {
+                "Account role": "Debt reduction or savings goals",
+                "What it is for": "The real leftover after planned spending. Use for debt first, then emergency savings, then goals.",
+                "Suggested weekly amount": money_text(summary.get("surplus_weekly", 0.0)),
+            },
+        ]
     )
-    cards = [
-        (
-            "1",
-            "Hub account",
-            "All income lands here. Fixed bills and direct debits come from here. Keep this card out of everyday use and do not keep this bank's app on your phone if that helps reduce impulse transfers.",
-            f"Keep about {money_text(summary.get('fixed_weekly', 0.0))} per week here for fixed costs.",
-        ),
-        (
-            "2",
-            "Everyday card account",
-            "This is the only card in your wallet. Transfer only the weekly spend-money amount here for groceries, fuel, cafes, eating out, parking and other day-to-day spending.",
-            f"Transfer {money_text(summary.get('everyday_weekly', 0.0))} per week.",
-        ),
-        (
-            "3",
-            "Emergency savings",
-            "Expect the unexpected: car repairs, dental costs, urgent travel, or anything you cannot sensibly predict. If you use it, pause extra savings until it is rebuilt.",
-            f"Target three months of planned expenses: {money_text(summary.get('emergency_target', 0.0))}.",
-        ),
-        (
-            "4",
-            "Gifts, holidays, clothes and Christmas",
-            "This is for predictable irregular costs. Christmas, birthdays, clothes and planned holidays are not surprises; this account quietly builds up for them.",
-            f"Transfer {money_text(summary.get('sinking_weekly', 0.0))} per week.",
-        ),
-        (
-            "5",
-            "Debt reduction or savings goals",
-            "After day-to-day, fixed, irregular and emergency money is spoken for, this is the real leftover. Use it for extra debt repayments first, then emergency savings, then longer-term savings goals.",
-            f"Currently left to allocate: {money_text(summary.get('surplus_weekly', 0.0))} per week.",
-        ),
-    ]
-    for number, title, body, amount in cards:
-        st.markdown(
-            f"""
-            <div class='step-card'>
-              <div class='eyebrow'>Account {html.escape(number)}</div>
-              <h3>{html.escape(title)}</h3>
-              <p>{html.escape(body)}</p>
-              <p><strong>{html.escape(amount)}</strong></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    st.dataframe(flow_rows, use_container_width=True, hide_index=True)
 
 def spending_summary(sheet_id: str) -> dict[str, float]:
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
@@ -4475,24 +4449,42 @@ def render_spending_account_form(sheet_id: str) -> None:
                 st.warning(safe_user_message(msg))
 
 
+def render_spending_records(sheet_id: str) -> None:
+    st.markdown("#### Spending Plan records")
+    st.caption("These are the live rows in your Pathmark Sync sheet. Use this tab for checking what has been saved.")
+    tables = [
+        ("Income", "spending_income", ["person", "category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes", "status"]),
+        ("Spending", "spending_expenses", ["expense_kind", "group_name", "item", "weekly_amount", "fortnightly_amount", "monthly_amount", "quarterly_amount", "yearly_amount", "annual_amount", "notes", "status"]),
+        ("Account roles", "spending_accounts", ["account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes", "status"]),
+    ]
+    for label, table, columns in tables:
+        with st.expander(label, expanded=(label != "Account roles")):
+            df = active_online_df(read_online_table(sheet_id, table))
+            if df.empty:
+                st.info(f"No {label.lower()} records yet.")
+            else:
+                dataframe_preview(df, columns)
+
+
 def render_spending_plan_manager(sheet_id: str) -> None:
     st.subheader("Spending Plan beta")
-    st.write("Set up income and outflows once, then let Pathmark assess where money should go each week.")
-    st.info("Structure: income setup → spending setup → cash-flow assessment → AP/account-role instructions. Your records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+    st.caption("Set up income and outflows once. Pathmark then assesses weekly money flow and AP/account-role instructions.")
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
-    summary = spending_summary(sheet_id)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        render_money_metric("Annual income", summary["income_annual"])
-    with c2:
-        render_money_metric("Annual outflows", summary["expense_annual"])
-    with c3:
-        render_money_metric("Safe spend / week", summary["everyday_weekly"], "Money deliberately sent to the everyday card account.")
-    with c4:
-        render_money_metric("Unallocated / week", summary["surplus_weekly"], "Income minus planned outflows, divided by 52.")
 
-    sections = st.tabs(["Assessment", "Income setup", "Spending setup", "APs and accounts", "Records"])
+    summary = spending_summary(sheet_id)
+    with st.container():
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            render_money_metric("Income / week", summary["income_weekly"])
+        with c2:
+            render_money_metric("Planned outflows / week", summary["expense_weekly"])
+        with c3:
+            render_money_metric("Safe spend / week", summary["everyday_weekly"])
+        with c4:
+            render_money_metric("Unallocated / week", summary["surplus_weekly"])
+
+    sections = st.tabs(["Assessment", "Income", "Spending", "APs", "Records"])
     with sections[0]:
         render_spending_assessment(sheet_id)
     with sections[1]:
@@ -4503,7 +4495,6 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         render_spending_account_form(sheet_id)
     with sections[4]:
         render_spending_records(sheet_id)
-
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")

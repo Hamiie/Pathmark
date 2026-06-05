@@ -1,41 +1,27 @@
-# Pathmark release hub
+# Pathmark Release Hub
 
-## v0_6_25 Spending Plan setup and assessment rebuild
+Current release: **v0.6.26 Spending Plan open and layout repair**
 
-Pathmark is a Streamlit-based planning and export system.
+Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, and the latest downloadable local Windows package.
 
-This repository contains the hosted Pathmark release hub and Pathmark Online code. The downloadable local Windows workspace package is kept in `downloads/`.
+## Contexts
 
-Current release focuses on:
+### Hosted release hub / Pathmark Online
 
-- rebuilding Spending Plan beta as a setup-and-assessment flow instead of a one-off finance wizard;
-- guiding users through maintained income sources, maintained spending categories, cash-flow assessment, and AP/account-role instructions;
-- using common income sources and spreadsheet-derived spending buckets/sections for data validation;
-- showing safe weekly spending, weekly APs/transfers, surplus or shortfall warnings, and emergency/debt/savings guidance;
-- keeping the five account roles fixed while allowing the user to map those roles to their own bank accounts outside Pathmark;
-- retaining the wider Pathmark wizard, project, routine, calendar, tasklist and Google Tasks behaviour from the previous release.
+- Main app: `app/main.py`
+- Hosted target: Streamlit Community Cloud
+- Includes the public homepage, About & Privacy, Google login, Supabase access roles, Pathmark Online, Spending Plan beta, and developer tools where appropriate.
 
-## Repository structure
+### Local Windows package
 
-```text
-.gitignore
-README.md
-requirements.txt
-latest_version.json
-REPOSITORY_STRUCTURE.txt
-app/
-  main.py
-  assets/
-  static/
-downloads/
-  Pathmark_Local_App_Windows_v0_6_25.zip
-.streamlit/
-  config.toml
-supabase/
-  README.md
-  migrations/
-```
+- Stored in `downloads/`
+- Contains the desktop Pathmark Workspace manager.
+- The repository should include only the latest local package.
 
-## Notes
+## Current focus
 
-Do not commit Streamlit secrets, Google client secrets, API keys, OAuth tokens, service account JSON files, private planning data, or downloaded user sync data.
+v0.6.26 repairs the Spending Plan beta open error and simplifies its layout after the setup-and-assessment rebuild.
+
+## Security
+
+Do not commit secrets, OAuth client secrets, Google access or refresh tokens, service account JSON, Supabase service keys, private planning data, or developer email addresses.

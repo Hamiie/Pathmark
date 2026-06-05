@@ -1,5 +1,3 @@
-Pathmark repository structure
-
 .gitignore
 README.md
 requirements.txt
@@ -8,18 +6,11 @@ REPOSITORY_STRUCTURE.txt
 app/
   main.py
   assets/
-    pathmark.png
   static/
-    apple-touch-icon.png
-    manifest.json
-    pathmark-icon-192.png
-    pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_25.zip
+  Pathmark_Local_App_Windows_v0_6_26.zip
 .streamlit/
   config.toml
 supabase/
   README.md
   migrations/
-    20260531000000_create_pathmark_access_tables.sql
-    20260601000000_add_pathmark_user_theme_preference.sql
