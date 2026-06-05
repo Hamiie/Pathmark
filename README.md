@@ -1,15 +1,15 @@
 # Pathmark release hub
 
-Current release: **v0.6.42 Streamlit-controlled appearance variant repair**
+Current release: **v0.6.43 Theme tab and Streamlit CSS variable repair**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_42_streamlit_controlled_appearance_variant_repair.zip`
-- `Pathmark_Local_App_Windows_v0_6_42.zip`
+- `pathmark_release_hub_v0_6_43_theme_tab_streamlit_css_variable_repair.zip`
+- `Pathmark_Local_App_Windows_v0_6_43.zip`
 
-## v0.6.42 Streamlit-controlled appearance variant repair
+## v0.6.43 Theme tab and Streamlit CSS variable repair
 
 This release removes Pathmark's separate appearance selector and returns the user-facing Light/Dark/System control to Streamlit's built-in menu.
 
@@ -35,7 +35,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_42.zip
+  Pathmark_Local_App_Windows_v0_6_43.zip
 .streamlit/
   config.toml
 supabase/

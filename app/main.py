@@ -114,7 +114,7 @@ def normalise_online_theme(theme_name: str | None) -> str:
 def normalise_appearance_mode(value: str | None) -> str:
     """Normalise a legacy Pathmark appearance setting.
 
-    v0.6.42 returns to Streamlit's own System/Light/Dark menu as the
+    v0.6.43 keeps to Streamlit's own System/Light/Dark menu as the
     user-facing control. This helper remains only for compatibility with old
     saved settings.
     """
@@ -215,8 +215,8 @@ def inject_pwa_metadata() -> None:
         "theme_color": "#334E68",
         "orientation": "portrait-primary",
         "icons": [
-            {"src": "/app/static/pathmark-icon-192.png?v=0_6_42", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/app/static/pathmark-icon-512.png?v=0_6_42", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-192.png?v=0_6_43", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-512.png?v=0_6_43", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
         ],
         "categories": ["productivity", "finance", "lifestyle"],
     }
@@ -226,7 +226,7 @@ def inject_pwa_metadata() -> None:
         <script>
         (function () {{
           const doc = window.parent.document;
-          const version = '0_6_42';
+          const version = '0_6_43';
           const icon32Data = {json.dumps(icon32_data)};
           const icon192Data = {json.dumps(icon192_data)};
           const icon512Data = {json.dumps(icon512_data)};
@@ -294,186 +294,30 @@ inject_pwa_metadata()
 
 
 def inject_appearance_watcher() -> None:
-    """Mirror Streamlit's System/Light/Dark menu into Pathmark styling.
+    """Clear legacy Pathmark appearance attributes.
 
-    Streamlit does not expose its appearance selection to Python in a stable
-    public API on every browser. This small browser-side bridge listens only for
-    the user's interaction with the visible Streamlit appearance menu and then
-    sets Pathmark data attributes used by the CSS variants. It does not add a
-    second appearance control, so Streamlit remains the single user-facing
-    Light/Dark/System setting.
+    Pathmark now follows Streamlit's CSS variables directly instead of trying to
+    mirror the Settings menu through click handlers. This avoids stale
+    Pathmark-set light/dark attributes overriding Streamlit's actual mode.
     """
     components.html(
         """
         <script>
         (function () {
-          const win = window.parent;
-          const doc = win.document;
-          const storageKey = 'pathmark.resolvedAppearanceMode.v0642';
-          const choiceKey = 'pathmark.streamlitAppearanceChoice.v0642';
-
-          function systemMode() {
-            try {
-              return (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
-            } catch (e) {
-              return 'light';
-            }
-          }
-
-          function setMode(mode, source) {
-            const clean = mode === 'dark' ? 'dark' : 'light';
-            try { win.localStorage.setItem(storageKey, clean); } catch (e) {}
-            doc.documentElement.setAttribute('data-pathmark-mode', clean);
-            doc.documentElement.setAttribute('data-pathmark-appearance', clean);
+          try {
+            const win = window.parent || window;
+            const doc = win.document;
+            doc.documentElement.removeAttribute('data-pathmark-mode');
+            doc.documentElement.removeAttribute('data-pathmark-appearance');
             if (doc.body) {
-              doc.body.setAttribute('data-pathmark-mode', clean);
-              doc.body.setAttribute('data-pathmark-appearance', clean);
+              doc.body.removeAttribute('data-pathmark-mode');
+              doc.body.removeAttribute('data-pathmark-appearance');
             }
-            let meta = doc.querySelector('meta[name="theme-color"]');
-            const colour = clean === 'dark' ? '#05080C' : '#334E68';
-            if (!meta) {
-              meta = doc.createElement('meta');
-              meta.setAttribute('name', 'theme-color');
-              doc.head.appendChild(meta);
-            }
-            meta.setAttribute('content', colour);
-            doc.documentElement.setAttribute('data-pathmark-mode-source', source || 'streamlit-menu');
-          }
-
-          function setChoice(choice, source) {
-            if (!(choice === 'dark' || choice === 'light' || choice === 'system')) return;
-            try { win.localStorage.setItem(choiceKey, choice); } catch (e) {}
-            setMode(choice === 'system' ? systemMode() : choice, source || 'streamlit-menu');
-          }
-
-          function storedChoice() {
             try {
-              const direct = win.localStorage.getItem(choiceKey) || '';
-              if (direct === 'dark' || direct === 'light' || direct === 'system') return direct;
-              for (let i = 0; i < win.localStorage.length; i++) {
-                const key = String(win.localStorage.key(i) || '').toLowerCase();
-                const value = String(win.localStorage.getItem(win.localStorage.key(i)) || '').toLowerCase();
-                if (!key.includes('theme') && !key.includes('appearance') && !key.includes('color')) continue;
-                if (value === 'dark' || value.includes('"dark"')) return 'dark';
-                if (value === 'light' || value.includes('"light"')) return 'light';
-                if (value === 'system' || value.includes('"system"')) return 'system';
-              }
+              win.localStorage.removeItem('pathmark.resolvedAppearanceMode.v0642');
+              win.localStorage.removeItem('pathmark.streamlitAppearanceChoice.v0642');
             } catch (e) {}
-            return 'system';
-          }
-
-          function isVisible(el) {
-            if (!el || !el.getBoundingClientRect) return false;
-            const r = el.getBoundingClientRect();
-            const cs = win.getComputedStyle(el);
-            return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0';
-          }
-
-          function textOf(el) {
-            return String((el && (el.innerText || el.textContent)) || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-          }
-
-          function appearanceLabels() {
-            const labels = [];
-            const seen = new Set();
-            const nodes = Array.from(doc.querySelectorAll('button, [role="button"], div, span, label, p'));
-            for (const el of nodes) {
-              if (!isVisible(el)) continue;
-              const t = textOf(el);
-              if (!(t === 'system' || t === 'light' || t === 'dark')) continue;
-              const r = el.getBoundingClientRect();
-              if (r.top > 360 || r.left < 0 || r.left > win.innerWidth) continue;
-              const key = t + ':' + Math.round(r.left) + ':' + Math.round(r.top);
-              if (seen.has(key)) continue;
-              seen.add(key);
-              labels.push({el: el, mode: t, rect: r});
-            }
-            return labels;
-          }
-
-          function modeFromPoint(x, y) {
-            const labels = appearanceLabels();
-            if (!labels.length) return '';
-            let best = null;
-            for (const item of labels) {
-              const r = item.rect;
-              const cx = r.left + r.width / 2;
-              const labelCy = r.top + r.height / 2;
-              const iconCy = labelCy - Math.max(34, r.height * 1.35);
-              const dx = Math.abs(x - cx);
-              const dy = Math.min(Math.abs(y - labelCy), Math.abs(y - iconCy));
-              const score = dx * dx + dy * dy;
-              if (!best || score < best.score) best = {mode: item.mode, score: score};
-            }
-            return best && best.score < 22000 ? best.mode : '';
-          }
-
-          function directModeFromTarget(target) {
-            if (!target) return '';
-            const chain = [];
-            let el = target.nodeType === 1 ? target : target.parentElement;
-            for (let i = 0; el && i < 7; i++, el = el.parentElement) chain.push(el);
-            for (const item of chain) {
-              const t = textOf(item);
-              if (t === 'system' || t === 'light' || t === 'dark') return t;
-              if (t.includes('system') && t.includes('light') && t.includes('dark')) break;
-            }
-            return '';
-          }
-
-          function handlePointer(event) {
-            const direct = directModeFromTarget(event.target);
-            const chosen = direct || modeFromPoint(event.clientX || 0, event.clientY || 0);
-            if (!chosen) return;
-            setTimeout(function () { setChoice(chosen, 'streamlit-menu'); }, 0);
-            setTimeout(function () { setChoice(chosen, 'streamlit-menu'); }, 120);
-            setTimeout(function () { setChoice(chosen, 'streamlit-menu'); }, 360);
-          }
-
-          function bindVisibleLabels() {
-            for (const item of appearanceLabels()) {
-              const mode = item.mode;
-              let el = item.el;
-              for (let i = 0; el && i < 4; i++, el = el.parentElement) {
-                if (!el.__pathmarkAppearanceBound) {
-                  el.__pathmarkAppearanceBound = true;
-                  el.addEventListener('click', function () { setTimeout(function () { setChoice(mode, 'streamlit-menu-bound'); }, 0); }, true);
-                  el.addEventListener('touchend', function () { setTimeout(function () { setChoice(mode, 'streamlit-menu-bound'); }, 0); }, true);
-                }
-              }
-            }
-          }
-
-          if (!win.__pathmarkAppearanceWatcherV0642Installed) {
-            win.__pathmarkAppearanceWatcherV0642Installed = true;
-            doc.addEventListener('click', handlePointer, true);
-            doc.addEventListener('pointerup', handlePointer, true);
-            doc.addEventListener('touchend', function (event) {
-              const t = event.changedTouches && event.changedTouches[0];
-              if (t) handlePointer({target: event.target, clientX: t.clientX, clientY: t.clientY});
-              else handlePointer(event);
-            }, true);
-
-            const observer = new MutationObserver(function () {
-              setTimeout(bindVisibleLabels, 0);
-              setTimeout(bindVisibleLabels, 80);
-            });
-            observer.observe(doc.body || doc.documentElement, { childList: true, subtree: true });
-
-            if (win.matchMedia) {
-              const mq = win.matchMedia('(prefers-color-scheme: dark)');
-              const onSystemChange = function () {
-                if (storedChoice() === 'system') setMode(systemMode(), 'system-change');
-              };
-              if (mq.addEventListener) mq.addEventListener('change', onSystemChange);
-              else if (mq.addListener) mq.addListener(onSystemChange);
-            }
-          }
-
-          win.__pathmarkSetAppearanceMode = setChoice;
-          win.__pathmarkApplyAppearanceMode = function () { setChoice(storedChoice(), 'stored-choice'); };
-          setChoice(storedChoice(), 'initial');
-          setTimeout(bindVisibleLabels, 300);
+          } catch (e) {}
         })();
         </script>
         """,
@@ -504,13 +348,17 @@ def streamlit_appearance_mode() -> str:
 
 
 def pathmark_theme_tokens_css(mode: str = "") -> str:
-    """Return CSS variables for the resolved Streamlit appearance.
+    """Return CSS variables for Pathmark custom styling.
 
-    The important design rule is that Pathmark no longer paints the app shell
-    white. Streamlit owns the base page background; Pathmark only supplies
-    readable fallback tokens for custom cards and seasonal accents.
+    v0.6.43 stops trying to infer Streamlit's appearance setting with
+    fragile JavaScript. Instead, the default token set reads Streamlit's own
+    CSS variables directly. When the user changes Streamlit's built-in
+    System/Light/Dark menu, Streamlit updates those variables and Pathmark's
+    cards, text, inputs and page background follow automatically. Explicit
+    light/dark blocks remain as fallbacks for browsers that preserve the older
+    Pathmark data attributes.
     """
-    mode = (mode or streamlit_appearance_mode()).lower()
+    mode = (mode or "streamlit").lower()
     if mode == "dark":
         return """
           --bg: #05080C;
@@ -522,7 +370,8 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
           --shadow: rgba(0,0,0,.45);
           --accent-soft: color-mix(in srgb, var(--accent) 24%, var(--surface));
         """
-    return """
+    if mode == "light":
+        return """
           --bg: #F7F6F2;
           --ink: #1F2221;
           --muted: #5B6268;
@@ -531,6 +380,16 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
           --line: #D8D4CB;
           --shadow: rgba(0,0,0,.13);
           --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
+        """
+    return """
+          --bg: var(--background-color, #F7F6F2);
+          --ink: var(--text-color, #1F2221);
+          --muted: color-mix(in srgb, var(--text-color, #1F2221) 64%, var(--background-color, #F7F6F2));
+          --surface: var(--secondary-background-color, #FFFFFF);
+          --surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 86%, var(--background-color, #F7F6F2));
+          --line: color-mix(in srgb, var(--text-color, #1F2221) 18%, var(--background-color, #F7F6F2));
+          --shadow: color-mix(in srgb, #000000 18%, transparent);
+          --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
         """
 
 
@@ -5433,35 +5292,7 @@ def render_online_settings(sheet_id: str) -> None:
                 st.warning(safe_user_message(message))
             st.rerun()
     st.markdown("### Theme")
-    st.write("Choose the seasonal character of Pathmark. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
-    st.caption("Pathmark applies light and dark variants of the selected seasonal theme when Streamlit's appearance menu changes. This avoids a second appearance control that would make Streamlit's own menu look broken.")
-    current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Winter"))
-    theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme))
-    col_refresh, col_save = st.columns([1, 2])
-    with col_refresh:
-        if st.button("Sync with Streamlit appearance", use_container_width=True, help="Use this if your browser did not immediately apply a recent Light/Dark/System change."):
-            components.html("""
-            <script>
-            (function(){
-              const win = window.parent;
-              if (win.__pathmarkApplyAppearanceMode) win.__pathmarkApplyAppearanceMode();
-            })();
-            </script>
-            """, height=0)
-            st.rerun()
-    with col_save:
-        save_theme_pressed = st.button("Save seasonal theme", use_container_width=True)
-    if save_theme_pressed:
-        theme_name = normalise_online_theme(theme_name)
-        ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
-        user = current_user()
-        ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
-        st.session_state["hosted_theme_preference"] = theme_name
-        if ok_sheet or ok_profile:
-            st.success("Seasonal theme saved.")
-            st.rerun()
-        else:
-            st.warning(safe_user_message(message_profile or message_sheet))
+    st.info("Theme controls now sit in the top-level Theme tab beside Home and About & Privacy. Use Streamlit's built-in menu for System, Light or Dark, and use the Theme tab for the seasonal Pathmark accent.")
 
 
 
@@ -7103,6 +6934,45 @@ def download_tab() -> None:
 
 
 
+
+def theme_tab() -> None:
+    st.header("Theme")
+    st.write("Choose the seasonal character of Pathmark. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
+    st.caption("Pathmark now follows Streamlit's own theme variables directly, so switching Streamlit to Dark should make the app background and cards dark without a separate Pathmark appearance control.")
+    user = current_user()
+    sheet_id = st.session_state.get("sync_sheet_id", "")
+    if user.get("email"):
+        current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or theme_for_user(user.get("email", "")))
+    else:
+        current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Winter")
+    theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
+    st.markdown("""
+    <div class="grid-2">
+      <div class="card"><h3>Seasonal theme</h3><p>Summer, Autumn, Winter and Spring set the Pathmark accent and seasonal character.</p></div>
+      <div class="card"><h3>Appearance</h3><p>Use Streamlit's menu in the top right for System, Light or Dark. Pathmark reads Streamlit's CSS theme variables rather than maintaining a second appearance setting.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Save seasonal theme", use_container_width=True):
+        theme_name = normalise_online_theme(theme_name)
+        st.session_state["hosted_theme_preference"] = theme_name
+        messages = []
+        ok_any = True
+        if sheet_id:
+            ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
+            ok_any = ok_any and ok_sheet
+            messages.append(message_sheet)
+        if user.get("email"):
+            ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
+            ok_any = ok_any and ok_profile
+            messages.append(message_profile)
+        if ok_any:
+            st.success("Seasonal theme saved.")
+            st.rerun()
+        else:
+            st.warning(safe_user_message(" ".join([m for m in messages if m]) or "The seasonal theme was saved for this session, but could not be fully persisted."))
+    with st.expander("Why the Streamlit menu still appears", expanded=False):
+        st.write("Streamlit provides the built-in System, Light and Dark menu. Pathmark cannot remove it reliably, so Pathmark treats it as the single appearance control and uses only a separate seasonal theme selector here.")
+
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
     st.write(
@@ -7471,13 +7341,15 @@ def render_app() -> None:
     role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
     if user.get("email"):
         inject_theme_css(theme_for_user(user.get("email", "")))
+    else:
+        inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Winter"))
     maybe_record_login(user.get("email", ""), role, status)
     render_account_bar(role, user)
     if status == "disabled":
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
 
-    tabs = ["Home", "About & Privacy"]
+    tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_use_on_the_go(role, status):
         tabs.append("Pathmark Online beta")
         tabs.append("Spending Plan beta")
@@ -7487,8 +7359,10 @@ def render_app() -> None:
     with created_tabs[0]:
         download_tab()
     with created_tabs[1]:
+        theme_tab()
+    with created_tabs[2]:
         about_privacy_tab()
-    idx = 2
+    idx = 3
     if role_can_use_on_the_go(role, status):
         with created_tabs[idx]:
             on_the_go_tab()
