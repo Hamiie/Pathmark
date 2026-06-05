@@ -1,6 +1,6 @@
 # Pathmark Release Hub
 
-Current release: **v0.6.26 Spending Plan open and layout repair**
+Current release: **v0.6.27 Life dashboard integration**
 
 Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, and the latest downloadable local Windows package.
 

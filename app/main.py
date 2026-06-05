@@ -6210,19 +6210,54 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
 
 
 def render_online_overview(sheet_id: str) -> None:
-    st.subheader("Home")
+    st.subheader("Dashboard")
+    st.caption("Protect your stability. Make progress. Direct your resources.")
     data = read_online_tables(sheet_id)
-    counts = {name: len(active_online_df(df)) for name, df in data.items() if name in ["areas", "goals", "routines", "actions"]}
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Areas", counts.get("areas", 0))
-    c2.metric("Projects", counts.get("goals", 0))
-    c3.metric("Routines", counts.get("routines", 0))
-    c4.metric("Activities", counts.get("actions", 0))
+    areas = active_online_df(data.get("areas", pd.DataFrame()))
+    goals = active_online_df(data.get("goals", pd.DataFrame()))
+    routines = active_online_df(data.get("routines", pd.DataFrame()))
+    actions = active_online_df(data.get("actions", pd.DataFrame()))
+
+    calendar_rows = staged_calendar_blocks(sheet_id)
+    task_rows = staged_tasklist(sheet_id)
+    task_prompts = active_online_df(read_online_table(sheet_id, "task_prompts"))
+    money = spending_summary(sheet_id)
+
+    project_actions = pd.DataFrame()
+    routine_actions = pd.DataFrame()
+    if not actions.empty:
+        if "goal_id" in actions.columns:
+            project_actions = actions[actions["goal_id"].fillna("").astype(str).str.strip().ne("")].copy()
+        if "routine_id" in actions.columns:
+            routine_actions = actions[actions["routine_id"].fillna("").astype(str).str.strip().ne("")].copy()
+
+    st.markdown("""
+    <div class="guide-box"><strong>Is the life you are trying to build supported this week?</strong><br>
+    Pathmark brings three supports together: wellbeing routines, progress projects, and a spending plan that directs income before it disappears.</div>
+    """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("""<div class="process-card"><div class="kicker">Stability</div><h4>Protect wellbeing</h4><p>Routines protect the things that keep you steady before the week gets busy.</p></div>""", unsafe_allow_html=True)
+        st.metric("Routine activities", len(routine_actions) if not routine_actions.empty else 0)
+    with c2:
+        st.markdown("""<div class="process-card"><div class="kicker">Progress</div><h4>Move projects forward</h4><p>Projects turn meaningful goals into scheduled steps with a clear definition of done.</p></div>""", unsafe_allow_html=True)
+        st.metric("Project steps", len(project_actions) if not project_actions.empty else 0)
+    with c3:
+        st.markdown("""<div class="process-card"><div class="kicker">Resources</div><h4>Keep money aligned</h4><p>The Spending Plan turns income and outflows into practical AP and safe-to-spend guidance.</p></div>""", unsafe_allow_html=True)
+        st.metric("Safe weekly spend", money_text(money.get("everyday_weekly", 0.0)))
+
+    st.markdown("### Your week at a glance")
+    w1, w2, w3, w4 = st.columns(4)
+    w1.metric("Calendar time", len(calendar_rows) if not calendar_rows.empty else 0, help="Routine activities and project steps currently staged for Google Calendar export.")
+    w2.metric("Tasklist items", len(task_rows) if not task_rows.empty else 0, help="Routine activities and project steps available for the printable tasklist.")
+    w3.metric("Checklist items", len(task_prompts) if not task_prompts.empty else 0, help="Google Tasks checklist items, including helper items that reduce activation energy.")
+    w4.metric("Unallocated / week", money_text(money.get("surplus_weekly", 0.0)), help="Income left after planned outflows. A negative amount means the plan has a shortfall.")
 
     focus = online_setting(sheet_id, "weekly_focus", "")
-    st.markdown("### Main focus this week")
+    st.markdown("### Weekly review focus")
     with st.form("weekly_focus_home_form"):
-        new_focus = st.text_area("What should Pathmark protect or move forward this week?", value=focus, placeholder="For example, protect sleep and schedule one sketching action.", height=90)
+        new_focus = st.text_area("What should Pathmark protect, move forward, or check financially this week?", value=focus, placeholder="For example: protect sleep, schedule one pottery design step, and check planned irregular costs.", height=90)
         save_focus = st.form_submit_button("Save weekly focus", use_container_width=True)
     if save_focus:
         ok, message = save_online_setting(sheet_id, "weekly_focus", new_focus.strip())
@@ -6231,19 +6266,55 @@ def render_online_overview(sheet_id: str) -> None:
         else:
             st.warning(safe_user_message(message))
 
-    st.markdown("""
-    <div class="guide-box"><strong>Your active workspace.</strong><br>
-    Pathmark is designed so you can duck in and out: keep active routines, routine activities and project steps visible, export the items you are ready to act on, then move exported work to Archive so the workspace stays clear.</div>
-    """, unsafe_allow_html=True)
-    if not counts.get("areas") and not counts.get("goals") and not counts.get("routines"):
-        st.info("Use the Creation Wizard tab to create your first Area, then build either a Project or a Routine from start to finish.")
+    attention: list[str] = []
+    if areas.empty:
+        attention.append("Create at least one Area so projects, routines, calendar time and money decisions have a home.")
+    if routines.empty:
+        attention.append("No wellbeing routines are active yet.")
+    if goals.empty:
+        attention.append("No progress projects are active yet.")
+    if not goals.empty:
+        goal_ids_with_steps = set(project_actions.get("goal_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not project_actions.empty else set()
+        for _, row in goals.iterrows():
+            gid = str(row.get("goal_id", "") or "").strip()
+            title = str(row.get("title", "Project") or "Project").strip()
+            if gid and gid not in goal_ids_with_steps:
+                attention.append(f"Project needs a next step: {title}.")
+                break
+    if not routines.empty:
+        routine_ids_with_activities = set(routine_actions.get("routine_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not routine_actions.empty else set()
+        for _, row in routines.iterrows():
+            rid = str(row.get("routine_id", "") or "").strip()
+            title = str(row.get("title", "Routine") or "Routine").strip()
+            if rid and rid not in routine_ids_with_activities:
+                attention.append(f"Routine needs at least one protected activity: {title}.")
+                break
+    if calendar_rows.empty and (not goals.empty or not routines.empty):
+        attention.append("No active project steps or routine activities are currently staged as calendar time.")
+    if money.get("income_weekly", 0.0) <= 0:
+        attention.append("Spending Plan has no active income source yet.")
+    if money.get("surplus_weekly", 0.0) < 0:
+        attention.append(f"Spending Plan shows a weekly shortfall of {money_text(abs(money.get('surplus_weekly', 0.0)))}.")
+    if money.get("income_weekly", 0.0) > 0 and money.get("sinking_weekly", 0.0) <= 0:
+        attention.append("Planned irregular costs have not been funded yet.")
+
+    st.markdown("### Needs attention")
+    if attention:
+        for item in attention[:6]:
+            st.markdown(f"<div class='issue-card' style='padding:.9rem 1rem; border-radius:1rem; margin:.55rem 0;'>{html.escape(item)}</div>", unsafe_allow_html=True)
+    else:
+        st.success("Your active routines, projects and spending plan have no obvious setup gaps.")
+
+    st.markdown("### Core system")
     st.markdown("""
     <div class="grid-3">
-      <div class="process-card"><h4>Make time</h4><p>Pathmark turns routine activities and project steps into time in your calendar rather than leaving them as vague intentions.</p></div>
-      <div class="process-card"><h4>Start smaller</h4><p>Google Tasks checklist items can hold the activity itself, plus small helper items such as putting out gym clothes or opening the sketchbook.</p></div>
-      <div class="process-card"><h4>Keep it clear</h4><p>Move exported or completed items to Archive, then restore them if you need them again.</p></div>
+      <div class="process-card"><h4>Wellbeing routines</h4><p>Use routines for the repeating supports that keep you well: sleep, movement, food, recovery, connection and admin.</p></div>
+      <div class="process-card"><h4>Progress projects</h4><p>Use projects for meaningful outcomes that have a definition of done, then schedule only the first or next step.</p></div>
+      <div class="process-card"><h4>Spending Plan</h4><p>Use finance setup and assessment to decide where income should go before it disappears.</p></div>
     </div>
     """, unsafe_allow_html=True)
+    if areas.empty and goals.empty and routines.empty:
+        st.info("Use the Creation Wizard tab to create your first Area, then build either a Project or a Routine from start to finish.")
 
 def download_tab() -> None:
     version = load_version()
@@ -6252,17 +6323,17 @@ def download_tab() -> None:
         st.image(str(ICON_PATH), width=54)
     st.markdown("""
     <div class="hero">
-      <div class="eyebrow">Routines. Prompts. Progress.</div>
+      <div class="eyebrow">Stability. Progress. Resources.</div>
       <h1>Pathmark</h1>
-      <p class="lead">Make time for routines, keep goals moving, and start the next action with less friction.</p>
-      <p class="sublead">Pathmark helps you put routines and project steps into your calendar, then create Google Tasks checklist items or a printable tasklist so the day has a clear first step.</p>
+      <p class="lead">Protect your wellbeing, move meaningful projects forward, and keep money aligned with the life you are building.</p>
+      <p class="sublead">Pathmark helps you decide what matters, then make time for it. Routines protect stability, projects create forward motion, and the Spending Plan directs income before it disappears.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("""
     <div class="grid-3">
-      <div class="card"><h3>Put it in the calendar</h3><p>Routine activities and project steps become calendar blocks, so the work has a real place in the week.</p></div>
-      <div class="card"><h3>Keep goals from drifting</h3><p>Track competing goals and interests in one place, then define only the next one or two useful actions.</p></div>
-      <div class="card"><h3>Lower the activation energy</h3><p>Use Google Tasks checklist items for tiny first steps, or print a paper tasklist if ticking things off by hand works better for you.</p></div>
+      <div class="card"><h3>Protect stability</h3><p>Routine activities become protected time, so wellbeing supports are not left until life is already overloaded.</p></div>
+      <div class="card"><h3>Make progress</h3><p>Projects hold outcomes with a definition of done, then turn them into one-off steps with calendar time and checklist items.</p></div>
+      <div class="card"><h3>Direct resources</h3><p>The Spending Plan helps you set up income, outflows, APs and safe-to-spend guidance so money supports the plan.</p></div>
     </div>
     """, unsafe_allow_html=True)
     st.header("Two ways to use Pathmark")
@@ -6457,7 +6528,7 @@ def on_the_go_tab() -> None:
 
     # The Creation Wizard now has its own Pathmark Online tab beside Home.
     sections = st.tabs([
-        "Home",
+        "Dashboard",
         "Creation Wizard",
         "Review Queue",
         "Areas",
@@ -6470,7 +6541,7 @@ def on_the_go_tab() -> None:
         "Settings",
     ])
     with sections[0]:
-        render_safe_section("Home", render_online_overview, sheet_id)
+        render_safe_section("Dashboard", render_online_overview, sheet_id)
     with sections[1]:
         render_safe_section("Creation Wizard", render_pathmark_creation_wizard, sheet_id)
     with sections[2]:

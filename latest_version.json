@@ -1,18 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.26",
+  "version": "0.6.27",
   "release_date": "2026-06-05",
   "notes": [
-    "Repairs the Spending Plan beta open error caused by the missing records renderer.",
-    "Makes the Spending Plan page cleaner by replacing large account cards with compact money-flow guidance.",
-    "Keeps the setup-and-assessment structure for income, spending, APs, and records.",
+    "Renames Pathmark Online Home to Dashboard and reframes it around stability, progress, and resources.",
+    "Adds a weekly at-a-glance view for calendar time, tasklist rows, Google Tasks checklist items, safe weekly spend, and unallocated cash flow.",
+    "Adds a Needs attention section that surfaces gaps in routines, projects, calendar time, income, irregular costs, and shortfalls.",
+    "Updates the public release hub wording to reflect the broader wellbeing, progress, and financial-management scope.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_26.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_27.zip",
   "mac_package": "",
-  "release": "v0.6.26 Spending Plan open and layout repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_26.zip",
-  "release_name": "Spending Plan open and layout repair",
-  "release_notes": "Repairs the Spending Plan open error and simplifies the Spending Plan layout into a cleaner assessment/setup interface.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_26.zip"
+  "release": "v0.6.27 Life dashboard integration",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_27.zip",
+  "release_name": "Life dashboard integration",
+  "release_notes": "Reframes the Pathmark Online home as a life dashboard that integrates wellbeing routines, progress projects, and spending plan signals.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_27.zip"
 }
