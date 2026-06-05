@@ -189,8 +189,8 @@ def inject_pwa_metadata() -> None:
         "theme_color": "#334E68",
         "orientation": "portrait-primary",
         "icons": [
-            {"src": "/app/static/pathmark-icon-192.png?v=0_6_38", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/app/static/pathmark-icon-512.png?v=0_6_38", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-192.png?v=0_6_40", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-512.png?v=0_6_40", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
         ],
         "categories": ["productivity", "finance", "lifestyle"],
     }
@@ -200,7 +200,7 @@ def inject_pwa_metadata() -> None:
         <script>
         (function () {{
           const doc = window.parent.document;
-          const version = '0_6_38';
+          const version = '0_6_40';
           const icon32Data = {json.dumps(icon32_data)};
           const icon192Data = {json.dumps(icon192_data)};
           const icon512Data = {json.dumps(icon512_data)};
@@ -270,10 +270,10 @@ inject_pwa_metadata()
 def inject_appearance_watcher() -> None:
     """Mirror Streamlit Light/Dark/System changes into Pathmark CSS variables.
 
-    v0.6.39 avoids the circular check used previously, where Pathmark read the
-    page background after Pathmark itself had painted it. It now listens for
-    actual clicks in Streamlit's appearance menu and stores the chosen mode,
-    with System following the browser/OS colour-scheme event.
+    v0.6.40 detects deliberate menu changes by mapping clicks to Streamlit's
+    visible System/Light/Dark controls. This avoids relying on the clicked
+    element's text, because on mobile/desktop the click target may be an icon
+    with no text. It also avoids continuous polling.
     """
     components.html(
         """
@@ -281,8 +281,8 @@ def inject_appearance_watcher() -> None:
         (function () {
           const win = window.parent;
           const doc = win.document;
-          const storageKey = 'pathmark.resolvedAppearanceMode.v0639';
-          const choiceKey = 'pathmark.streamlitAppearanceChoice.v0639';
+          const storageKey = 'pathmark.resolvedAppearanceMode.v0640';
+          const choiceKey = 'pathmark.streamlitAppearanceChoice.v0640';
 
           function systemMode() {
             try {
@@ -308,53 +308,127 @@ def inject_appearance_watcher() -> None:
             doc.documentElement.setAttribute('data-pathmark-mode-source', source || 'pathmark');
           }
 
-          function applyFromChoice() {
+          function storedChoice() {
             let choice = '';
             try { choice = win.localStorage.getItem(choiceKey) || ''; } catch (e) {}
-            if (choice === 'dark') return setMode('dark', 'streamlit-menu');
-            if (choice === 'light') return setMode('light', 'streamlit-menu');
+            if (choice === 'dark' || choice === 'light' || choice === 'system') return choice;
+            // Best-effort compatibility with Streamlit/browser saved keys. This
+            // only reads storage; it does not write into Streamlit internals.
+            try {
+              for (let i = 0; i < win.localStorage.length; i++) {
+                const key = String(win.localStorage.key(i) || '').toLowerCase();
+                const value = String(win.localStorage.getItem(win.localStorage.key(i)) || '').toLowerCase();
+                if (!key.includes('theme') && !key.includes('appearance')) continue;
+                if (value === 'dark' || value.includes('"dark"')) return 'dark';
+                if (value === 'light' || value.includes('"light"')) return 'light';
+                if (value === 'system' || value.includes('"system"')) return 'system';
+              }
+            } catch (e) {}
+            return '';
+          }
+
+          function applyFromChoice() {
+            const choice = storedChoice();
+            if (choice === 'dark') return setMode('dark', 'stored-choice');
+            if (choice === 'light') return setMode('light', 'stored-choice');
             return setMode(systemMode(), 'system');
           }
 
-          // Apply once immediately. If the user has already chosen Light/Dark in
-          // the Streamlit menu during this browser session, use that. Otherwise
-          // follow System/OS.
-          if (!win.__pathmarkAppearanceWatcherV0639Installed) {
-            win.__pathmarkAppearanceWatcherV0639Installed = true;
+          function isVisible(el) {
+            if (!el || !el.getBoundingClientRect) return false;
+            const r = el.getBoundingClientRect();
+            const cs = win.getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none';
+          }
+
+          function textOf(el) {
+            return String((el && (el.innerText || el.textContent)) || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          }
+
+          function visibleLabelElements() {
+            const out = [];
+            const seen = new Set();
+            const all = Array.from(doc.querySelectorAll('button, [role="button"], div, span, label'));
+            for (const el of all) {
+              if (!isVisible(el)) continue;
+              const text = textOf(el);
+              if (!(text === 'system' || text === 'light' || text === 'dark')) continue;
+              const r = el.getBoundingClientRect();
+              // Ignore page content; the appearance controls live in the top part
+              // of the Streamlit app menu.
+              if (r.top > 260) continue;
+              const mode = text;
+              const key = mode + ':' + Math.round(r.left) + ':' + Math.round(r.top);
+              if (!seen.has(key)) {
+                seen.add(key);
+                out.push({el, mode, rect: r});
+              }
+            }
+            return out;
+          }
+
+          function nearestAppearanceChoice(x, y) {
+            const labels = visibleLabelElements();
+            if (!labels.length) return '';
+            let best = null;
+            for (const item of labels) {
+              const r = item.rect;
+              const cx = r.left + r.width / 2;
+              const cy = r.top + r.height / 2 - 28; // bias toward icon above text
+              const dx = Math.max(Math.abs(x - cx) - Math.max(62, r.width * 0.85), 0);
+              const dy = Math.max(Math.abs(y - cy) - 76, 0);
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (!best || distance < best.distance) best = {mode: item.mode, distance};
+            }
+            return best && best.distance < 120 ? best.mode : '';
+          }
+
+          function choose(mode, source) {
+            if (!(mode === 'dark' || mode === 'light' || mode === 'system')) return;
+            try { win.localStorage.setItem(choiceKey, mode); } catch (e) {}
+            if (mode === 'system') setMode(systemMode(), source || 'streamlit-menu');
+            else setMode(mode, source || 'streamlit-menu');
+          }
+
+          if (!win.__pathmarkAppearanceWatcherV0640Installed) {
+            win.__pathmarkAppearanceWatcherV0640Installed = true;
 
             doc.addEventListener('click', function (event) {
-              const el = event.target && event.target.closest ? event.target.closest('button, div, span, label') : event.target;
-              const text = (el && el.textContent ? el.textContent : '').replace(/\\s+/g, ' ').trim().toLowerCase();
-              // Streamlit's app menu contains the appearance controls as text
-              // labels. Capture the user action directly instead of trying to
-              // infer the mode from Pathmark-painted backgrounds.
-              if (text === 'dark' || text.endsWith(' dark')) {
-                try { win.localStorage.setItem(choiceKey, 'dark'); } catch (e) {}
-                setTimeout(function () { setMode('dark', 'streamlit-menu'); }, 40);
-                setTimeout(function () { setMode('dark', 'streamlit-menu'); }, 250);
-              } else if (text === 'light' || text.endsWith(' light')) {
-                try { win.localStorage.setItem(choiceKey, 'light'); } catch (e) {}
-                setTimeout(function () { setMode('light', 'streamlit-menu'); }, 40);
-                setTimeout(function () { setMode('light', 'streamlit-menu'); }, 250);
-              } else if (text === 'system' || text.endsWith(' system')) {
-                try { win.localStorage.setItem(choiceKey, 'system'); } catch (e) {}
-                setTimeout(applyFromChoice, 40);
-                setTimeout(applyFromChoice, 250);
+              const directText = textOf(event.target && event.target.closest ? event.target.closest('button, [role="button"], label, span, div') : event.target);
+              if (directText === 'dark' || directText === 'light' || directText === 'system') {
+                setTimeout(function () { choose(directText, 'streamlit-menu-text'); }, 10);
+                setTimeout(function () { choose(directText, 'streamlit-menu-text'); }, 180);
+                return;
+              }
+              const mode = nearestAppearanceChoice(event.clientX || 0, event.clientY || 0);
+              if (mode) {
+                setTimeout(function () { choose(mode, 'streamlit-menu-position'); }, 10);
+                setTimeout(function () { choose(mode, 'streamlit-menu-position'); }, 180);
               }
             }, true);
+
+            const observer = new MutationObserver(function () {
+              // Only reacts when the Streamlit app menu itself changes; no broad
+              // app-body observation and no interval loop.
+              const labels = visibleLabelElements();
+              if (!labels.length) return;
+              try { win.__pathmarkAppearanceLabelsVisible = true; } catch (e) {}
+            });
+            observer.observe(doc.documentElement, { childList: true, subtree: false, attributes: true });
+            observer.observe(doc.body || doc.documentElement, { childList: true, subtree: false, attributes: true });
 
             if (win.matchMedia) {
               const mq = win.matchMedia('(prefers-color-scheme: dark)');
               const onSystemChange = function () {
-                let choice = '';
-                try { choice = win.localStorage.getItem(choiceKey) || ''; } catch (e) {}
-                if (!choice || choice === 'system') setMode(systemMode(), 'system');
+                const choice = storedChoice();
+                if (!choice || choice === 'system') setMode(systemMode(), 'system-change');
               };
               if (mq.addEventListener) mq.addEventListener('change', onSystemChange);
               else if (mq.addListener) mq.addListener(onSystemChange);
             }
           }
 
+          win.__pathmarkSetAppearanceMode = choose;
           win.__pathmarkApplyAppearanceMode = applyFromChoice;
           applyFromChoice();
         })();
@@ -362,7 +436,6 @@ def inject_appearance_watcher() -> None:
         """,
         height=0,
     )
-
 
 inject_appearance_watcher()
 

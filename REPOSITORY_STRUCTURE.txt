@@ -12,7 +12,7 @@ app/
     pathmark.ico
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_39.zip
+  Pathmark_Local_App_Windows_v0_6_40.zip
 .streamlit/
   config.toml
 supabase/
