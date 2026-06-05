@@ -270,9 +270,10 @@ inject_pwa_metadata()
 def inject_appearance_watcher() -> None:
     """Mirror Streamlit Light/Dark/System changes into Pathmark CSS variables.
 
-    This deliberately avoids the continuous polling and broad body observers used
-    in v0.6.37. It checks once on load, then checks again only when Streamlit
-    changes app-shell theme attributes/styles or the OS colour-scheme changes.
+    v0.6.39 avoids the circular check used previously, where Pathmark read the
+    page background after Pathmark itself had painted it. It now listens for
+    actual clicks in Streamlit's appearance menu and stores the chosen mode,
+    with System following the browser/OS colour-scheme event.
     """
     components.html(
         """
@@ -280,87 +281,82 @@ def inject_appearance_watcher() -> None:
         (function () {
           const win = window.parent;
           const doc = win.document;
-          if (win.__pathmarkAppearanceWatcherV0638Installed) {
-            if (typeof win.__pathmarkApplyAppearanceMode === 'function') {
-              win.__pathmarkApplyAppearanceMode();
-            }
-            return;
-          }
-          win.__pathmarkAppearanceWatcherV0638Installed = true;
+          const storageKey = 'pathmark.resolvedAppearanceMode.v0639';
+          const choiceKey = 'pathmark.streamlitAppearanceChoice.v0639';
 
-          function parseRGB(value) {
-            const m = String(value || '').match(new RegExp('rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)', 'i'));
-            if (!m) return null;
-            return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
-          }
-          function luminance(rgb) {
-            if (!rgb) return 255;
-            return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-          }
-          function resolvedMode() {
-            const app = doc.querySelector('.stApp') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-            let bg = '';
-            try { bg = win.getComputedStyle(app).backgroundColor || win.getComputedStyle(doc.body).backgroundColor; } catch (e) {}
-            const lum = luminance(parseRGB(bg));
-            if (lum < 120) return 'dark';
-            if (lum > 180) return 'light';
-            if (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
-            return 'light';
-          }
-          function applyMode() {
-            const mode = resolvedMode();
-            if (doc.documentElement.getAttribute('data-pathmark-mode') !== mode) {
-              doc.documentElement.setAttribute('data-pathmark-mode', mode);
+          function systemMode() {
+            try {
+              return (win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+            } catch (e) {
+              return 'light';
             }
-            if (doc.body && doc.body.getAttribute('data-pathmark-mode') !== mode) {
-              doc.body.setAttribute('data-pathmark-mode', mode);
-            }
+          }
+
+          function setMode(mode, source) {
+            const clean = mode === 'dark' ? 'dark' : 'light';
+            try { win.localStorage.setItem(storageKey, clean); } catch (e) {}
+            doc.documentElement.setAttribute('data-pathmark-mode', clean);
+            if (doc.body) doc.body.setAttribute('data-pathmark-mode', clean);
             let meta = doc.querySelector('meta[name="theme-color"]');
-            const colour = mode === 'dark' ? '#05080C' : '#334E68';
+            const colour = clean === 'dark' ? '#05080C' : '#334E68';
             if (!meta) {
               meta = doc.createElement('meta');
               meta.setAttribute('name', 'theme-color');
               doc.head.appendChild(meta);
             }
-            if (meta.getAttribute('content') !== colour) {
-              meta.setAttribute('content', colour);
+            meta.setAttribute('content', colour);
+            doc.documentElement.setAttribute('data-pathmark-mode-source', source || 'pathmark');
+          }
+
+          function applyFromChoice() {
+            let choice = '';
+            try { choice = win.localStorage.getItem(choiceKey) || ''; } catch (e) {}
+            if (choice === 'dark') return setMode('dark', 'streamlit-menu');
+            if (choice === 'light') return setMode('light', 'streamlit-menu');
+            return setMode(systemMode(), 'system');
+          }
+
+          // Apply once immediately. If the user has already chosen Light/Dark in
+          // the Streamlit menu during this browser session, use that. Otherwise
+          // follow System/OS.
+          if (!win.__pathmarkAppearanceWatcherV0639Installed) {
+            win.__pathmarkAppearanceWatcherV0639Installed = true;
+
+            doc.addEventListener('click', function (event) {
+              const el = event.target && event.target.closest ? event.target.closest('button, div, span, label') : event.target;
+              const text = (el && el.textContent ? el.textContent : '').replace(/\\s+/g, ' ').trim().toLowerCase();
+              // Streamlit's app menu contains the appearance controls as text
+              // labels. Capture the user action directly instead of trying to
+              // infer the mode from Pathmark-painted backgrounds.
+              if (text === 'dark' || text.endsWith(' dark')) {
+                try { win.localStorage.setItem(choiceKey, 'dark'); } catch (e) {}
+                setTimeout(function () { setMode('dark', 'streamlit-menu'); }, 40);
+                setTimeout(function () { setMode('dark', 'streamlit-menu'); }, 250);
+              } else if (text === 'light' || text.endsWith(' light')) {
+                try { win.localStorage.setItem(choiceKey, 'light'); } catch (e) {}
+                setTimeout(function () { setMode('light', 'streamlit-menu'); }, 40);
+                setTimeout(function () { setMode('light', 'streamlit-menu'); }, 250);
+              } else if (text === 'system' || text.endsWith(' system')) {
+                try { win.localStorage.setItem(choiceKey, 'system'); } catch (e) {}
+                setTimeout(applyFromChoice, 40);
+                setTimeout(applyFromChoice, 250);
+              }
+            }, true);
+
+            if (win.matchMedia) {
+              const mq = win.matchMedia('(prefers-color-scheme: dark)');
+              const onSystemChange = function () {
+                let choice = '';
+                try { choice = win.localStorage.getItem(choiceKey) || ''; } catch (e) {}
+                if (!choice || choice === 'system') setMode(systemMode(), 'system');
+              };
+              if (mq.addEventListener) mq.addEventListener('change', onSystemChange);
+              else if (mq.addListener) mq.addListener(onSystemChange);
             }
           }
-          win.__pathmarkApplyAppearanceMode = applyMode;
 
-          let pending = false;
-          function scheduleCheck() {
-            if (pending) return;
-            pending = true;
-            win.requestAnimationFrame(function () {
-              pending = false;
-              applyMode();
-            });
-          }
-
-          applyMode();
-
-          const observer = new MutationObserver(scheduleCheck);
-          const observerOptions = {attributes: true, attributeFilter: ['class', 'style', 'data-theme', 'data-baseweb']};
-          try { observer.observe(doc.documentElement, observerOptions); } catch (e) {}
-          try { observer.observe(doc.body, observerOptions); } catch (e) {}
-
-          function observeAppShell() {
-            const app = doc.querySelector('.stApp') || doc.querySelector('[data-testid="stAppViewContainer"]');
-            if (app && app !== win.__pathmarkObservedAppShell) {
-              try { observer.observe(app, observerOptions); } catch (e) {}
-              win.__pathmarkObservedAppShell = app;
-            }
-            scheduleCheck();
-          }
-          observeAppShell();
-          setTimeout(observeAppShell, 1200);
-
-          if (win.matchMedia) {
-            const mq = win.matchMedia('(prefers-color-scheme: dark)');
-            if (mq.addEventListener) mq.addEventListener('change', scheduleCheck);
-            else if (mq.addListener) mq.addListener(scheduleCheck);
-          }
+          win.__pathmarkApplyAppearanceMode = applyFromChoice;
+          applyFromChoice();
         })();
         </script>
         """,
@@ -522,6 +518,16 @@ input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-basewe
   border-color: var(--line) !important;
 }}
 [role="listbox"], [role="option"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
+html[data-pathmark-mode="dark"] [data-baseweb="popover"], html[data-pathmark-mode="dark"] [data-baseweb="popover"] * {{
+  background-color: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}}
+html[data-pathmark-mode="light"] [data-baseweb="popover"], html[data-pathmark-mode="light"] [data-baseweb="popover"] * {{
+  background-color: #FFFFFF !important;
+  color: #1F2221 !important;
+  border-color: #D8D4CB !important;
+}}
 /* Keep typed text comfortably away from borders and accent stripes. */
 input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
 [data-baseweb="textarea"] textarea, [data-baseweb="input"] input {{ padding-left: .95rem !important; padding-right: .95rem !important; }}
@@ -2454,6 +2460,16 @@ def inject_theme_css(theme_name: str) -> None:
           --pathmark-muted: var(--muted);
           --pathmark-line: var(--line);
         }}
+        html[data-pathmark-mode="dark"] {{ color-scheme: dark !important; background: #05080C !important; }}
+        html[data-pathmark-mode="light"] {{ color-scheme: light !important; background: #F7F6F2 !important; }}
+        html[data-pathmark-mode="dark"] body, html[data-pathmark-mode="dark"] .stApp,
+        html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"],
+        html[data-pathmark-mode="dark"] [data-testid="stHeader"],
+        html[data-pathmark-mode="dark"] main {{ background-color: var(--pathmark-bg) !important; color: var(--pathmark-ink) !important; }}
+        html[data-pathmark-mode="light"] body, html[data-pathmark-mode="light"] .stApp,
+        html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"],
+        html[data-pathmark-mode="light"] [data-testid="stHeader"],
+        html[data-pathmark-mode="light"] main {{ background-color: var(--pathmark-bg) !important; color: var(--pathmark-ink) !important; }}
         .stApp, [data-testid="stAppViewContainer"] {{
           background-color: var(--pathmark-bg) !important;
           color: var(--pathmark-ink) !important;

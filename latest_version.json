@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.38",
+  "version": "0.6.39",
   "release_date": "2026-06-05",
   "notes": [
-    "Keeps the mobile/PWA Pathmark branding metadata from v0.6.37.",
-    "Replaces the continuous appearance polling loop with an event-based theme check.",
-    "Checks the active Streamlit appearance once on load, then checks again only when Streamlit app-shell theme attributes/styles or the OS colour scheme changes.",
-    "Keeps seasonal Pathmark themes as Summer, Autumn, Winter and Spring while applying the light or dark variant based on Streamlit Light/Dark/System.",
-    "Retains the manual Refresh theme display fallback in Settings."
+    "Keeps mobile/PWA Pathmark branding metadata from v0.6.38.",
+    "Repairs light/dark recognition by responding directly to Streamlit appearance menu selections rather than reading Pathmark-painted backgrounds.",
+    "Stores the last selected Streamlit appearance choice for the browser session and applies the matching seasonal light or dark variant.",
+    "Strengthens dark and light contrast for the app shell, header, cards, inputs and Streamlit menu popovers.",
+    "Keeps seasonal Pathmark themes as Summer, Autumn, Winter and Spring, with appearance controlled by Streamlit Light/Dark/System."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_38.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_39.zip",
   "mac_package": "",
-  "release": "v0.6.38 Event-based theme change repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip",
-  "release_name": "Event-based theme change repair",
-  "release_notes": "Keeps mobile branding metadata while replacing the continuous appearance watcher with a safer event-based theme-change check.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip",
-  "label": "Event-based theme change repair",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_38.zip"
+  "release": "v0.6.39 Streamlit appearance recognition repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_39.zip",
+  "release_name": "Streamlit appearance recognition repair",
+  "release_notes": "Repairs Pathmark light/dark theme switching by listening to Streamlit appearance menu selections and applying the correct seasonal variant.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_39.zip",
+  "label": "Streamlit appearance recognition repair",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_39.zip"
 }
