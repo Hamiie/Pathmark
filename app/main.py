@@ -107,6 +107,14 @@ def normalise_online_theme(theme_name: str | None) -> str:
 
 VALID_FREQUENCIES = ["Daily", "Weekdays", "Weekly", "Monthly", "Custom"]
 VALID_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+MONTHLY_REPEAT_PATTERNS = [
+    "First Monday", "First Tuesday", "First Wednesday", "First Thursday", "First Friday", "First Saturday", "First Sunday",
+    "Second Monday", "Second Tuesday", "Second Wednesday", "Second Thursday", "Second Friday", "Second Saturday", "Second Sunday",
+    "Third Monday", "Third Tuesday", "Third Wednesday", "Third Thursday", "Third Friday", "Third Saturday", "Third Sunday",
+    "Fourth Monday", "Fourth Tuesday", "Fourth Wednesday", "Fourth Thursday", "Fourth Friday", "Fourth Saturday", "Fourth Sunday",
+    "Last Monday", "Last Tuesday", "Last Wednesday", "Last Thursday", "Last Friday", "Last Saturday", "Last Sunday",
+    "Same day of month as start date",
+]
 DAY_ALIASES = {d.lower(): d for d in VALID_DAYS}
 DAY_ALIASES.update({d[:3].lower(): d for d in VALID_DAYS})
 
@@ -372,11 +380,12 @@ input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !impor
 .dashboard-hero {{ padding:.15rem 0 .55rem 0; margin:0 0 .85rem 0; border-bottom:1px solid var(--line); }}
 .dashboard-hero h2 {{ margin:.05rem 0 .25rem 0; font-size:clamp(1.9rem,3vw,2.55rem); letter-spacing:-.055em; }}
 .dashboard-hero p {{ margin:0; color:var(--muted); max-width:820px; line-height:1.48; }}
-.pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.85rem; margin:1rem 0 1.35rem; }}
-.pillar-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:154px; }}
+.pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; margin:1rem 0 1.35rem; align-items:stretch; }}
+.pillar-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:230px; display:flex; flex-direction:column; }}
 .pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
-.pillar-card p {{ margin:0 0 .8rem; color:var(--muted); font-size:.98rem; line-height:1.45; }}
-.pillar-stat {{ color:var(--ink); font-size:1.35rem; font-weight:780; line-height:1.1; }}
+.pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
+.pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
+.pillar-stat {{ color:var(--ink); font-size:1.55rem; font-weight:780; line-height:1.1; }}
 .pillar-foot {{ color:var(--muted); font-size:.88rem; margin-top:.2rem; }}
 .dashboard-section {{ margin:1.45rem 0 .65rem; }}
 .dashboard-section h3 {{ margin-bottom:.25rem; }}
@@ -397,6 +406,9 @@ input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !impor
 .money-flow-table td {{ padding:.7rem .45rem; border-bottom:1px solid var(--line); color:var(--ink); }}
 .money-flow-table tr:last-child td {{ border-bottom:none; }}
 .money-amount {{ font-weight:780; white-space:nowrap; }}
+.helper-row-card {{ background:var(--surface-2)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.85rem .9rem; margin:.55rem 0; }}
+.helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
+.repeat-summary {{ background:var(--surface-2)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; color:var(--ink)!important; }}
 @media (max-width: 860px) {{ .pillar-grid, .metric-strip {{ grid-template-columns:1fr; }} }}
 [data-testid="stHeader"] {{ background: transparent !important; }}
 section[data-testid="stSidebar"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
@@ -2332,23 +2344,45 @@ def normalise_days_text(days_text: str) -> str:
     return ", ".join(valid)
 
 
+def monthly_pattern_to_rrule_part(pattern: Any) -> str:
+    text = str(pattern or "").strip()
+    if not text or text == "Same day of month as start date":
+        return ""
+    m = re.match(r"^(First|Second|Third|Fourth|Last)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$", text, flags=re.I)
+    if not m:
+        return ""
+    ordinal_map = {"first": "1", "second": "2", "third": "3", "fourth": "4", "last": "-1"}
+    day_map = {"monday": "MO", "tuesday": "TU", "wednesday": "WE", "thursday": "TH", "friday": "FR", "saturday": "SA", "sunday": "SU"}
+    return ordinal_map[m.group(1).lower()] + day_map[m.group(2).lower()]
+
+
+def is_monthly_pattern_text(value: Any) -> bool:
+    text = str(value or "").strip()
+    return text in MONTHLY_REPEAT_PATTERNS or bool(monthly_pattern_to_rrule_part(text))
+
+
 def validate_routine_schedule(frequency: str, preferred_days: str) -> list[str]:
     problems: list[str] = []
     freq = str(frequency or "").strip()
     days = str(preferred_days or "").strip()
     if freq not in VALID_FREQUENCIES:
         problems.append("Choose a frequency from the list so calendar and task exports can interpret it.")
-    valid_days, invalid_days = parse_days_text(days)
-    if invalid_days:
-        problems.append("Preferred days must use weekday names such as Monday, Wednesday, Friday.")
-    if freq in {"Weekly", "Weekdays"} and not valid_days:
-        problems.append("Weekly and Weekdays routines need preferred days for reliable exports.")
-    if freq == "Weekdays":
+    if freq == "Weekly":
+        valid_days, invalid_days = parse_days_text(days)
+        if invalid_days:
+            problems.append("Weekly repeat days must use weekday names such as Monday, Wednesday, Friday.")
+        if not valid_days:
+            problems.append("Weekly routines need at least one repeat day for reliable exports.")
+    elif freq == "Weekdays":
+        valid_days, invalid_days = parse_days_text(days)
+        if invalid_days:
+            problems.append("Weekdays routines should use weekday names only.")
         weekend = {"Saturday", "Sunday"}.intersection(valid_days)
         if weekend:
             problems.append("A Weekdays routine should not include Saturday or Sunday.")
-    if freq == "Monthly" and valid_days:
-        problems.append("Monthly routines currently export most reliably when preferred days are blank and a next due date is set.")
+    elif freq == "Monthly":
+        if days and not is_monthly_pattern_text(days):
+            problems.append("Monthly routines need a supported pattern, such as First Monday or Same day of month as start date.")
     return problems
 
 def truthy_flag(value: Any) -> bool:
@@ -2562,10 +2596,11 @@ def simple_rrule(frequency: str | None, activity_days: str | None = "") -> str:
         return "RRULE:FREQ=DAILY"
     if freq.lower() == "weekdays":
         return "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
-    if "week" in freq.lower() or bydays:
+    if freq.lower() == "weekly" or (bydays and freq.lower() != "monthly"):
         return "RRULE:FREQ=WEEKLY" + (f";BYDAY={','.join(bydays)}" if bydays else "")
-    if "month" in freq.lower():
-        return "RRULE:FREQ=MONTHLY"
+    if freq.lower() == "monthly":
+        part = monthly_pattern_to_rrule_part(days)
+        return "RRULE:FREQ=MONTHLY" + (f";BYDAY={part}" if part else "")
     return ""
 
 
@@ -2610,6 +2645,12 @@ def human_recurrence(value: Any) -> str:
             return f"Repeats weekly on {join_days(days)}"
         return "Repeats weekly"
     if freq == "MONTHLY":
+        if byday_codes:
+            code = byday_codes[0]
+            m = re.match(r"^(-?\d)(MO|TU|WE|TH|FR|SA|SU)$", code)
+            if m:
+                ord_label = {"1": "first", "2": "second", "3": "third", "4": "fourth", "-1": "last"}.get(m.group(1), m.group(1))
+                return f"Repeats monthly on the {ord_label} {day_names.get(m.group(2), m.group(2))}"
         return "Repeats monthly"
     if freq == "YEARLY":
         return "Repeats yearly"
@@ -2642,16 +2683,16 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
         if str(routine.get("status", "")).lower() == "paused":
             continue
         base_date = action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or ""
-        start, end = online_event_bounds(base_date, action.get("calendar_start_time") or routine.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or routine.get("calendar_end_time") or "10:00")
+        start, end = online_event_bounds(base_date, action.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or "10:00")
         end_date_override = str(action.get("calendar_end_date", "") or "").strip()
         if end_date_override:
-            start_t = parse_online_time(action.get("calendar_start_time") or routine.get("calendar_start_time") or "09:00", "09:00")
-            end_t = parse_online_time(action.get("calendar_end_time") or routine.get("calendar_end_time") or "10:00", "10:00")
+            start_t = parse_online_time(action.get("calendar_start_time") or "09:00", "09:00")
+            end_t = parse_online_time(action.get("calendar_end_time") or "10:00", "10:00")
             start_d = parse_online_date(base_date) or date.today()
             end_d = parse_online_date(end_date_override) or start_d
             start = datetime.combine(start_d, start_t).strftime("%Y-%m-%d %H:%M")
             end = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
-        recurrence = simple_rrule(routine.get("frequency"), action.get("activity_days")) if routine_id else ""
+        recurrence = simple_rrule(routine.get("frequency"), routine.get("preferred_days") or action.get("activity_days")) if routine_id else ""
         routine_parent = routines.get(routine_id, {})
         if str(routine_parent.get("status", "")).lower() == "paused":
             continue
@@ -2733,7 +2774,7 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
             base_note = str(action.get("notes") or action.get("description") or "")
             repeat = routine.get("frequency", "") if routine_id else ""
             linked = linked_calendar_summary_for_action(action, blocks)
-            note_parts = [f"Routine: {parent}" if routine_id and parent else f"Project: {parent}" if goal_id and parent else "", base_note, f"Repeat pattern: {repeat}." if repeat else "", f"Reference calendar time: {action.get('calendar_start_time') or routine.get('calendar_start_time')}." if (action.get('calendar_start_time') or routine.get('calendar_start_time')) else "", linked]
+            note_parts = [f"Routine: {parent}" if routine_id and parent else f"Project: {parent}" if goal_id and parent else "", base_note, f"Repeat pattern: {repeat}." if repeat else "", f"Reference calendar time: {action.get('calendar_start_time')}." if action.get('calendar_start_time') else "", linked]
             rows.append({
                 "id": aid,
                 "title": title,
@@ -2801,6 +2842,30 @@ def helper_prompts_for_action(sheet_id: str, action_id: str) -> pd.DataFrame:
         & (~df.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"archived", "done", "completed"}))
     )
     return df[mask].copy()
+
+
+def _helper_state_key(form_id: str) -> str:
+    return f"helper_rows_state_{form_id}"
+
+
+def helper_rows_state_for_form(form_id: str, existing_helpers: pd.DataFrame, default_due: str = "") -> list[dict[str, str]]:
+    key = _helper_state_key(form_id)
+    if key not in st.session_state:
+        rows: list[dict[str, str]] = []
+        if existing_helpers is not None and not existing_helpers.empty:
+            for _, row in existing_helpers.iterrows():
+                title = str(row.get("title", "") or row.get("prompt_text", "") or "").strip()
+                due = nz_date_text(row.get("due_date", "") or default_due)
+                if title or due:
+                    rows.append({"title": title, "due": due})
+        if not rows:
+            rows = [{"title": "", "due": nz_date_text(default_due or date.today().isoformat())}]
+        st.session_state[key] = rows
+    return st.session_state[key]
+
+
+def reset_helper_rows_state(form_id: str) -> None:
+    st.session_state.pop(_helper_state_key(form_id), None)
 
 
 def helper_prompt_editor_rows(existing_helpers: pd.DataFrame, default_due: str = "") -> pd.DataFrame:
@@ -3265,8 +3330,8 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
 
     default_start_date = str(action.get("scheduled_date", "") or action.get("due_date", "") or routine.get("next_due", "") or "")
     default_end_date = str(action.get("calendar_end_date", "") or default_start_date or "")
-    default_start_time = str(action.get("calendar_start_time", "") or routine.get("calendar_start_time", "") or "")
-    default_end_time = str(action.get("calendar_end_time", "") or routine.get("calendar_end_time", "") or "")
+    default_start_time = str(action.get("calendar_start_time", "") or "")
+    default_end_time = str(action.get("calendar_end_time", "") or "")
     existing_helpers = helper_prompts_for_action(sheet_id, record_id) if record_id else pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
     helper_editor_default_due = default_start_date or date.today().isoformat()
 
@@ -3300,18 +3365,22 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
 
         st.markdown("#### 3. Optional small action checklist items")
-        st.caption("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Add extra small actions that reduce the activation energy. Each helper item can have its own Google Tasks date and remains linked to the parent step or activity for future editing.")
-        helper_rows_input = st.data_editor(
-            helper_prompt_editor_rows(existing_helpers, helper_editor_default_due),
-            key=f"helper_rows_{form_id}",
-            hide_index=True,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "Checklist item": st.column_config.TextColumn("Additional small Google Tasks checklist item", help="One small action, such as ‘put phone outside the bedroom’."),
-                "Date to appear": st.column_config.TextColumn("Date this checklist item should appear", help="Use DD/MM/YYYY. Google Tasks checklist items are date-based in Pathmark."),
-            },
-        )
+        with st.popover("ⓘ Why add small actions?"):
+            st.write("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Extra small actions reduce activation energy, can each have their own date, and remain linked to this parent step or activity for future editing/export.")
+        helper_state_rows = helper_rows_state_for_form(form_id, existing_helpers, helper_editor_default_due)
+        helper_count_default = max(1, min(6, len(helper_state_rows)))
+        helper_count = st.selectbox("How many extra small checklist items?", [0, 1, 2, 3, 4, 5, 6], index=[0, 1, 2, 3, 4, 5, 6].index(helper_count_default if helper_state_rows and any((r.get("title") or "").strip() for r in helper_state_rows) else 0), help="Optional. Pathmark will still create the main Google Tasks checklist item automatically.")
+        while len(helper_state_rows) < helper_count:
+            helper_state_rows.append({"title": "", "due": nz_date_text(helper_editor_default_due)})
+        helper_rows_input: list[dict[str, str]] = []
+        for idx in range(helper_count):
+            row = helper_state_rows[idx] if idx < len(helper_state_rows) else {"title": "", "due": nz_date_text(helper_editor_default_due)}
+            st.markdown(f"<div class='helper-row-card'><p>Small action {idx + 1}</p></div>", unsafe_allow_html=True)
+            hc1, hc2 = st.columns([0.68, 0.32])
+            title_val = hc1.text_input("Checklist item", value=str(row.get("title", "")), placeholder="For example, put phone outside the bedroom", key=f"{form_id}_helper_title_{idx}")
+            due_val = hc2.text_input("Appears on", value=str(row.get("due", nz_date_text(helper_editor_default_due))), placeholder="DD/MM/YYYY", key=f"{form_id}_helper_due_{idx}")
+            helper_rows_input.append({"title": title_val, "due": due_val})
+        st.caption("Helper items export as separate Google Tasks rows and include the parent step/activity ID in the notes.")
 
         activity_days = ""
         if is_routine_activity:
@@ -3387,6 +3456,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                         helper_due=scheduled,
                     )
                     st.success(message)
+                    reset_helper_rows_state(form_id)
                 else:
                     st.warning(safe_user_message(message))
                 if ok:
@@ -3492,11 +3562,36 @@ def render_goal_manager(sheet_id: str) -> None:
                         st.rerun()
 
 
+def _routine_repeat_inputs(prefix: str, current_frequency: str = "Weekly", current_preferred_days: str = "", current_next_due: str = "") -> tuple[str, str, str]:
+    freq = current_frequency if current_frequency in VALID_FREQUENCIES else "Weekly"
+    frequency = st.selectbox("Repeat pattern for activities", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index(freq), key=f"{prefix}_frequency")
+    preferred_days = ""
+    current_days, _bad_days = parse_days_text(str(current_preferred_days or ""))
+    if frequency == "Weekdays":
+        preferred_days = "Monday, Tuesday, Wednesday, Thursday, Friday"
+        st.markdown("<div class='repeat-summary'>Repeats on weekdays: Monday to Friday.</div>", unsafe_allow_html=True)
+    elif frequency == "Daily":
+        preferred_days = ""
+        st.markdown("<div class='repeat-summary'>Repeats every day.</div>", unsafe_allow_html=True)
+    elif frequency == "Weekly":
+        selected = st.multiselect("Repeat on these days", VALID_DAYS, default=current_days, key=f"{prefix}_weekly_days", help="These days will become the Google-compatible weekly recurrence for every activity in this routine.")
+        preferred_days = ", ".join(selected)
+    elif frequency == "Monthly":
+        current_pattern = str(current_preferred_days or "Same day of month as start date").strip()
+        if current_pattern not in MONTHLY_REPEAT_PATTERNS:
+            current_pattern = "Same day of month as start date"
+        preferred_days = st.selectbox("Repeat monthly", MONTHLY_REPEAT_PATTERNS, index=MONTHLY_REPEAT_PATTERNS.index(current_pattern), key=f"{prefix}_monthly_pattern", help="Google Calendar imports support patterns such as the first Monday or last Friday of each month.")
+    else:
+        preferred_days = st.text_input("Custom repeat description", value=str(current_preferred_days or ""), key=f"{prefix}_custom_repeat", help="Used for notes only unless it can be converted to a standard export rule.")
+    next_due = st.text_input("Repeat starts", value=nz_date_text(current_next_due), placeholder="DD/MM/YYYY", key=f"{prefix}_next_due")
+    return frequency, preferred_days, next_due
+
+
 def render_routine_manager(sheet_id: str) -> None:
     st.subheader("Routines")
     st.markdown("""
     <div class='guide-box'><strong>Routines are the habits that keep you steady.</strong><br>
-    A routine is the container. Routine activities are the specific things you do inside it, and those activities can appear on the tasklist, become Google Calendar blocks, or create date-based Google Tasks checklist items.</div>
+    A routine sets the repeat pattern. Each activity inside it sets its own start and finish time, then inherits the routine repeat pattern for calendar export.</div>
     """, unsafe_allow_html=True)
     routines = active_online_df(read_online_table(sheet_id, "routines"))
     actions = active_online_df(read_online_table(sheet_id, "actions"))
@@ -3508,14 +3603,7 @@ def render_routine_manager(sheet_id: str) -> None:
             with st.form("online_add_routine", clear_on_submit=True):
                 area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area", key="routine_area") if areas else st.text_input("Area", key="routine_area_text")
                 title = st.text_input("Routine title")
-                frequency = st.selectbox("Repeat pattern for calendar blocks and checklist items", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index("Weekly"))
-                if frequency in {"Daily", "Weekdays"}:
-                    preferred_day_values = []
-                    preferred_days = ""
-                else:
-                    preferred_day_values = st.multiselect("Repeat on these days", VALID_DAYS, help="Used to generate Google Calendar-compatible weekly recurrence rules.")
-                    preferred_days = ", ".join(preferred_day_values)
-                next_due = st.text_input("Repeat starts", placeholder="YYYY-MM-DD")
+                frequency, preferred_days, next_due = _routine_repeat_inputs("add_routine", "Weekly", "", "")
                 purpose = st.text_area("Why this matters", height=75)
                 checklist = ""
                 st.caption("After saving the routine container, add one or more routine activities. Activities drive calendar blocks, tasklist rows and Google Tasks checklist items.")
@@ -3533,7 +3621,7 @@ def render_routine_manager(sheet_id: str) -> None:
                         for problem in validate_routine_schedule(frequency, preferred_days):
                             st.error(problem)
                     else:
-                        ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "status": status, "purpose": purpose.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "checklist": checklist.strip(), "notes": notes.strip()})
+                        ok, message = append_online_record(sheet_id, "routines", {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": purpose.strip() or notes.strip(), "frequency": frequency.strip() or "Weekly", "preferred_days": preferred_days.strip(), "duration_minutes": "", "calendar_start_time": "", "calendar_end_time": "", "status": status, "purpose": purpose.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "checklist": checklist.strip(), "notes": notes.strip()})
                         if ok:
                             st.success(message)
                         else:
@@ -3582,34 +3670,20 @@ def render_routine_manager(sheet_id: str) -> None:
                     _action_form(sheet_id, routine_id=selected_id, default_area=str(r.get("area_name", "") or ""), form_key=f"routine_{selected_id}")
             with tabs[2]:
                 with st.form(f"online_repeat_{selected_id}"):
+                    st.caption("The routine repeat pattern is inherited by each activity. Activity start and finish times are set in the Activities tab, not here.")
                     current_freq = str(r.get("frequency", "") or "Weekly")
-                    frequency = st.selectbox("Repeat pattern for calendar blocks and checklist items", VALID_FREQUENCIES, index=VALID_FREQUENCIES.index(current_freq) if current_freq in VALID_FREQUENCIES else VALID_FREQUENCIES.index("Custom"))
-                    current_days, _bad_days = parse_days_text(str(r.get("preferred_days", "")))
-                    if frequency in {"Daily", "Weekdays"}:
-                        preferred_day_values = []
-                        preferred_days = ""
-                    else:
-                        preferred_day_values = st.multiselect("Repeat on these days", VALID_DAYS, default=current_days, help="Used to generate Google Calendar-compatible weekly recurrence rules.")
-                        preferred_days = ", ".join(preferred_day_values)
-                    next_due = st.text_input("Repeat starts", value=str(r.get("next_due", "")))
-                    duration = st.text_input("Default duration minutes", value=str(r.get("duration_minutes", "")))
-                    c1, c2 = st.columns(2)
-                    start = c1.text_input("Default start time", value=str(r.get("calendar_start_time", "09:00") or "09:00"))
-                    end = c2.text_input("Default end time", value=str(r.get("calendar_end_time", "10:00") or "10:00"))
+                    frequency, preferred_days, next_due = _routine_repeat_inputs(f"edit_routine_{selected_id}", current_freq, str(r.get("preferred_days", "")), str(r.get("next_due", "")))
                     submitted = st.form_submit_button("Save repeat settings", use_container_width=True)
                     if submitted:
                         problems = []
                         if not valid_online_date(next_due):
                             problems.append("Repeat starts must be blank or a real date. Use DD/MM/YYYY, for example 08/06/2026.")
-                        for label, value in [("Default start time", start), ("Default end time", end)]:
-                            if not valid_online_time(value):
-                                problems.append(f"{label} must be blank or a real time, for example 09:00 or 7:30pm.")
                         problems.extend(validate_routine_schedule(frequency, preferred_days))
                         if problems:
                             for problem in problems:
                                 st.error(problem)
                         else:
-                            ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else "", "duration_minutes": duration.strip(), "calendar_start_time": start.strip(), "calendar_end_time": end.strip()})
+                            ok, message = update_online_record(sheet_id, "routines", selected_id, {"frequency": frequency.strip(), "preferred_days": preferred_days.strip(), "next_due": normalise_online_date(next_due) if next_due.strip() else ""})
                             if ok:
                                 st.success(message)
                             else:

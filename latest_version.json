@@ -1,19 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.28",
+  "version": "0.6.29",
   "release_date": "2026-06-05",
   "notes": [
-    "Refines the Pathmark Online Dashboard into a calmer executive summary with three equal pillars.",
-    "Adds compact week-at-a-glance tiles, prioritised Needs attention cards, and a next useful action prompt.",
-    "Simplifies the Spending Plan Assessment into a plain-English money-flow summary with detailed rows kept in setup tabs.",
-    "Preserves the v0.6.27 life-dashboard concept while reducing visual clutter and explanatory blocks.",
+    "Tightens Dashboard card alignment so each pillar carries its own metric inside the card.",
+    "Replaces the manual helper checklist data table with cleaner small-action rows and separate dates.",
+    "Simplifies routine repeat settings so the routine sets only the repeat pattern while activities set their own times.",
+    "Adds weekly repeat days immediately when Weekly is selected and supports monthly patterns such as first Monday or last Friday.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_28.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_29.zip",
   "mac_package": "",
-  "release": "v0.6.28 Dashboard and finance visual refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_28.zip",
-  "release_name": "Dashboard and finance visual refinement",
-  "release_notes": "Refines Dashboard and Spending Plan layouts for a calmer, more professional information hierarchy.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_28.zip"
+  "release": "v0.6.29 Dashboard, helper checklist, and repeat refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_29.zip",
+  "release_name": "Dashboard, helper checklist, and repeat refinement",
+  "release_notes": "Refines Dashboard alignment, helper checklist input, and routine repeat settings including weekly and monthly recurrence patterns.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_29.zip"
 }

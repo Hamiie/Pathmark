@@ -1,6 +1,6 @@
 # Pathmark Release Hub
 
-Current release: **v0.6.28 Dashboard and finance visual refinement**
+Current release: **v0.6.29 Dashboard, helper checklist, and repeat refinement**
 
 Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, and the latest downloadable local Windows package.
 
@@ -20,7 +20,7 @@ Pathmark is a Streamlit-based planning and export system. This repository contai
 
 ## Current focus
 
-v0.6.28 refines the Dashboard and Spending Plan layouts with calmer information hierarchy, prioritised attention cards, compact metrics, and plain-English money-flow guidance.
+v0.6.29 refines the Dashboard pillar alignment, replaces the small-action checklist table with cleaner dated helper rows, and simplifies routine repeat settings so activities own their calendar times while routines own the recurrence pattern.
 
 ## Security
 

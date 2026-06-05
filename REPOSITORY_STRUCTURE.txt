@@ -8,7 +8,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_28.zip
+  Pathmark_Local_App_Windows_v0_6_29.zip
 .streamlit/
   config.toml
 supabase/
