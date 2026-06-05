@@ -1,25 +1,26 @@
 # Pathmark release hub
 
-Current release: **v0.6.40 Streamlit appearance menu click repair**
+Current release: **v0.6.42 Streamlit-controlled appearance variant repair**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_40_streamlit_appearance_recognition_repair.zip`
-- `Pathmark_Local_App_Windows_v0_6_40.zip`
+- `pathmark_release_hub_v0_6_42_streamlit_controlled_appearance_variant_repair.zip`
+- `Pathmark_Local_App_Windows_v0_6_42.zip`
 
-## v0.6.40 Streamlit appearance menu click repair
+## v0.6.42 Streamlit-controlled appearance variant repair
 
-This release keeps the mobile/PWA branding metadata from v0.6.38, but changes the light/dark handling so Pathmark responds directly to Streamlit appearance menu selections instead of trying to infer the setting from page backgrounds that Pathmark itself may have styled.
+This release removes Pathmark's separate appearance selector and returns the user-facing Light/Dark/System control to Streamlit's built-in menu.
 
 Changes:
 
-- Listens for Streamlit **Light**, **Dark** and **System** menu selections and applies the matching Pathmark appearance mode.
-- Stores the last selected appearance choice in browser local storage so the mode is reapplied on reload.
-- Keeps **System** tied to the browser/OS colour scheme and updates when that event changes.
-- Strengthens light and dark contrast for the app shell, header, cards, inputs and Streamlit menu popovers.
-- Keeps Pathmark seasonal themes as Summer, Autumn, Winter and Spring, with light/dark variants controlled by Streamlit Light/Dark/System.
+- Removes the visible **Pathmark appearance** setting from Pathmark Online Settings.
+- Keeps only the seasonal theme selector: **Summer**, **Autumn**, **Winter** and **Spring**.
+- Mirrors Streamlit's own **System / Light / Dark** menu into Pathmark's CSS light/dark seasonal variants.
+- Strengthens event handling for the visible Streamlit appearance menu, including icon and label clicks.
+- Keeps a manual **Sync with Streamlit appearance** fallback in Settings for browsers that do not apply a recent Streamlit appearance change immediately.
+- Keeps mobile/PWA branding metadata and favicon support.
 
 ## Structure
 
@@ -34,7 +35,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_40.zip
+  Pathmark_Local_App_Windows_v0_6_42.zip
 .streamlit/
   config.toml
 supabase/

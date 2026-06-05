@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.40",
+  "version": "0.6.42",
   "release_date": "2026-06-05",
   "notes": [
-    "Keeps mobile/PWA Pathmark branding metadata.",
-    "Repairs Streamlit Light/Dark/System handling by mapping clicks to the visible appearance controls, including icon clicks where the target text is empty.",
-    "Applies the matching seasonal light or dark variant immediately after the user chooses System, Light or Dark.",
-    "Avoids continuous polling and broad app-body mutation observation to reduce runtime/reboot risk.",
-    "Keeps seasonal Pathmark themes as Summer, Autumn, Winter and Spring, with appearance controlled by Streamlit Light/Dark/System."
+    "Returns the user-facing appearance control to Streamlit's built-in System, Light and Dark menu.",
+    "Removes Pathmark's separate appearance selector so Streamlit's menu does not look like a broken duplicate feature.",
+    "Keeps Pathmark seasonal themes as Summer, Autumn, Winter and Spring, with light/dark variants mirrored from the Streamlit menu.",
+    "Adds stronger event binding around the visible Streamlit appearance controls to apply Pathmark dark and light variants when users select System, Light or Dark.",
+    "Keeps a manual Sync with Streamlit appearance fallback in Settings without adding a second appearance choice."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_40.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_42.zip",
   "mac_package": "",
-  "release": "v0.6.40 Streamlit appearance menu click repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_40.zip",
-  "release_name": "Streamlit appearance menu click repair",
-  "release_notes": "Repairs Pathmark light/dark switching by detecting clicks on Streamlit's visible appearance controls, including icon clicks, and applying the correct seasonal variant without polling.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_40.zip",
-  "label": "Streamlit appearance menu click repair",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_40.zip"
+  "release": "v0.6.42 Streamlit-controlled appearance variant repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_42.zip",
+  "release_name": "Streamlit-controlled appearance variant repair",
+  "release_notes": "Returns appearance control to Streamlit's own menu while applying Pathmark seasonal light/dark variants from that selection.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_42.zip",
+  "label": "Streamlit-controlled appearance variant repair",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_42.zip"
 }
