@@ -1,20 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.36",
+  "version": "0.6.37",
   "release_date": "2026-06-05",
   "notes": [
-    "Refines Spending Plan beta so its top navigation matches the Pathmark Online dashboard style using a segmented control near the top of the page.",
-    "Reworks the Spending Plan Assessment home into dashboard-style cards for income, outflows and safe weekly spend.",
-    "Keeps detailed money-flow metrics below the main dashboard cards and preserves the current Spending Plan section after saves.",
-    "Keeps favicon/OAuth branding refinements from v0.6.35."
+    "Strengthens mobile/PWA branding metadata so Pathmark app name and icons are preferred over Streamlit defaults where the browser allows it.",
+    "Adds a proper Pathmark manifest with app id, display override, mobile icon references and cache-busted icon paths.",
+    "Separates seasonal theme choice from light/dark appearance by applying light and dark variants for each seasonal theme.",
+    "Adds a browser-side appearance watcher so Pathmark can react when the Streamlit Settings menu changes between Light, Dark and System without needing a full app rerun.",
+    "Adds a manual theme refresh fallback in Settings for mobile browsers that cache display state."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_36.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_37.zip",
   "mac_package": "",
-  "release": "v0.6.36 Spending Plan dashboard navigation refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip",
-  "release_name": "Spending Plan dashboard navigation refinement",
-  "release_notes": "Aligns the Spending Plan beta interface with the Pathmark Online dashboard by moving section navigation close to the top and making Assessment a calm money-flow dashboard.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip",
-  "label": "Spending Plan dashboard navigation refinement",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip"
+  "release": "v0.6.37 Mobile branding and theme variant repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip",
+  "release_name": "Mobile branding and theme variant repair",
+  "release_notes": "Repairs mobile/PWA branding metadata and makes Pathmark seasonal themes respond to Streamlit Light/Dark/System appearance changes.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip",
+  "label": "Mobile branding and theme variant repair",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_37.zip"
 }

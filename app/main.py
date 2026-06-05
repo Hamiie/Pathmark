@@ -164,28 +164,56 @@ def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
 
 
 def inject_pwa_metadata() -> None:
-    """Force Pathmark tab/icon metadata on Streamlit Cloud pages.
+    """Force Pathmark tab/icon/PWA metadata on Streamlit Cloud pages.
 
-    Streamlit Cloud serves a default Streamlit favicon very early, and Edge can
-    cache that aggressively. This script removes default icon links, adds
-    embedded data-URI icons, and reapplies them briefly while Streamlit finishes
-    loading.
+    Streamlit Cloud publishes its own favicon and PWA metadata early in the
+    page lifecycle. Mobile browsers can cache that aggressively, so Pathmark
+    reinforces its own app name, icons and manifest after the page has loaded.
+    Google/Android install prompts may still need the user to clear the old
+    site cache if the browser previously cached Streamlit's manifest.
     """
     icon32_data = _static_icon_data_uri("pathmark-icon-32.png")
     icon192_data = _static_icon_data_uri("pathmark-icon-192.png")
+    icon512_data = _static_icon_data_uri("pathmark-icon-512.png")
     apple_data = _static_icon_data_uri("apple-touch-icon.png")
+    manifest_payload = {
+        "id": "/?source=pathmark-pwa",
+        "name": "Pathmark",
+        "short_name": "Pathmark",
+        "description": "Protect routines, move projects forward, manage spending flow and export calendar/task data with Pathmark.",
+        "start_url": "/?source=pathmark-pwa",
+        "scope": "/",
+        "display": "standalone",
+        "display_override": ["window-controls-overlay", "standalone", "browser"],
+        "background_color": "#F7F6F2",
+        "theme_color": "#334E68",
+        "orientation": "portrait-primary",
+        "icons": [
+            {"src": "/app/static/pathmark-icon-192.png?v=0_6_37", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/app/static/pathmark-icon-512.png?v=0_6_37", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        ],
+        "categories": ["productivity", "finance", "lifestyle"],
+    }
+    manifest_data_uri = "data:application/manifest+json;base64," + base64.b64encode(json.dumps(manifest_payload).encode("utf-8")).decode("ascii")
     components.html(
         f"""
         <script>
         (function () {{
           const doc = window.parent.document;
-          const version = '0_6_35';
+          const version = '0_6_37';
           const icon32Data = {json.dumps(icon32_data)};
           const icon192Data = {json.dumps(icon192_data)};
+          const icon512Data = {json.dumps(icon512_data)};
           const appleData = {json.dumps(apple_data)};
+          const manifestData = {json.dumps(manifest_data_uri)};
           function setMeta(name, content) {{
             let el = doc.querySelector('meta[name="' + name + '"]');
             if (!el) {{ el = doc.createElement('meta'); el.setAttribute('name', name); doc.head.appendChild(el); }}
+            el.setAttribute('content', content);
+          }}
+          function setProperty(prop, content) {{
+            let el = doc.querySelector('meta[property="' + prop + '"]');
+            if (!el) {{ el = doc.createElement('meta'); el.setAttribute('property', prop); doc.head.appendChild(el); }}
             el.setAttribute('content', content);
           }}
           function appendLink(rel, href, extraAttrs) {{
@@ -202,15 +230,24 @@ def inject_pwa_metadata() -> None:
             setMeta('apple-mobile-web-app-title', 'Pathmark');
             setMeta('apple-mobile-web-app-capable', 'yes');
             setMeta('mobile-web-app-capable', 'yes');
+            setMeta('msapplication-TileColor', '#334E68');
+            setMeta('msapplication-TileImage', '/app/static/pathmark-icon-192.png?v=' + version);
             setMeta('theme-color', '#334E68');
+            setProperty('og:site_name', 'Pathmark');
+            setProperty('og:title', 'Pathmark');
+            setProperty('og:image', '/app/static/pathmark-icon-512.png?v=' + version);
             doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"], link[rel="manifest"]').forEach(function (el) {{ el.remove(); }});
+            appendLink('manifest', manifestData);
+            appendLink('manifest', '/app/static/manifest.json?v=' + version);
             appendLink('icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
             appendLink('shortcut icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
             appendLink('icon', icon192Data, {{'type': 'image/png', 'sizes': '192x192'}});
+            appendLink('icon', icon512Data, {{'type': 'image/png', 'sizes': '512x512'}});
             appendLink('apple-touch-icon', appleData, {{'sizes': '180x180'}});
-            appendLink('manifest', '/app/static/manifest.json?v=' + version);
             appendLink('icon', '/app/static/pathmark-icon-32.png?v=' + version, {{'type': 'image/png', 'sizes': '32x32'}});
             appendLink('icon', '/app/static/pathmark-icon-192.png?v=' + version, {{'type': 'image/png', 'sizes': '192x192'}});
+            appendLink('icon', '/app/static/pathmark-icon-512.png?v=' + version, {{'type': 'image/png', 'sizes': '512x512'}});
+            appendLink('apple-touch-icon', '/app/static/apple-touch-icon.png?v=' + version, {{'sizes': '180x180'}});
             appendLink('shortcut icon', '/app/static/favicon.ico?v=' + version, {{'type': 'image/x-icon'}});
           }}
           applyPathmarkHead();
@@ -218,8 +255,8 @@ def inject_pwa_metadata() -> None:
           const timer = setInterval(function () {{
             applyPathmarkHead();
             attempts += 1;
-            if (attempts >= 8) clearInterval(timer);
-          }}, 750);
+            if (attempts >= 14) clearInterval(timer);
+          }}, 700);
         }})();
         </script>
         """,
@@ -228,6 +265,69 @@ def inject_pwa_metadata() -> None:
 
 
 inject_pwa_metadata()
+
+
+def inject_appearance_watcher() -> None:
+    """Mirror Streamlit Light/Dark/System changes into Pathmark CSS variables.
+
+    Streamlit's Settings menu can change appearance without a Python rerun,
+    especially on mobile. This tiny watcher observes the rendered app shell,
+    works out whether Streamlit is currently light or dark, and sets an HTML
+    attribute that Pathmark's seasonal CSS uses to choose the matching variant.
+    """
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          function parseRGB(value) {
+            const m = String(value || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+            if (!m) return null;
+            return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+          }
+          function luminance(rgb) {
+            if (!rgb) return 255;
+            return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+          }
+          function resolvedMode() {
+            const app = doc.querySelector('.stApp') || doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+            const bg = window.parent.getComputedStyle(app).backgroundColor || window.parent.getComputedStyle(doc.body).backgroundColor;
+            const lum = luminance(parseRGB(bg));
+            if (lum < 120) return 'dark';
+            if (lum > 180) return 'light';
+            if (window.parent.matchMedia && window.parent.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+            return 'light';
+          }
+          function applyMode() {
+            const mode = resolvedMode();
+            doc.documentElement.setAttribute('data-pathmark-mode', mode);
+            doc.body && doc.body.setAttribute('data-pathmark-mode', mode);
+            let meta = doc.querySelector('meta[name="theme-color"]');
+            if (!meta) { meta = doc.createElement('meta'); meta.setAttribute('name', 'theme-color'); doc.head.appendChild(meta); }
+            meta.setAttribute('content', mode === 'dark' ? '#05080C' : '#334E68');
+          }
+          applyMode();
+          const observer = new MutationObserver(applyMode);
+          observer.observe(doc.documentElement, {attributes: true, childList: false, subtree: false});
+          observer.observe(doc.body, {attributes: true, childList: true, subtree: true});
+          if (window.parent.matchMedia) {
+            const mq = window.parent.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.addEventListener) mq.addEventListener('change', applyMode);
+          }
+          let attempts = 0;
+          const timer = setInterval(function () {
+            applyMode();
+            attempts += 1;
+            if (attempts >= 60) clearInterval(timer);
+          }, 1000);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+inject_appearance_watcher()
 
 def streamlit_appearance_mode() -> str:
     """Return Streamlit's active appearance mode when available.
@@ -294,6 +394,20 @@ light; the Streamlit Settings menu can therefore turn the whole page dark.
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
 {pathmark_theme_tokens_css()}
+}}
+html[data-pathmark-mode="dark"], body[data-pathmark-mode="dark"] {{
+{pathmark_theme_tokens_css('dark')}
+}}
+html[data-pathmark-mode="light"], body[data-pathmark-mode="light"] {{
+{pathmark_theme_tokens_css('light')}
+}}
+html[data-pathmark-mode="dark"] .stApp, html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"] {{
+  background-color: var(--bg) !important;
+  color: var(--ink) !important;
+}}
+html[data-pathmark-mode="light"] .stApp, html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"] {{
+  background-color: var(--bg) !important;
+  color: var(--ink) !important;
 }}
 html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {{
   color: var(--ink) !important;
@@ -2244,12 +2358,19 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
 
 
 def inject_theme_css(theme_name: str) -> None:
-    """Apply Pathmark's seasonal accent without overriding Streamlit appearance."""
+    """Apply the seasonal Pathmark theme while following Streamlit Light/Dark.
+
+    Users choose a seasonal family such as Summer or Winter. Streamlit's own
+    Settings menu controls the light/dark variant. The appearance watcher sets
+    ``data-pathmark-mode`` on the page so the app can switch variants without
+    requiring a full Python rerun.
+    """
     theme_name = normalise_online_theme(theme_name)
     theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
     accent = theme.get("accent", "#334E68")
+    soft_light = theme.get("soft_light", "#E7EEF4")
+    soft_dark = theme.get("soft_dark", "#1D3142")
     seasonal_icon = theme.get("seasonal_icon", "")
-    mode = streamlit_appearance_mode()
     st.markdown(
         f"""
         <style>
@@ -2259,13 +2380,38 @@ def inject_theme_css(theme_name: str) -> None:
           --pathmark-accent: {accent};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
           --pathmark-button-text: #FFFFFF;
-{pathmark_theme_tokens_css(mode)}
+{pathmark_theme_tokens_css('light')}
+          --pathmark-season-soft-light: {soft_light};
+          --pathmark-season-soft-dark: {soft_dark};
+          --pathmark-season-soft: var(--pathmark-season-soft-light);
+          --accent-soft: var(--pathmark-season-soft-light);
           --pathmark-bg: var(--bg);
           --pathmark-surface: var(--surface);
           --pathmark-ink: var(--ink);
           --pathmark-muted: var(--muted);
           --pathmark-line: var(--line);
-          --pathmark-season-soft: var(--accent-soft);
+        }}
+        html[data-pathmark-mode="dark"], body[data-pathmark-mode="dark"],
+        html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"] {{
+{pathmark_theme_tokens_css('dark')}
+          --pathmark-season-soft: var(--pathmark-season-soft-dark);
+          --accent-soft: var(--pathmark-season-soft-dark);
+          --pathmark-bg: var(--bg);
+          --pathmark-surface: var(--surface);
+          --pathmark-ink: var(--ink);
+          --pathmark-muted: var(--muted);
+          --pathmark-line: var(--line);
+        }}
+        html[data-pathmark-mode="light"], body[data-pathmark-mode="light"],
+        html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"] {{
+{pathmark_theme_tokens_css('light')}
+          --pathmark-season-soft: var(--pathmark-season-soft-light);
+          --accent-soft: var(--pathmark-season-soft-light);
+          --pathmark-bg: var(--bg);
+          --pathmark-surface: var(--surface);
+          --pathmark-ink: var(--ink);
+          --pathmark-muted: var(--muted);
+          --pathmark-line: var(--line);
         }}
         .stApp, [data-testid="stAppViewContainer"] {{
           background-color: var(--pathmark-bg) !important;
@@ -5060,10 +5206,17 @@ def render_online_settings(sheet_id: str) -> None:
                 st.warning(safe_user_message(message))
             st.rerun()
     st.markdown("### Theme")
-    st.write("Choose the seasonal character of Pathmark. Light and dark mode are controlled separately through Streamlit's own Settings menu: System, Light or Dark.")
+    st.write("Choose the seasonal character of Pathmark. Light and dark mode are controlled separately through Streamlit's own Settings menu: System, Light or Dark. Pathmark applies the matching light or dark variant of the selected seasonal theme.")
+    st.caption("On some mobile browsers, Streamlit's appearance menu can change without a full Python rerun. Use Refresh theme display if the seasonal styling looks out of sync after changing Light/Dark/System.")
     current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or online_setting(sheet_id, "theme", "Winter"))
     theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme))
-    if st.button("Save theme", use_container_width=True):
+    refresh_col, save_col = st.columns([1, 2])
+    with refresh_col:
+        if st.button("Refresh theme display", use_container_width=True):
+            st.rerun()
+    with save_col:
+        save_theme_pressed = st.button("Save theme", use_container_width=True)
+    if save_theme_pressed:
         theme_name = normalise_online_theme(theme_name)
         ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
         user = current_user()

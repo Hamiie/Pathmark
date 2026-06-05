@@ -1,35 +1,34 @@
 # Pathmark Release Hub
 
-Current release: **v0.6.36 Spending Plan dashboard navigation refinement
+Current release: **v0.6.37 Mobile branding and theme variant repair**
 
-Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, static app icons, and the latest downloadable local Windows package.
+Pathmark is a Streamlit-based planning and export system. It supports wellbeing routines, progress projects, calendar/task exports, and a Spending Plan beta for money-flow planning.
 
-## Contexts
+## Hosted Pathmark Online
 
-### Hosted release hub / Pathmark Online
+The hosted release hub lives in `app/main.py` and runs on Streamlit Cloud. It provides the public homepage, About & Privacy, Google login, Pathmark Online, Spending Plan beta, and developer/diagnostic tools where appropriate.
 
-- Main app: `app/main.py`
-- Hosted target: Streamlit Community Cloud
-- Includes the public homepage, About & Privacy, Google login, Supabase access roles, Pathmark Online, Spending Plan beta, and developer tools where appropriate.
+Pathmark Online stores planning records in the user's own Google Sheet called **Pathmark Sync**. Supabase is used only for access/profile metadata.
 
-### Local Windows package
+## Local Windows package
 
-- Stored in `downloads/`
-- Contains the desktop Pathmark Workspace manager.
-- The repository should include only the latest local package.
+The latest local Windows package is stored in `downloads/`:
 
-## Current focus
+- `Pathmark_Local_App_Windows_v0_6_37.zip`
 
-v0.6.36 Spending Plan dashboard navigation refinement
+## v0.6.37 Mobile branding and theme variant repair
 
-## Security
+This release strengthens Pathmark's mobile/PWA branding metadata and repairs the relationship between Pathmark seasonal themes and Streamlit's Light/Dark/System setting.
 
-Do not commit secrets, OAuth client secrets, Google access or refresh tokens, service account JSON, Supabase service keys, private planning data, or developer email addresses.
+Key changes:
 
-## v0.6.36 Spending Plan dashboard navigation refinement
+- Adds stronger Pathmark manifest and mobile icon metadata.
+- Adds cache-busted Pathmark icon references for mobile install prompts and browser tabs.
+- Separates seasonal theme choice from appearance mode.
+- Provides light and dark variants for each seasonal theme.
+- Adds a browser-side appearance watcher so Pathmark can respond when Streamlit's theme menu changes without a full Python rerun.
+- Adds a manual theme refresh fallback in Settings.
 
-- Added root static icon files for Streamlit static serving.
-- Added `favicon.ico` plus 16px, 32px, 192px and 512px PNG icons.
-- Reinforced browser-tab and PWA metadata with cache-busted Pathmark icon links.
-- Added About & Privacy wording explaining Google sign-in branding.
-- Added developer OAuth diagnostics guidance to set the Google Auth Platform branding app name/logo.
+## Notes
+
+Google's own sign-in and consent screens are controlled by Google Cloud OAuth branding, not by this repository. Mobile browsers may also cache an old Streamlit install prompt; clearing site data or reinstalling may be needed after deployment.

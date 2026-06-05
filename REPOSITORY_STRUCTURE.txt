@@ -6,14 +6,15 @@ REPOSITORY_STRUCTURE.txt
 app/
   main.py
   assets/
+    pathmark.png
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_36.zip
+  Pathmark_Local_App_Windows_v0_6_37.zip
 .streamlit/
   config.toml
 static/
-  favicon.ico
   apple-touch-icon.png
+  favicon.ico
   manifest.json
   pathmark-icon-16.png
   pathmark-icon-32.png
