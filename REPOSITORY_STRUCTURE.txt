@@ -8,7 +8,7 @@ app/static/apple-touch-icon.png
 app/static/manifest.json
 app/static/pathmark-icon-192.png
 app/static/pathmark-icon-512.png
-downloads/Pathmark_Local_App_Windows_v0_6_30.zip
+downloads/Pathmark_Local_App_Windows_v0_6_32.zip
 latest_version.json
 requirements.txt
 supabase/README.md

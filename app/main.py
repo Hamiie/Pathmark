@@ -4220,10 +4220,26 @@ def load_spending_income_starters(sheet_id: str) -> tuple[bool, str]:
     return append_many_online_records(sheet_id, {"spending_income": records})
 
 
+def render_spending_plan_disclaimer(compact: bool = False) -> None:
+    """Display the Spending Plan non-advice notice in a consistent way."""
+    if compact:
+        st.info(
+            "Spending Plan is a budgeting and planning tool only. Its suggested money flows are based only on the amounts you enter; "
+            "they are not financial, investment, tax, legal, mortgage, insurance, KiwiSaver or debt advice."
+        )
+    else:
+        st.markdown("""
+        <div class="safe-rule"><strong>Spending Plan is a budgeting and planning tool only.</strong><br>
+        Pathmark helps you organise income, spending, planned costs and account flows based on the information you enter.
+        It does not provide financial, investment, legal, tax, mortgage, insurance, KiwiSaver or debt advice. Pathmark is not a financial adviser and does not assess whether any financial decision is suitable for your personal circumstances. For personalised advice, speak with a licensed financial adviser or an appropriate professional.</div>
+        """, unsafe_allow_html=True)
+
+
 def render_spending_assessment(sheet_id: str) -> None:
     summary = spending_summary(sheet_id)
     st.markdown("#### Assessment")
     st.caption("A calm summary of where income should go before it disappears. Edit the detailed rows in Income and Spending.")
+    render_spending_plan_disclaimer(compact=True)
 
     st.markdown(f"""
     <div class="metric-strip">
@@ -4259,6 +4275,7 @@ def render_spending_assessment(sheet_id: str) -> None:
         st.success("The plan has income, spending categories and a weekly money-flow result.")
 
     st.markdown("##### Recommended weekly money flow")
+    st.caption("These suggested APs and transfers are generated from your entered income and outflows. Review them carefully before changing bank payments.")
     rows = [
         ("Income lands in", "Hub account", summary["income_weekly"], "Starting point for bills, APs and transfers"),
         ("Transfer to", "Everyday card account", summary["everyday_weekly"], "Safe weekly spend money"),
@@ -4281,6 +4298,7 @@ def render_spending_assessment(sheet_id: str) -> None:
 
     with st.expander("How to use this assessment", expanded=False):
         render_spending_flow_guidance(summary)
+
 
 def render_spending_income_form(sheet_id: str) -> None:
     st.markdown("#### Setup income")
@@ -4305,65 +4323,63 @@ def render_spending_income_form(sheet_id: str) -> None:
         amount, frequency = amount_and_frequency_from_row(row)
         editor_rows.append({
             "_record_id": row.get("income_id", ""),
-            "Person": row.get("person", "Me") or "Me",
             "Income source": row.get("category", ""),
             "Amount": float(amount),
             "Frequency": frequency,
             "Notes": row.get("notes", ""),
+            "Active": True,
         })
     edit_df = pd.DataFrame(editor_rows)
-    income_options = SPENDING_INCOME_STARTERS + ["Other income"]
-    with st.form("spending_income_setup_editor", clear_on_submit=False):
+    with st.form("spending_income_editor", clear_on_submit=False):
         edited = st.data_editor(
             edit_df,
             hide_index=True,
             use_container_width=True,
-            column_order=["Person", "Income source", "Amount", "Frequency", "Notes"],
+            column_order=["Income source", "Amount", "Frequency", "Notes", "Active"],
             column_config={
-                "Person": st.column_config.TextColumn("Person"),
-                "Income source": st.column_config.SelectboxColumn("Income source", options=income_options, help="Use the validated source list where possible."),
+                "Income source": st.column_config.TextColumn("Income source"),
                 "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=10.0, format="$%.2f"),
                 "Frequency": st.column_config.SelectboxColumn("Frequency", options=["Weekly", "Fortnightly", "Monthly", "Yearly"]),
-                "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+                "Notes": st.column_config.TextColumn("Notes"),
+                "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this source from the current assessment."),
             },
         )
-        save = st.form_submit_button("Save income setup", use_container_width=True)
-    if save:
-        failures: list[str] = []
-        updates_count = 0
+        save_income = st.form_submit_button("Save income setup", use_container_width=True)
+    if save_income:
+        failures = []
+        updated_count = 0
         for _, edited_row in edited.iterrows():
             record_id = str(edited_row.get("_record_id", "")).strip()
             if not record_id:
                 continue
             category = str(edited_row.get("Income source", "")).strip()
-            person = str(edited_row.get("Person", "") or "Me").strip() or "Me"
-            frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
             amount = money_value(edited_row.get("Amount", 0.0))
+            frequency = str(edited_row.get("Frequency", "Weekly") or "Weekly")
+            active = bool(edited_row.get("Active", True))
             if not category:
-                failures.append("One income row was missing a source.")
+                failures.append("One row was missing an income source.")
                 continue
-            update = {
-                "person": person,
+            updates = {
+                "person": "Me",
                 "category": category,
                 "notes": str(edited_row.get("Notes", "") or "").strip(),
-                "status": "active",
+                "status": "active" if active else "archived",
             }
-            update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
-            ok, msg = update_online_record(sheet_id, "spending_income", record_id, update)
+            updates.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
+            ok, msg = update_online_record(sheet_id, "spending_income", record_id, updates)
             if ok:
-                updates_count += 1
+                updated_count += 1
             else:
                 failures.append(safe_user_message(msg))
         if failures:
             st.warning("Some income rows could not be saved: " + "; ".join(failures[:3]))
         else:
-            st.session_state["spending_notice"] = f"Saved {updates_count} income rows to your Pathmark Sync sheet."
-            st.rerun()
+            render_spending_success(f"Saved {updated_count} income row(s).")
 
-    with st.expander("Add another income source"):
+    st.markdown("#### Add a new income source")
+    with st.expander("Add income source", expanded=False):
         with st.form("spending_custom_income_form", clear_on_submit=False):
-            person = st.text_input("Person", value="Me")
-            category_choice = st.selectbox("Income source", income_options, key="custom_income_category_choice")
+            category_choice = st.selectbox("Income source", SPENDING_INCOME_STARTERS + ["Other"])
             custom_category = st.text_input("Custom income source", placeholder="Optional")
             c1, c2 = st.columns(2)
             with c1:
@@ -4379,7 +4395,7 @@ def render_spending_income_form(sheet_id: str) -> None:
             else:
                 record = {
                     "income_id": f"income-{uuid.uuid4().hex[:12]}",
-                    "person": person.strip() or "Me",
+                    "person": "Me",
                     "category": category.strip(),
                     "notes": notes.strip(),
                     "status": "active",
@@ -4388,11 +4404,9 @@ def render_spending_income_form(sheet_id: str) -> None:
                 record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
                 ok, msg = append_online_record(sheet_id, "spending_income", record)
                 if ok:
-                    st.session_state["spending_notice"] = msg
-                    st.rerun()
+                    render_spending_success("Saved income source.")
                 else:
                     st.warning(safe_user_message(msg))
-
 
 
 def spending_kind_help(kind: str) -> str:
@@ -4411,6 +4425,18 @@ def spending_default_frequency(kind: str) -> str:
     return "Monthly" if normalised == "Fixed cost" else "Weekly"
 
 
+def spending_bucket_options(kind: str, existing: pd.DataFrame | None = None) -> list[str]:
+    """Return predefined and user-created buckets for a fixed money-flow type."""
+    options = spending_sections_for_kind(kind)
+    if existing is not None and not existing.empty and "group_name" in existing.columns:
+        kind_rows = existing[existing["expense_kind"].apply(normalise_spending_kind) == normalise_spending_kind(kind)].copy()
+        for value in kind_rows["group_name"].fillna("").tolist():
+            bucket = str(value or "").strip()
+            if bucket and bucket not in options:
+                options.append(bucket)
+    return options or [SPENDING_BUCKET_LABELS.get(normalise_spending_kind(kind), kind)]
+
+
 def spending_editor_dataframe(rows: pd.DataFrame, fallback_label: str) -> pd.DataFrame:
     editor_rows: list[dict[str, Any]] = []
     for _, row in rows.iterrows():
@@ -4422,6 +4448,7 @@ def spending_editor_dataframe(rows: pd.DataFrame, fallback_label: str) -> pd.Dat
                 "Amount": float(amount),
                 "Frequency": frequency,
                 "Notes": row.get("notes", ""),
+                "Active": True,
                 "Section": row.get("group_name", fallback_label) or fallback_label,
             }
         )
@@ -4438,6 +4465,7 @@ def save_spending_editor_rows(sheet_id: str, edited: pd.DataFrame, kind: str, se
         item = str(edited_row.get("Item", "")).strip()
         frequency = str(edited_row.get("Frequency", spending_default_frequency(kind)) or spending_default_frequency(kind))
         amount = money_value(edited_row.get("Amount", 0.0))
+        active = bool(edited_row.get("Active", True))
         if not item:
             failures.append("One row was missing an item name.")
             continue
@@ -4446,7 +4474,7 @@ def save_spending_editor_rows(sheet_id: str, edited: pd.DataFrame, kind: str, se
             "group_name": section,
             "item": item,
             "notes": str(edited_row.get("Notes", "") or "").strip(),
-            "status": "active",
+            "status": "active" if active else "archived",
         }
         update.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
         ok, msg = update_online_record(sheet_id, "spending_expenses", record_id, update)
@@ -4457,11 +4485,59 @@ def save_spending_editor_rows(sheet_id: str, edited: pd.DataFrame, kind: str, se
     return updates_count, failures
 
 
+def render_add_custom_spending_item(sheet_id: str, kind: str, existing: pd.DataFrame) -> None:
+    """Add a custom item to the current fixed money-flow type and chosen bucket."""
+    label = SPENDING_BUCKET_LABELS.get(normalise_spending_kind(kind), kind)
+    with st.expander(f"Add custom item to {label.lower()}", expanded=False):
+        with st.form(f"spending_custom_expense_form_{normalise_spending_kind(kind).replace(' ', '_').lower()}", clear_on_submit=False):
+            item_name = st.text_input("What is the item?", placeholder="e.g. Vet appointment, pottery clay, software subscription")
+            bucket_options = spending_bucket_options(kind, existing)
+            bucket_choice = st.selectbox("Which bucket should it sit under?", bucket_options + ["Create new bucket"])
+            new_bucket = ""
+            if bucket_choice == "Create new bucket":
+                new_bucket = st.text_input("New bucket name", placeholder="e.g. Pet costs, pottery costs, garden costs")
+            c1, c2 = st.columns(2)
+            with c1:
+                frequency = st.selectbox(
+                    "How often is it paid or set aside?",
+                    SPENDING_FREQUENCIES,
+                    index=SPENDING_FREQUENCIES.index(spending_default_frequency(kind)) if spending_default_frequency(kind) in SPENDING_FREQUENCIES else 0,
+                )
+            with c2:
+                amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f")
+            notes = st.text_area("Notes", placeholder="Optional")
+            st.caption(spending_kind_help(kind))
+            submitted = st.form_submit_button("Add this spending item", use_container_width=True)
+        if submitted:
+            item = item_name.strip()
+            section = (new_bucket.strip() if bucket_choice == "Create new bucket" else bucket_choice).strip()
+            if not item:
+                st.warning("Add an item name before saving.")
+            elif not section:
+                st.warning("Choose a bucket or enter a new bucket name before saving.")
+            else:
+                record = {
+                    "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
+                    "expense_kind": kind,
+                    "group_name": section,
+                    "item": item,
+                    "notes": notes.strip(),
+                    "status": "active",
+                    "source": "Pathmark Spending Plan spending setup",
+                }
+                record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
+                ok, msg = append_online_record(sheet_id, "spending_expenses", record)
+                if ok:
+                    render_spending_success(f"Saved {item} in {section}.")
+                else:
+                    st.warning(safe_user_message(msg))
+
+
 def render_spending_expense_form(sheet_id: str) -> None:
     st.markdown("#### Spending checklist")
     st.caption(
         "Work down the common costs and enter amounts only where they apply. "
-        "Pathmark sorts each item into a money-flow role in the background."
+        "The money-flow type is fixed; buckets organise the real-world costs inside it."
     )
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
     if expenses.empty:
@@ -4485,24 +4561,26 @@ def render_spending_expense_form(sheet_id: str) -> None:
             st.metric("Weekly equivalent", money_text(bucket_total))
             if bucket_rows.empty:
                 st.info(f"No {label.lower()} rows yet.")
+                render_add_custom_spending_item(sheet_id, kind, expenses)
                 continue
             for section, section_df in bucket_rows.groupby(bucket_rows["group_name"].fillna(label), sort=False):
                 section_name = str(section or label)
                 section_weekly = sum(annual_from_row(row) for _, row in section_df.iterrows()) / 52 if not section_df.empty else 0.0
                 with st.expander(f"{section_name} — {money_text(section_weekly)} / week", expanded=False):
-                    st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply.")
+                    st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply. Untick Active to remove a row from the current assessment.")
                     edit_df = spending_editor_dataframe(section_df, section_name)
                     with st.form(f"spending_editor_{kind}_{section_name}".replace(" ", "_").replace("/", "_").lower(), clear_on_submit=False):
                         edited = st.data_editor(
                             edit_df,
                             hide_index=True,
                             use_container_width=True,
-                            column_order=["Item", "Amount", "Frequency", "Notes"],
+                            column_order=["Item", "Amount", "Frequency", "Notes", "Active"],
                             column_config={
                                 "Item": st.column_config.TextColumn("Item", help="Rename the item if your wording is more useful."),
                                 "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
                                 "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
                                 "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+                                "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this row from the assessment."),
                             },
                         )
                         save = st.form_submit_button(f"Save {section_name}", use_container_width=True)
@@ -4511,61 +4589,8 @@ def render_spending_expense_form(sheet_id: str) -> None:
                         if failures:
                             st.warning("Some rows could not be saved: " + "; ".join(failures[:3]))
                         else:
-                            st.session_state["spending_notice"] = f"Saved {updates_count} {section_name.lower()} row(s)."
-                            st.rerun()
-
-    st.markdown("#### Add a spending item")
-    st.caption("Use this when a cost is not already in the checklist. Start with the real-world item, then choose what kind of cost it is.")
-    with st.expander("Add custom item", expanded=False):
-        with st.form("spending_custom_expense_form_v2", clear_on_submit=False):
-            item_name = st.text_input("What is the item?", placeholder="e.g. Vet appointment, pottery clay, software subscription")
-            cost_label_map = {
-                "Weekly spending": "Everyday spend",
-                "Regular bill or commitment": "Fixed cost",
-                "Planned irregular cost": "Sinking fund",
-            }
-            cost_label = st.radio(
-                "What kind of cost is this?",
-                list(cost_label_map.keys()),
-                horizontal=True,
-                help="This decides where the money should flow. You can still rename the item however you like.",
-            )
-            kind = cost_label_map[cost_label]
-            suggested_sections = spending_sections_for_kind(kind)
-            section = st.selectbox("Group", suggested_sections, help="Validated grouping used for reporting.")
-            st.caption(spending_kind_help(kind))
-            c1, c2 = st.columns(2)
-            with c1:
-                frequency = st.selectbox(
-                    "How often is it paid or set aside?",
-                    SPENDING_FREQUENCIES,
-                    index=SPENDING_FREQUENCIES.index(spending_default_frequency(kind)) if spending_default_frequency(kind) in SPENDING_FREQUENCIES else 0,
-                )
-            with c2:
-                amount = st.number_input("Amount", min_value=0.0, step=5.0, format="%.2f")
-            notes = st.text_area("Notes", placeholder="Optional")
-            submitted = st.form_submit_button("Add this spending item", use_container_width=True)
-        if submitted:
-            item = item_name.strip()
-            if not item:
-                st.warning("Add an item name before saving.")
-            else:
-                record = {
-                    "expense_id": f"expense-{uuid.uuid4().hex[:12]}",
-                    "expense_kind": kind,
-                    "group_name": section,
-                    "item": item,
-                    "notes": notes.strip(),
-                    "status": "active",
-                    "source": "Pathmark Spending Plan spending setup",
-                }
-                record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
-                ok, msg = append_online_record(sheet_id, "spending_expenses", record)
-                if ok:
-                    st.session_state["spending_notice"] = msg
-                    st.rerun()
-                else:
-                    st.warning(safe_user_message(msg))
+                            render_spending_success(f"Saved {updates_count} {section_name.lower()} row(s).")
+            render_add_custom_spending_item(sheet_id, kind, expenses)
 
 def render_spending_account_form(sheet_id: str) -> None:
     st.markdown("#### APs and fixed account roles")
@@ -4600,7 +4625,7 @@ def render_spending_records(sheet_id: str) -> None:
     st.markdown("#### Spending Plan records")
     st.caption("These are the live rows in your Pathmark Sync sheet. Use this tab for checking what has been saved.")
     tables = [
-        ("Income", "spending_income", ["person", "category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes", "status"]),
+        ("Income", "spending_income", ["category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes", "status"]),
         ("Spending", "spending_expenses", ["expense_kind", "group_name", "item", "weekly_amount", "fortnightly_amount", "monthly_amount", "quarterly_amount", "yearly_amount", "annual_amount", "notes", "status"]),
         ("Account roles", "spending_accounts", ["account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes", "status"]),
     ]
@@ -6629,6 +6654,14 @@ def about_privacy_tab() -> None:
     **Streamlit** hosts the app and stores deployment secrets outside the repository.
 
     The current release package has been checked for obvious secret patterns and private planning records before packaging. No real Supabase secret key, Google client secret, OAuth token, private key or private planning sheet was found in the release package.
+    """)
+
+    st.subheader("Spending Plan and financial advice")
+    render_spending_plan_disclaimer(compact=False)
+    st.markdown("""
+    Spending Plan calculations and AP suggestions are generated from the figures and categories you enter. They are intended to help you see weekly equivalents, planned outflows, safe-to-spend amounts and possible account transfers. They should be checked against your own bank accounts, bills, contracts and obligations before you act on them.
+
+    If you are struggling with debt, repayments, bills or urgent money pressure, consider contacting a free financial mentor or another appropriate support service in your area. Pathmark should not be used as a substitute for tailored financial, legal, tax or debt advice.
     """)
 
     st.subheader("Disconnecting or deleting")
