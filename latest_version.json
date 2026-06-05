@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.43",
+  "version": "0.6.44",
   "release_date": "2026-06-05",
   "notes": [
-    "Moves seasonal theme settings to a top-level Theme tab beside Home and About & Privacy.",
-    "Removes the ineffective manual Sync with Streamlit appearance workflow from Pathmark Online settings.",
-    "Changes Pathmark styling to follow Streamlit theme CSS variables directly, so Streamlit Light/Dark/System remains the single appearance control.",
-    "Clears legacy Pathmark light/dark attributes that could force the page to stay light after Streamlit Dark was selected.",
-    "Keeps Summer, Autumn, Winter and Spring as seasonal accent choices only."
+    "Removes the remaining legacy Pathmark light/dark data-attribute styling that could override Streamlit's built-in appearance menu.",
+    "Keeps Theme as a top-level tab for seasonal accent only.",
+    "Uses Streamlit's own CSS variables for page background, cards, inputs and text so Dark mode should become a true dark page when Streamlit Dark is selected.",
+    "Stops applying a default light Pathmark token set from the seasonal theme injector.",
+    "Preserves the existing Pathmark seasonal themes and mobile/PWA branding metadata."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_43.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_44.zip",
   "mac_package": "",
-  "release": "v0.6.43 Theme tab and Streamlit CSS variable repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_43.zip",
-  "release_name": "Theme tab and Streamlit CSS variable repair",
-  "release_notes": "Moves seasonal theme settings to a top-level Theme tab and makes Pathmark follow Streamlit theme CSS variables directly for light/dark appearance.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_43.zip",
-  "label": "Theme tab and Streamlit CSS variable repair",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_43.zip"
+  "release": "v0.6.44 Streamlit-native appearance cleanup",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip",
+  "release_name": "Streamlit-native appearance cleanup",
+  "release_notes": "Removes remaining Pathmark light/dark overrides and lets Streamlit's built-in appearance CSS variables control the actual light or dark page styling.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip",
+  "label": "Streamlit-native appearance cleanup",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_44.zip"
 }

@@ -114,7 +114,7 @@ def normalise_online_theme(theme_name: str | None) -> str:
 def normalise_appearance_mode(value: str | None) -> str:
     """Normalise a legacy Pathmark appearance setting.
 
-    v0.6.43 keeps to Streamlit's own System/Light/Dark menu as the
+    v0.6.44 keeps to Streamlit's own System/Light/Dark menu as the
     user-facing control. This helper remains only for compatibility with old
     saved settings.
     """
@@ -350,7 +350,7 @@ def streamlit_appearance_mode() -> str:
 def pathmark_theme_tokens_css(mode: str = "") -> str:
     """Return CSS variables for Pathmark custom styling.
 
-    v0.6.43 stops trying to infer Streamlit's appearance setting with
+    v0.6.44 stops trying to infer Streamlit's appearance setting with
     fragile JavaScript. Instead, the default token set reads Streamlit's own
     CSS variables directly. When the user changes Streamlit's built-in
     System/Light/Dark menu, Streamlit updates those variables and Pathmark's
@@ -2380,16 +2380,14 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
 
 
 def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
-    """Apply the seasonal Pathmark theme.
+    """Apply the seasonal Pathmark accent while letting Streamlit own appearance.
 
-    Pathmark controls the seasonal accent only. Streamlit's built-in
-    System/Light/Dark menu remains the user-facing appearance control; the
-    browser-side watcher mirrors that choice into data-pathmark-mode so these
-    light/dark variants can be applied consistently.
+    v0.6.44 deliberately removes Pathmark's old light/dark data attributes and
+    JavaScript appearance mirroring. Streamlit's built-in System/Light/Dark menu
+    already changes its CSS variables; Pathmark now reads those variables
+    directly and only adds seasonal accent/tint values.
     """
     theme_name = normalise_online_theme(theme_name)
-    # appearance_mode is accepted only for backwards compatibility. The visible
-    # control is Streamlit's own System/Light/Dark menu.
     theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
     accent = theme.get("accent", "#334E68")
     soft_light = theme.get("soft_light", "#E7EEF4")
@@ -2404,111 +2402,61 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
           --pathmark-accent: {accent};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 76%, #000000);
           --pathmark-button-text: #FFFFFF;
-{pathmark_theme_tokens_css('light')}
           --pathmark-season-soft-light: {soft_light};
           --pathmark-season-soft-dark: {soft_dark};
-          --pathmark-season-soft: var(--pathmark-season-soft-light);
-          --accent-soft: var(--pathmark-season-soft-light);
-          --pathmark-bg: var(--bg);
-          --pathmark-surface: var(--surface);
-          --pathmark-ink: var(--ink);
-          --pathmark-muted: var(--muted);
-          --pathmark-line: var(--line);
-        }}
-        html[data-pathmark-mode="dark"], body[data-pathmark-mode="dark"],
-        html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"] {{
-{pathmark_theme_tokens_css('dark')}
-          --pathmark-season-soft: var(--pathmark-season-soft-dark);
-          --accent-soft: var(--pathmark-season-soft-dark);
-          --pathmark-bg: var(--bg);
-          --pathmark-surface: var(--surface);
-          --pathmark-ink: var(--ink);
-          --pathmark-muted: var(--muted);
-          --pathmark-line: var(--line);
-        }}
-        html[data-pathmark-mode="light"], body[data-pathmark-mode="light"],
-        html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"] {{
-{pathmark_theme_tokens_css('light')}
-          --pathmark-season-soft: var(--pathmark-season-soft-light);
-          --accent-soft: var(--pathmark-season-soft-light);
-          --pathmark-bg: var(--bg);
-          --pathmark-surface: var(--surface);
-          --pathmark-ink: var(--ink);
-          --pathmark-muted: var(--muted);
-          --pathmark-line: var(--line);
-        }}
-        html[data-pathmark-appearance="dark"], body[data-pathmark-appearance="dark"],
-        html[data-pathmark-appearance="dark"] [data-testid="stAppViewContainer"] {{
-{pathmark_theme_tokens_css('dark')}
-          --pathmark-season-soft: var(--pathmark-season-soft-dark);
-          --accent-soft: var(--pathmark-season-soft-dark);
-          --pathmark-bg: var(--bg);
-          --pathmark-surface: var(--surface);
-          --pathmark-ink: var(--ink);
-          --pathmark-muted: var(--muted);
-          --pathmark-line: var(--line);
-        }}
-        html[data-pathmark-appearance="light"], body[data-pathmark-appearance="light"],
-        html[data-pathmark-appearance="light"] [data-testid="stAppViewContainer"] {{
-{pathmark_theme_tokens_css('light')}
-          --pathmark-season-soft: var(--pathmark-season-soft-light);
-          --accent-soft: var(--pathmark-season-soft-light);
-          --pathmark-bg: var(--bg);
-          --pathmark-surface: var(--surface);
-          --pathmark-ink: var(--ink);
-          --pathmark-muted: var(--muted);
-          --pathmark-line: var(--line);
+          --pathmark-season-soft: color-mix(in srgb, var(--pathmark-accent) 14%, var(--secondary-background-color, #FFFFFF));
+          --accent-soft: var(--pathmark-season-soft);
+          --pathmark-bg: var(--background-color, #F7F6F2);
+          --pathmark-surface: var(--secondary-background-color, #FFFFFF);
+          --pathmark-surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 86%, var(--background-color, #F7F6F2));
+          --pathmark-ink: var(--text-color, #1F2221);
+          --pathmark-muted: color-mix(in srgb, var(--text-color, #1F2221) 64%, var(--background-color, #F7F6F2));
+          --pathmark-line: var(--border-color, color-mix(in srgb, var(--text-color, #1F2221) 18%, var(--background-color, #F7F6F2)));
         }}
         @media (prefers-color-scheme: dark) {{
-          html[data-pathmark-appearance="system"], body[data-pathmark-appearance="system"],
-          html[data-pathmark-appearance="system"] [data-testid="stAppViewContainer"] {{
-{pathmark_theme_tokens_css('dark')}
-            --pathmark-season-soft: var(--pathmark-season-soft-dark);
-            --accent-soft: var(--pathmark-season-soft-dark);
-            --pathmark-bg: var(--bg);
-            --pathmark-surface: var(--surface);
-            --pathmark-ink: var(--ink);
-            --pathmark-muted: var(--muted);
-            --pathmark-line: var(--line);
-          }}
+          :root {{ --pathmark-system-dark: 1; }}
         }}
-        html[data-pathmark-mode="dark"], html[data-pathmark-appearance="dark"] {{ color-scheme: dark !important; background: #05080C !important; }}
-        html[data-pathmark-mode="light"] {{ color-scheme: light !important; background: #F7F6F2 !important; }}
-        html[data-pathmark-mode="dark"] body, html[data-pathmark-mode="dark"] .stApp,
-        html[data-pathmark-mode="dark"] [data-testid="stAppViewContainer"],
-        html[data-pathmark-mode="dark"] [data-testid="stHeader"],
-        html[data-pathmark-mode="dark"] main {{ background-color: var(--pathmark-bg) !important; color: var(--pathmark-ink) !important; }}
-        html[data-pathmark-mode="light"] body, html[data-pathmark-mode="light"] .stApp,
-        html[data-pathmark-mode="light"] [data-testid="stAppViewContainer"],
-        html[data-pathmark-mode="light"] [data-testid="stHeader"],
-        html[data-pathmark-mode="light"] main {{ background-color: var(--pathmark-bg) !important; color: var(--pathmark-ink) !important; }}
-        .stApp, [data-testid="stAppViewContainer"] {{
-          background-color: var(--pathmark-bg) !important;
-          color: var(--pathmark-ink) !important;
+        .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"], main {{
+          background-color: var(--background-color, #F7F6F2) !important;
+          color: var(--text-color, #1F2221) !important;
+        }}
+        [data-testid="stHeader"] {{
+          background: transparent !important;
         }}
         .card, .meta-card, .connection-card, .download-panel, .process-card, .step-card,
-        .pathmark-card, .issue-card, .setup-shell, .workspace-card {{
-          background: var(--pathmark-surface) !important;
-          color: var(--pathmark-ink) !important;
+        .pathmark-card, .issue-card, .setup-shell, .workspace-card,
+        .pillar-card, .metric-tile, .attention-card, .money-summary-card, .helper-row-card,
+        .repeat-summary, .safe-rule, .wizard-entry-card {{
+          background: var(--secondary-background-color, #FFFFFF) !important;
+          color: var(--text-color, #1F2221) !important;
           border: 1px solid var(--pathmark-line) !important;
-          border-radius: 14px !important;
         }}
-        .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview {{
+        .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview,
+        .next-action-card {{
           background: var(--pathmark-season-soft) !important;
-          color: var(--pathmark-ink) !important;
+          color: var(--text-color, #1F2221) !important;
           border-color: var(--pathmark-line) !important;
         }}
         .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
         .guide-box {{
           border-left: 5px solid var(--pathmark-accent) !important;
-          background: var(--pathmark-surface) !important;
-          color: var(--pathmark-ink) !important;
+          background: var(--secondary-background-color, #FFFFFF) !important;
+          color: var(--text-color, #1F2221) !important;
           padding-left: 1.45rem !important;
         }}
-        .setup-progress-wrap {{ width: 100%; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--pathmark-muted) 20%, transparent); overflow: hidden; margin: 0.7rem 0 0.25rem; }}
+        .setup-progress-wrap {{
+          width: 100%; height: 10px; border-radius: 999px;
+          background: color-mix(in srgb, var(--text-color, #1F2221) 16%, transparent);
+          overflow: hidden; margin: 0.7rem 0 0.25rem;
+          border: 1px solid var(--pathmark-line);
+        }}
         .setup-progress-fill {{ height: 100%; background: var(--pathmark-accent-strong); border-radius: 999px; }}
-        .setup-step-label {{ display: inline-flex; gap: .3rem; padding: .25rem .6rem; border-radius: 999px; background: var(--pathmark-season-soft); color: var(--pathmark-ink); font-weight: 720; }}
-        .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a:visited, [data-testid="stLinkButton"] a:hover,
+        .setup-step-label {{
+          display: inline-flex; gap: .3rem; padding: .25rem .6rem; border-radius: 999px;
+          background: var(--pathmark-season-soft); color: var(--text-color, #1F2221); font-weight: 720;
+        }}
+        .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a,
+        [data-testid="stLinkButton"] a:visited, [data-testid="stLinkButton"] a:hover,
         a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"] {{
           background: var(--pathmark-accent-strong) !important;
           color: var(--pathmark-button-text) !important;
@@ -2521,15 +2469,14 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
         [data-testid="stLinkButton"] a, [data-testid="stLinkButton"] a *,
         a[data-testid="baseLinkButton-secondary"] *, a[data-testid="baseLinkButton-primary"] * {{ color: var(--pathmark-button-text) !important; }}
         .stButton button:disabled, .stDownloadButton button:disabled {{
-          background: color-mix(in srgb, var(--pathmark-surface) 82%, var(--pathmark-muted)) !important;
-          color: var(--pathmark-muted) !important;
+          background: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 82%, var(--text-color, #1F2221)) !important;
+          color: color-mix(in srgb, var(--text-color, #1F2221) 62%, var(--background-color, #F7F6F2)) !important;
           border-color: var(--pathmark-line) !important;
         }}
-        .stButton button:disabled *, .stDownloadButton button:disabled * {{ color: var(--pathmark-muted) !important; }}
         [data-testid="stTabs"] button, [data-testid="stTabs"] button *, button[data-baseweb="tab"], button[data-baseweb="tab"] *,
         [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *, label, label *,
         [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {{
-          color: var(--pathmark-ink) !important;
+          color: var(--text-color, #1F2221) !important;
           opacity: 1 !important;
         }}
         [data-testid="stTabs"] button[aria-selected="true"], [data-testid="stTabs"] button[aria-selected="true"] *,
@@ -2539,31 +2486,35 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
         }}
         input, textarea, [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div,
         [data-testid="stDateInput"] input, [data-testid="stTimeInput"] input {{
-          background: var(--pathmark-surface) !important;
-          color: var(--pathmark-ink) !important;
+          background: var(--secondary-background-color, #FFFFFF) !important;
+          color: var(--text-color, #1F2221) !important;
           border-color: var(--pathmark-line) !important;
         }}
-        [role="listbox"], [role="option"] {{ background: var(--pathmark-surface) !important; color: var(--pathmark-ink) !important; }}
+        [role="listbox"], [role="option"] {{
+          background: var(--secondary-background-color, #FFFFFF) !important;
+          color: var(--text-color, #1F2221) !important;
+        }}
         .swatch-row {{ display: flex; flex-wrap: wrap; gap: .45rem; margin: .35rem 0 .65rem; }}
-        .swatch {{ display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .45rem; border: 1px solid var(--pathmark-line); border-radius: 999px; background: var(--pathmark-surface); }}
+        .swatch {{
+          display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .45rem;
+          border: 1px solid var(--pathmark-line); border-radius: 999px;
+          background: var(--secondary-background-color, #FFFFFF);
+        }}
         .swatch-dot, .area-colour-dot {{ width: .9rem; height: .9rem; border-radius: 999px; display: inline-block; border: 1px solid color-mix(in srgb, #000 22%, transparent); }}
         .area-colour-preview {{ display:flex; align-items:center; gap:.6rem; padding:.75rem .85rem; border-left: 5px solid var(--pathmark-accent); border-radius: 12px; margin: .5rem 0 1rem; }}
         </style>
         <script>
         (function() {{
           const doc = window.parent && window.parent.document ? window.parent.document : document;
-          if (!doc.documentElement.getAttribute('data-pathmark-mode')) {{
-            let choice = 'system';
-            try {{ choice = window.parent.localStorage.getItem('pathmark.streamlitAppearanceChoice.v0642') || 'system'; }} catch(e) {{}}
-            const darkSystem = window.parent.matchMedia && window.parent.matchMedia('(prefers-color-scheme: dark)').matches;
-            const mode = choice === 'dark' ? 'dark' : (choice === 'light' ? 'light' : (darkSystem ? 'dark' : 'light'));
-            doc.documentElement.setAttribute('data-pathmark-mode', mode);
-            doc.documentElement.setAttribute('data-pathmark-appearance', mode);
-            if (doc.body) {{
-              doc.body.setAttribute('data-pathmark-mode', mode);
-              doc.body.setAttribute('data-pathmark-appearance', mode);
-            }}
-          }}
+          // Remove legacy Pathmark appearance attributes from older versions.
+          // They forced light/dark variants independently of Streamlit and made
+          // the built-in menu appear broken.
+          try {{
+            ['data-pathmark-mode','data-pathmark-appearance'].forEach(function(attr) {{
+              doc.documentElement.removeAttribute(attr);
+              if (doc.body) doc.body.removeAttribute(attr);
+            }});
+          }} catch(e) {{}}
         }})();
         </script>
         """,

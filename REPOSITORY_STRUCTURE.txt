@@ -1,3 +1,7 @@
+Pathmark release hub repository structure
+
+Current version: v0.6.44
+
 .gitignore
 README.md
 requirements.txt
@@ -6,21 +10,22 @@ REPOSITORY_STRUCTURE.txt
 app/
   main.py
   assets/
-    pathmark.png
   static/
-    manifest.json
-    favicon.ico
-    pathmark-icon-*.png
-    apple-touch-icon.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_43.zip
+  Pathmark_Local_App_Windows_v0_6_44.zip
 .streamlit/
   config.toml
+static/
+  favicon.ico
+  manifest.json
+  pathmark-icon-16.png
+  pathmark-icon-32.png
+  pathmark-icon-48.png
+  pathmark-icon-64.png
+  pathmark-icon-128.png
+  pathmark-icon-192.png
+  pathmark-icon-512.png
+  apple-touch-icon.png
 supabase/
   README.md
   migrations/
-static/
-  manifest.json
-  favicon.ico
-  pathmark-icon-*.png
-  apple-touch-icon.png
