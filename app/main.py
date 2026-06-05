@@ -29,6 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DOWNLOADS = ROOT / "downloads"
 VERSION_FILE = ROOT / "latest_version.json"
 ICON_PATH = ROOT / "app" / "assets" / "pathmark.png"
+ROOT_STATIC = ROOT / "static"
+FAVICON_PATH = ROOT_STATIC / "favicon.ico"
 SYNC_COLUMNS = [
     "sync_id", "status", "record_type", "action", "title", "area_name", "specific_area",
     "details", "calendar_start", "calendar_end", "recurrence", "created_at", "updated_at",
@@ -125,11 +127,17 @@ SYNC_SHEET_TITLE = "Pathmark Sync"
 
 
 def page_icon():
+    # Streamlit's native favicon support is used first so the browser tab has
+    # Pathmark branding before the runtime metadata script has loaded. The
+    # JavaScript injection below then reinforces the icon links for PWA/mobile
+    # shortcuts and OAuth callback reloads.
     if Image is not None and ICON_PATH.exists():
         try:
             return Image.open(ICON_PATH)
         except Exception:
             pass
+    if FAVICON_PATH.exists():
+        return str(FAVICON_PATH)
     return "PM"
 
 
@@ -157,19 +165,16 @@ def inject_pwa_metadata() -> None:
             }
             el.setAttribute('content', content);
           }
-          function setLink(rel, href, extraAttrs) {
-            let el = doc.querySelector('link[rel="' + rel + '"]');
-            if (!el) {
-              el = doc.createElement('link');
-              el.setAttribute('rel', rel);
-              doc.head.appendChild(el);
-            }
+          function appendLink(rel, href, extraAttrs) {
+            const el = doc.createElement('link');
+            el.setAttribute('rel', rel);
             el.setAttribute('href', href);
             if (extraAttrs) {
               Object.keys(extraAttrs).forEach(function (key) {
                 el.setAttribute(key, extraAttrs[key]);
               });
             }
+            doc.head.appendChild(el);
           }
           doc.title = 'Pathmark';
           setMeta('application-name', 'Pathmark');
@@ -177,9 +182,13 @@ def inject_pwa_metadata() -> None:
           setMeta('apple-mobile-web-app-capable', 'yes');
           setMeta('mobile-web-app-capable', 'yes');
           setMeta('theme-color', '#334E68');
-          setLink('manifest', '/app/static/manifest.json');
-          setLink('icon', '/app/static/pathmark-icon-192.png', {'type': 'image/png', 'sizes': '192x192'});
-          setLink('apple-touch-icon', '/app/static/apple-touch-icon.png', {'sizes': '180x180'});
+          doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="manifest"]').forEach(function (el) { el.remove(); });
+          appendLink('manifest', '/app/static/manifest.json?v=0_6_34');
+          appendLink('shortcut icon', '/app/static/favicon.ico?v=0_6_34', {'type': 'image/x-icon'});
+          appendLink('icon', '/app/static/favicon.ico?v=0_6_34', {'type': 'image/x-icon'});
+          appendLink('icon', '/app/static/pathmark-icon-32.png?v=0_6_34', {'type': 'image/png', 'sizes': '32x32'});
+          appendLink('icon', '/app/static/pathmark-icon-192.png?v=0_6_34', {'type': 'image/png', 'sizes': '192x192'});
+          appendLink('apple-touch-icon', '/app/static/apple-touch-icon.png?v=0_6_34', {'sizes': '180x180'});
         })();
         </script>
         """,
@@ -1221,9 +1230,10 @@ def render_google_sheets_oauth_diagnostics() -> None:
 
         1. **APIs & Services → Credentials → OAuth 2.0 Client IDs**: use a **Web application** client.
         2. Add this exact authorised redirect URI: `https://pathmark.streamlit.app`
-        3. **Google Auth Platform → Audience**: if the app is in Testing, add your Google account as a test user.
-        4. **Google Auth Platform → Data Access**: include the requested scope `https://www.googleapis.com/auth/drive.file`.
-        5. **APIs & Services → Library**: enable both **Google Sheets API** and **Google Drive API** for the same project.
+        3. **Google Auth Platform → Branding**: set the app name to **Pathmark** and upload the Pathmark logo so Google's account/consent screens use Pathmark branding.
+        4. **Google Auth Platform → Audience**: if the app is in Testing, add your Google account as a test user.
+        5. **Google Auth Platform → Data Access**: include the requested scope `https://www.googleapis.com/auth/drive.file`.
+        6. **APIs & Services → Library**: enable both **Google Sheets API** and **Google Drive API** for the same project.
 
         Pathmark now requests `drive.file` during Google login so signed-in users can enter the Web Companion with a Pathmark sync sheet already available. The scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
         """)
@@ -3929,6 +3939,18 @@ def render_spending_success(message: str) -> None:
     st.success(message)
 
 
+def spending_save_and_refresh(message: str) -> None:
+    """Show a save notice and rerun so the freshly-written Google Sheet rows are visible.
+
+    Google Sheets writes clear Pathmark's session cache, but the current Streamlit
+    run may already have loaded the old DataFrame. A controlled rerun reloads the
+    sheet immediately. The Spending Plan uses stateful radio navigation rather than
+    plain tabs, so the user stays in the same area after saving.
+    """
+    st.session_state["spending_notice"] = message
+    st.rerun()
+
+
 def render_spending_flow_guidance(summary: dict[str, float]) -> None:
     """Show the cash-flow logic in a compact, readable format."""
     st.markdown("#### Money-flow instructions")
@@ -4374,7 +4396,7 @@ def render_spending_income_form(sheet_id: str) -> None:
         if failures:
             st.warning("Some income rows could not be saved: " + "; ".join(failures[:3]))
         else:
-            render_spending_success(f"Saved {updated_count} income row(s).")
+            spending_save_and_refresh(f"Saved {updated_count} income row(s).")
 
     st.markdown("#### Add a new income source")
     with st.expander("Add income source", expanded=False):
@@ -4404,7 +4426,7 @@ def render_spending_income_form(sheet_id: str) -> None:
                 record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=False))
                 ok, msg = append_online_record(sheet_id, "spending_income", record)
                 if ok:
-                    render_spending_success("Saved income source.")
+                    spending_save_and_refresh("Saved income source.")
                 else:
                     st.warning(safe_user_message(msg))
 
@@ -4528,7 +4550,7 @@ def render_add_custom_spending_item(sheet_id: str, kind: str, existing: pd.DataF
                 record.update(amount_columns_for_frequency(amount, frequency, include_quarterly=True))
                 ok, msg = append_online_record(sheet_id, "spending_expenses", record)
                 if ok:
-                    render_spending_success(f"Saved {item} in {section}.")
+                    spending_save_and_refresh(f"Saved {item} in {section}.")
                 else:
                     st.warning(safe_user_message(msg))
 
@@ -4550,47 +4572,53 @@ def render_spending_expense_form(sheet_id: str) -> None:
             st.warning(safe_user_message(msg))
         return
 
-    kind_tabs = st.tabs([SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER])
-    for tab, kind in zip(kind_tabs, SPENDING_BUCKET_ORDER):
-        label = SPENDING_BUCKET_LABELS[kind]
-        with tab:
-            bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == normalise_spending_kind(kind)].copy()
-            bucket_total = sum(annual_from_row(row) for _, row in bucket_rows.iterrows()) / 52 if not bucket_rows.empty else 0.0
-            st.markdown(f"##### {label}")
-            st.caption(spending_kind_help(kind))
-            st.metric("Weekly equivalent", money_text(bucket_total))
-            if bucket_rows.empty:
-                st.info(f"No {label.lower()} rows yet.")
-                render_add_custom_spending_item(sheet_id, kind, expenses)
-                continue
-            for section, section_df in bucket_rows.groupby(bucket_rows["group_name"].fillna(label), sort=False):
-                section_name = str(section or label)
-                section_weekly = sum(annual_from_row(row) for _, row in section_df.iterrows()) / 52 if not section_df.empty else 0.0
-                with st.expander(f"{section_name} — {money_text(section_weekly)} / week", expanded=False):
-                    st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply. Untick Active to remove a row from the current assessment.")
-                    edit_df = spending_editor_dataframe(section_df, section_name)
-                    with st.form(f"spending_editor_{kind}_{section_name}".replace(" ", "_").replace("/", "_").lower(), clear_on_submit=False):
-                        edited = st.data_editor(
-                            edit_df,
-                            hide_index=True,
-                            use_container_width=True,
-                            column_order=["Item", "Amount", "Frequency", "Notes", "Active"],
-                            column_config={
-                                "Item": st.column_config.TextColumn("Item", help="Rename the item if your wording is more useful."),
-                                "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
-                                "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
-                                "Notes": st.column_config.TextColumn("Notes", help="Optional"),
-                                "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this row from the assessment."),
-                            },
-                        )
-                        save = st.form_submit_button(f"Save {section_name}", use_container_width=True)
-                    if save:
-                        updates_count, failures = save_spending_editor_rows(sheet_id, edited, kind, section_name)
-                        if failures:
-                            st.warning("Some rows could not be saved: " + "; ".join(failures[:3]))
-                        else:
-                            render_spending_success(f"Saved {updates_count} {section_name.lower()} row(s).")
-            render_add_custom_spending_item(sheet_id, kind, expenses)
+    kind_labels = [SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER]
+    selected_label = st.radio(
+        "Choose spending type",
+        kind_labels,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="spending_expense_type",
+    )
+    kind = SPENDING_BUCKET_ORDER[kind_labels.index(selected_label)]
+    label = selected_label
+    bucket_rows = expenses[expenses["expense_kind"].apply(normalise_spending_kind) == normalise_spending_kind(kind)].copy()
+    bucket_total = sum(annual_from_row(row) for _, row in bucket_rows.iterrows()) / 52 if not bucket_rows.empty else 0.0
+    st.markdown(f"##### {label}")
+    st.caption(spending_kind_help(kind))
+    st.metric("Weekly equivalent", money_text(bucket_total))
+    if bucket_rows.empty:
+        st.info(f"No {label.lower()} rows yet.")
+        render_add_custom_spending_item(sheet_id, kind, expenses)
+        return
+    for section, section_df in bucket_rows.groupby(bucket_rows["group_name"].fillna(label), sort=False):
+        section_name = str(section or label)
+        section_weekly = sum(annual_from_row(row) for _, row in section_df.iterrows()) / 52 if not section_df.empty else 0.0
+        with st.expander(f"{section_name} — {money_text(section_weekly)} / week", expanded=False):
+            st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply. Untick Active to remove a row from the current assessment.")
+            edit_df = spending_editor_dataframe(section_df, section_name)
+            with st.form(f"spending_editor_{kind}_{section_name}".replace(" ", "_").replace("/", "_").lower(), clear_on_submit=False):
+                edited = st.data_editor(
+                    edit_df,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_order=["Item", "Amount", "Frequency", "Notes", "Active"],
+                    column_config={
+                        "Item": st.column_config.TextColumn("Item", help="Rename the item if your wording is more useful."),
+                        "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
+                        "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
+                        "Notes": st.column_config.TextColumn("Notes", help="Optional"),
+                        "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this row from the assessment."),
+                    },
+                )
+                save = st.form_submit_button(f"Save {section_name}", use_container_width=True)
+            if save:
+                updates_count, failures = save_spending_editor_rows(sheet_id, edited, kind, section_name)
+                if failures:
+                    st.warning("Some rows could not be saved: " + "; ".join(failures[:3]))
+                else:
+                    spending_save_and_refresh(f"Saved {updates_count} {section_name.lower()} row(s).")
+    render_add_custom_spending_item(sheet_id, kind, expenses)
 
 def render_spending_account_form(sheet_id: str) -> None:
     st.markdown("#### APs and fixed account roles")
@@ -4615,8 +4643,7 @@ def render_spending_account_form(sheet_id: str) -> None:
         else:
             ok, msg = append_many_online_records(sheet_id, records)
             if ok:
-                st.session_state["spending_notice"] = msg
-                st.rerun()
+                spending_save_and_refresh(msg)
             else:
                 st.warning(safe_user_message(msg))
 
@@ -4656,16 +4683,22 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         with c4:
             render_money_metric("Unallocated / week", summary["surplus_weekly"])
 
-    sections = st.tabs(["Assessment", "Income", "Spending", "APs", "Records"])
-    with sections[0]:
+    selected_section = st.radio(
+        "Spending Plan section",
+        ["Assessment", "Income", "Spending", "APs", "Records"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="spending_plan_section",
+    )
+    if selected_section == "Assessment":
         render_spending_assessment(sheet_id)
-    with sections[1]:
+    elif selected_section == "Income":
         render_spending_income_form(sheet_id)
-    with sections[2]:
+    elif selected_section == "Spending":
         render_spending_expense_form(sheet_id)
-    with sections[3]:
+    elif selected_section == "APs":
         render_spending_account_form(sheet_id)
-    with sections[4]:
+    else:
         render_spending_records(sheet_id)
 
 def render_tasklist_manager(sheet_id: str) -> None:
@@ -6634,6 +6667,13 @@ def about_privacy_tab() -> None:
     st.markdown("""
     <div class="safe-rule"><strong>Pathmark does not collect your Google password.</strong><br>You sign in on Google's page. Pathmark receives confirmation from Google after you approve access.</div>
     """, unsafe_allow_html=True)
+
+    st.subheader("Branding during Google sign-in")
+    st.markdown("""
+    Pathmark now includes browser-tab, PWA and mobile shortcut icons in the release package. The browser tab and Pathmark pages should use the Pathmark logo once the updated app is deployed and the browser cache has refreshed.
+
+    Google's own account chooser and consent screens are controlled by the Google Cloud OAuth configuration rather than by Streamlit code. To show the Pathmark logo there, the deployed Google Cloud project needs **Google Auth Platform → Branding** set to Pathmark with the Pathmark logo uploaded.
+    """)
 
     st.subheader("Where information is stored")
     st.markdown("""

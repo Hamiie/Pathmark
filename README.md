@@ -1,8 +1,8 @@
 # Pathmark Release Hub
 
-Current release: **v0.6.32 Spending Plan bucket and inline save refinement
+Current release: **v0.6.34 Pathmark logo and OAuth branding refinement**
 
-Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, and the latest downloadable local Windows package.
+Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, static app icons, and the latest downloadable local Windows package.
 
 ## Contexts
 
@@ -20,22 +20,16 @@ Pathmark is a Streamlit-based planning and export system. This repository contai
 
 ## Current focus
 
-v0.6.32 Spending Plan bucket and inline save refinement
+v0.6.34 strengthens Pathmark branding in the browser tab, mobile/PWA shortcuts and OAuth callback reloads. It also documents that Google's own account chooser and consent screens are controlled through Google Cloud OAuth branding rather than Streamlit code.
 
 ## Security
 
 Do not commit secrets, OAuth client secrets, Google access or refresh tokens, service account JSON, Supabase service keys, private planning data, or developer email addresses.
 
+## v0.6.34 Pathmark logo and OAuth branding refinement
 
-## v0.6.32 Spending Plan bucket and inline save refinement
-
-- Reworked Spending Plan spending setup into a guided checklist grouped by money-flow role.
-- Users now work down common real-world costs instead of choosing abstract categories first.
-- Custom spending items now start with the item name and suggest the money-flow destination based on cost type.
-
-
-## v0.6.32 Spending Plan non-advice policy
-
-- Added clear non-advice wording to Spending Plan Assessment and About & Privacy.
-- Clarified that AP and money-flow suggestions are generated from user-entered figures and must be reviewed before changing bank payments.
-- Added hardship/support signposting language without turning Pathmark into a financial advice service.
+- Added root static icon files for Streamlit static serving.
+- Added `favicon.ico` plus 16px, 32px, 192px and 512px PNG icons.
+- Reinforced browser-tab and PWA metadata with cache-busted Pathmark icon links.
+- Added About & Privacy wording explaining Google sign-in branding.
+- Added developer OAuth diagnostics guidance to set the Google Auth Platform branding app name/logo.

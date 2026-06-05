@@ -1,20 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.32",
+  "version": "0.6.34",
   "release_date": "2026-06-05",
   "notes": [
-    "Adds clear non-advice wording to Spending Plan Assessment.",
-    "Adds a fuller Spending Plan and financial advice policy to About & Privacy.",
-    "Clarifies that AP and money-flow suggestions are generated only from user-entered figures.",
-    "Adds signposting language for users experiencing debt, bills, repayments or urgent money pressure."
+    "Adds stronger Pathmark favicon and PWA icon metadata for the browser tab, shortcuts and Google OAuth callback reloads.",
+    "Adds root static icon files served through Streamlit's static file path, including favicon.ico and 16/32/192/512 PNG icons.",
+    "Documents that Google's own account chooser and consent screens use Google Cloud OAuth branding, not Streamlit page metadata.",
+    "Adds Google Cloud branding guidance to About & Privacy and developer OAuth diagnostics."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_32.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_34.zip",
   "mac_package": "",
-  "release": "v0.6.32 Spending Plan non-advice policy",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_32.zip",
-  "release_name": "Spending Plan non-advice policy",
-  "release_notes": "Adds clear non-advice wording to Spending Plan and About & Privacy, and clarifies that AP and money-flow suggestions are generated from user-entered figures and should be reviewed before changing bank payments.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_32.zip",
-  "label": "Spending Plan non-advice policy",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_32.zip"
+  "release": "v0.6.34 Pathmark logo and OAuth branding refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip",
+  "release_name": "Pathmark logo and OAuth branding refinement",
+  "release_notes": "Adds stronger Pathmark browser-tab/PWA icon metadata and documents the Google Cloud OAuth branding step needed for Google sign-in screens to show the Pathmark logo.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip",
+  "label": "Pathmark logo and OAuth branding refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip"
 }
