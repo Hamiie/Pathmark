@@ -10,6 +10,7 @@ import secrets
 import hmac
 import hashlib
 import html
+import base64
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, time, timedelta, timezone
@@ -127,69 +128,99 @@ SYNC_SHEET_TITLE = "Pathmark Sync"
 
 
 def page_icon():
-    # Streamlit's native favicon support is used first so the browser tab has
-    # Pathmark branding before the runtime metadata script has loaded. The
-    # JavaScript injection below then reinforces the icon links for PWA/mobile
-    # shortcuts and OAuth callback reloads.
+    # Streamlit sets the favicon in the first HTML response. Prefer a small
+    # PNG payload because some browsers do not refresh an ICO/PIL favicon when
+    # the app is redeployed on the same Streamlit Cloud domain.
+    icon32 = ROOT_STATIC / "pathmark-icon-32.png"
+    if icon32.exists():
+        try:
+            return icon32.read_bytes()
+        except Exception:
+            pass
     if Image is not None and ICON_PATH.exists():
         try:
             return Image.open(ICON_PATH)
         except Exception:
             pass
     if FAVICON_PATH.exists():
-        return str(FAVICON_PATH)
+        try:
+            return FAVICON_PATH.read_bytes()
+        except Exception:
+            return str(FAVICON_PATH)
     return "PM"
 
 
 st.set_page_config(page_title="Pathmark", page_icon=page_icon(), layout="wide")
 
 
-def inject_pwa_metadata() -> None:
-    """Add Pathmark install metadata for mobile/desktop browser shortcuts.
+def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
+    path = ROOT_STATIC / filename
+    try:
+        if path.exists():
+            return f"data:{mime_type};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+    except Exception:
+        pass
+    return ""
 
-    Streamlit controls the base document head, so this small script updates the
-    parent document at runtime. Static files are served from app/static via
-    Streamlit's static file serving.
+
+def inject_pwa_metadata() -> None:
+    """Force Pathmark tab/icon metadata on Streamlit Cloud pages.
+
+    Streamlit Cloud serves a default Streamlit favicon very early, and Edge can
+    cache that aggressively. This script removes default icon links, adds
+    embedded data-URI icons, and reapplies them briefly while Streamlit finishes
+    loading.
     """
+    icon32_data = _static_icon_data_uri("pathmark-icon-32.png")
+    icon192_data = _static_icon_data_uri("pathmark-icon-192.png")
+    apple_data = _static_icon_data_uri("apple-touch-icon.png")
     components.html(
-        """
+        f"""
         <script>
-        (function () {
+        (function () {{
           const doc = window.parent.document;
-          function setMeta(name, content) {
+          const version = '0_6_35';
+          const icon32Data = {json.dumps(icon32_data)};
+          const icon192Data = {json.dumps(icon192_data)};
+          const appleData = {json.dumps(apple_data)};
+          function setMeta(name, content) {{
             let el = doc.querySelector('meta[name="' + name + '"]');
-            if (!el) {
-              el = doc.createElement('meta');
-              el.setAttribute('name', name);
-              doc.head.appendChild(el);
-            }
+            if (!el) {{ el = doc.createElement('meta'); el.setAttribute('name', name); doc.head.appendChild(el); }}
             el.setAttribute('content', content);
-          }
-          function appendLink(rel, href, extraAttrs) {
+          }}
+          function appendLink(rel, href, extraAttrs) {{
+            if (!href) return;
             const el = doc.createElement('link');
             el.setAttribute('rel', rel);
             el.setAttribute('href', href);
-            if (extraAttrs) {
-              Object.keys(extraAttrs).forEach(function (key) {
-                el.setAttribute(key, extraAttrs[key]);
-              });
-            }
+            if (extraAttrs) {{ Object.keys(extraAttrs).forEach(function (key) {{ el.setAttribute(key, extraAttrs[key]); }}); }}
             doc.head.appendChild(el);
-          }
-          doc.title = 'Pathmark';
-          setMeta('application-name', 'Pathmark');
-          setMeta('apple-mobile-web-app-title', 'Pathmark');
-          setMeta('apple-mobile-web-app-capable', 'yes');
-          setMeta('mobile-web-app-capable', 'yes');
-          setMeta('theme-color', '#334E68');
-          doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="manifest"]').forEach(function (el) { el.remove(); });
-          appendLink('manifest', '/app/static/manifest.json?v=0_6_34');
-          appendLink('shortcut icon', '/app/static/favicon.ico?v=0_6_34', {'type': 'image/x-icon'});
-          appendLink('icon', '/app/static/favicon.ico?v=0_6_34', {'type': 'image/x-icon'});
-          appendLink('icon', '/app/static/pathmark-icon-32.png?v=0_6_34', {'type': 'image/png', 'sizes': '32x32'});
-          appendLink('icon', '/app/static/pathmark-icon-192.png?v=0_6_34', {'type': 'image/png', 'sizes': '192x192'});
-          appendLink('apple-touch-icon', '/app/static/apple-touch-icon.png?v=0_6_34', {'sizes': '180x180'});
-        })();
+          }}
+          function applyPathmarkHead() {{
+            doc.title = 'Pathmark';
+            setMeta('application-name', 'Pathmark');
+            setMeta('apple-mobile-web-app-title', 'Pathmark');
+            setMeta('apple-mobile-web-app-capable', 'yes');
+            setMeta('mobile-web-app-capable', 'yes');
+            setMeta('theme-color', '#334E68');
+            doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"], link[rel="manifest"]').forEach(function (el) {{ el.remove(); }});
+            appendLink('icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
+            appendLink('shortcut icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
+            appendLink('icon', icon192Data, {{'type': 'image/png', 'sizes': '192x192'}});
+            appendLink('apple-touch-icon', appleData, {{'sizes': '180x180'}});
+            appendLink('manifest', '/app/static/manifest.json?v=' + version);
+            appendLink('icon', '/app/static/pathmark-icon-32.png?v=' + version, {{'type': 'image/png', 'sizes': '32x32'}});
+            appendLink('icon', '/app/static/pathmark-icon-192.png?v=' + version, {{'type': 'image/png', 'sizes': '192x192'}});
+            appendLink('shortcut icon', '/app/static/favicon.ico?v=' + version, {{'type': 'image/x-icon'}});
+          }}
+          applyPathmarkHead();
+          let attempts = 0;
+          const timer = setInterval(function () {{
+            applyPathmarkHead();
+            attempts += 1;
+            if (attempts >= 8) clearInterval(timer);
+          }}, 750);
+        }})();
         </script>
         """,
         height=0,
@@ -392,6 +423,7 @@ input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !impor
 .pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; margin:1rem 0 1.35rem; align-items:stretch; }}
 .pillar-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:230px; display:flex; flex-direction:column; }}
 .pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
+.pillar-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; margin-bottom:.55rem; }}
 .pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
 .pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
 .pillar-stat {{ color:var(--ink); font-size:1.55rem; font-weight:780; line-height:1.1; }}
@@ -4259,18 +4291,46 @@ def render_spending_plan_disclaimer(compact: bool = False) -> None:
 
 def render_spending_assessment(sheet_id: str) -> None:
     summary = spending_summary(sheet_id)
-    st.markdown("#### Assessment")
-    st.caption("A calm summary of where income should go before it disappears. Edit the detailed rows in Income and Spending.")
-    render_spending_plan_disclaimer(compact=True)
+    st.markdown("""
+    <div class="dashboard-hero">
+      <h2>Money-flow dashboard</h2>
+      <p><strong>Direct income before it disappears.</strong> Spending Plan turns income and outflows into a weekly view, safe-to-spend amount, and suggested APs.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="pillar-grid">
+      <div class="pillar-card">
+        <div class="pillar-label">INCOME</div>
+        <h3>What comes in</h3>
+        <p>Active income sources converted to a weekly equivalent.</p>
+        <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(summary['income_weekly']))}</div><div class="pillar-foot">income per week</div></div>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-label">OUTFLOWS</div>
+        <h3>What goes out</h3>
+        <p>Everyday spending, regular bills, and planned irregular costs.</p>
+        <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(summary['expense_weekly']))}</div><div class="pillar-foot">planned outflows per week</div></div>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-label">AVAILABLE</div>
+        <h3>What is safe to spend</h3>
+        <p>The weekly everyday-spend amount you have deliberately set.</p>
+        <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(summary['everyday_weekly']))}</div><div class="pillar-foot">safe weekly spend</div></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="metric-strip">
-      <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
-      <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(summary['everyday_weekly']))}</div></div>
-      <div class="metric-tile"><div class="metric-label">APs / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly'] + summary['sinking_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">Regular bills / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">Irregular costs / week</div><div class="metric-value">{html.escape(money_text(summary['sinking_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">Suggested APs / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly'] + summary['sinking_weekly']))}</div></div>
       <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(summary['surplus_weekly']))}</div></div>
     </div>
     """, unsafe_allow_html=True)
+
+    render_spending_plan_disclaimer(compact=True)
 
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
@@ -4666,30 +4726,47 @@ def render_spending_records(sheet_id: str) -> None:
 
 
 def render_spending_plan_manager(sheet_id: str) -> None:
-    st.subheader("Spending Plan beta")
-    st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
 
-    summary = spending_summary(sheet_id)
-    with st.container():
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            render_money_metric("Income / week", summary["income_weekly"])
-        with c2:
-            render_money_metric("Planned outflows / week", summary["expense_weekly"])
-        with c3:
-            render_money_metric("Safe spend / week", summary["everyday_weekly"])
-        with c4:
-            render_money_metric("Unallocated / week", summary["surplus_weekly"])
+    section_options = ["Assessment", "Income", "Spending", "APs", "Records"]
+    current_section = st.session_state.get("spending_plan_section", "Assessment")
+    if current_section not in section_options:
+        current_section = "Assessment"
 
-    selected_section = st.radio(
-        "Spending Plan section",
-        ["Assessment", "Income", "Spending", "APs", "Records"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="spending_plan_section",
-    )
+    st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
+    if hasattr(st, "segmented_control"):
+        selected_section = st.segmented_control(
+            "Spending Plan section",
+            section_options,
+            selection_mode="single",
+            default=current_section,
+            label_visibility="collapsed",
+            key="spending_plan_section_segmented",
+        ) or current_section
+        st.session_state["spending_plan_section"] = selected_section
+    else:
+        selected_section = st.radio(
+            "Spending Plan section",
+            section_options,
+            index=section_options.index(current_section),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="spending_plan_section_radio",
+        )
+        st.session_state["spending_plan_section"] = selected_section
+
+    if selected_section != "Assessment":
+        summary = spending_summary(sheet_id)
+        st.markdown(f"""
+        <div class="metric-strip">
+          <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
+          <div class="metric-tile"><div class="metric-label">Outflows / week</div><div class="metric-value">{html.escape(money_text(summary['expense_weekly']))}</div></div>
+          <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(summary['everyday_weekly']))}</div></div>
+          <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(summary['surplus_weekly']))}</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
     if selected_section == "Assessment":
         render_spending_assessment(sheet_id)
     elif selected_section == "Income":

@@ -1,6 +1,6 @@
 # Pathmark Release Hub
 
-Current release: **v0.6.34 Pathmark logo and OAuth branding refinement**
+Current release: **v0.6.36 Spending Plan dashboard navigation refinement
 
 Pathmark is a Streamlit-based planning and export system. This repository contains the hosted release hub / Pathmark Online app, documentation, Supabase migrations, static app icons, and the latest downloadable local Windows package.
 
@@ -20,13 +20,13 @@ Pathmark is a Streamlit-based planning and export system. This repository contai
 
 ## Current focus
 
-v0.6.34 strengthens Pathmark branding in the browser tab, mobile/PWA shortcuts and OAuth callback reloads. It also documents that Google's own account chooser and consent screens are controlled through Google Cloud OAuth branding rather than Streamlit code.
+v0.6.36 Spending Plan dashboard navigation refinement
 
 ## Security
 
 Do not commit secrets, OAuth client secrets, Google access or refresh tokens, service account JSON, Supabase service keys, private planning data, or developer email addresses.
 
-## v0.6.34 Pathmark logo and OAuth branding refinement
+## v0.6.36 Spending Plan dashboard navigation refinement
 
 - Added root static icon files for Streamlit static serving.
 - Added `favicon.ico` plus 16px, 32px, 192px and 512px PNG icons.

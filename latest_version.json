@@ -1,20 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.34",
+  "version": "0.6.36",
   "release_date": "2026-06-05",
   "notes": [
-    "Adds stronger Pathmark favicon and PWA icon metadata for the browser tab, shortcuts and Google OAuth callback reloads.",
-    "Adds root static icon files served through Streamlit's static file path, including favicon.ico and 16/32/192/512 PNG icons.",
-    "Documents that Google's own account chooser and consent screens use Google Cloud OAuth branding, not Streamlit page metadata.",
-    "Adds Google Cloud branding guidance to About & Privacy and developer OAuth diagnostics."
+    "Refines Spending Plan beta so its top navigation matches the Pathmark Online dashboard style using a segmented control near the top of the page.",
+    "Reworks the Spending Plan Assessment home into dashboard-style cards for income, outflows and safe weekly spend.",
+    "Keeps detailed money-flow metrics below the main dashboard cards and preserves the current Spending Plan section after saves.",
+    "Keeps favicon/OAuth branding refinements from v0.6.35."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_34.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_36.zip",
   "mac_package": "",
-  "release": "v0.6.34 Pathmark logo and OAuth branding refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip",
-  "release_name": "Pathmark logo and OAuth branding refinement",
-  "release_notes": "Adds stronger Pathmark browser-tab/PWA icon metadata and documents the Google Cloud OAuth branding step needed for Google sign-in screens to show the Pathmark logo.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip",
-  "label": "Pathmark logo and OAuth branding refinement",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_34.zip"
+  "release": "v0.6.36 Spending Plan dashboard navigation refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip",
+  "release_name": "Spending Plan dashboard navigation refinement",
+  "release_notes": "Aligns the Spending Plan beta interface with the Pathmark Online dashboard by moving section navigation close to the top and making Assessment a calm money-flow dashboard.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip",
+  "label": "Spending Plan dashboard navigation refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_36.zip"
 }
