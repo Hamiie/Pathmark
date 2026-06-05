@@ -1,19 +1,19 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.27",
+  "version": "0.6.28",
   "release_date": "2026-06-05",
   "notes": [
-    "Renames Pathmark Online Home to Dashboard and reframes it around stability, progress, and resources.",
-    "Adds a weekly at-a-glance view for calendar time, tasklist rows, Google Tasks checklist items, safe weekly spend, and unallocated cash flow.",
-    "Adds a Needs attention section that surfaces gaps in routines, projects, calendar time, income, irregular costs, and shortfalls.",
-    "Updates the public release hub wording to reflect the broader wellbeing, progress, and financial-management scope.",
+    "Refines the Pathmark Online Dashboard into a calmer executive summary with three equal pillars.",
+    "Adds compact week-at-a-glance tiles, prioritised Needs attention cards, and a next useful action prompt.",
+    "Simplifies the Spending Plan Assessment into a plain-English money-flow summary with detailed rows kept in setup tabs.",
+    "Preserves the v0.6.27 life-dashboard concept while reducing visual clutter and explanatory blocks.",
     "Repository downloads include only the latest Windows package."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_27.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_28.zip",
   "mac_package": "",
-  "release": "v0.6.27 Life dashboard integration",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_27.zip",
-  "release_name": "Life dashboard integration",
-  "release_notes": "Reframes the Pathmark Online home as a life dashboard that integrates wellbeing routines, progress projects, and spending plan signals.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_27.zip"
+  "release": "v0.6.28 Dashboard and finance visual refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_28.zip",
+  "release_name": "Dashboard and finance visual refinement",
+  "release_notes": "Refines Dashboard and Spending Plan layouts for a calmer, more professional information hierarchy.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_28.zip"
 }

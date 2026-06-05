@@ -368,6 +368,36 @@ input, textarea {{ padding-left: .95rem !important; padding-right: .95rem !impor
 .process-card {{ border-radius:1rem; padding:1rem; margin:.55rem 0; }}
 .process-card h4 {{ margin:.05rem 0 .35rem 0; color:var(--ink); }}
 .process-card p {{ margin:0; color:var(--muted); }}
+
+.dashboard-hero {{ padding:.15rem 0 .55rem 0; margin:0 0 .85rem 0; border-bottom:1px solid var(--line); }}
+.dashboard-hero h2 {{ margin:.05rem 0 .25rem 0; font-size:clamp(1.9rem,3vw,2.55rem); letter-spacing:-.055em; }}
+.dashboard-hero p {{ margin:0; color:var(--muted); max-width:820px; line-height:1.48; }}
+.pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.85rem; margin:1rem 0 1.35rem; }}
+.pillar-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:154px; }}
+.pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
+.pillar-card p {{ margin:0 0 .8rem; color:var(--muted); font-size:.98rem; line-height:1.45; }}
+.pillar-stat {{ color:var(--ink); font-size:1.35rem; font-weight:780; line-height:1.1; }}
+.pillar-foot {{ color:var(--muted); font-size:.88rem; margin-top:.2rem; }}
+.dashboard-section {{ margin:1.45rem 0 .65rem; }}
+.dashboard-section h3 {{ margin-bottom:.25rem; }}
+.metric-strip {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.7rem; margin:.85rem 0 1.2rem; }}
+.metric-tile {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:.95rem; padding:.9rem .95rem; box-shadow:none; }}
+.metric-label {{ color:var(--muted); font-size:.84rem; font-weight:750; margin-bottom:.35rem; }}
+.metric-value {{ color:var(--ink); font-size:1.35rem; font-weight:780; line-height:1.1; }}
+.attention-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1rem; padding:1rem 1.05rem; margin:.55rem 0; box-shadow:none; }}
+.attention-card.high {{ border-left:5px solid #C2410C!important; }}
+.attention-card.medium {{ border-left:5px solid var(--accent)!important; }}
+.attention-label {{ color:var(--muted); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.2rem; }}
+.attention-text {{ color:var(--ink); font-size:.98rem; line-height:1.45; }}
+.next-action-card {{ background:var(--accent-soft)!important; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line))!important; border-radius:1rem; padding:1rem 1.05rem; margin:.9rem 0 1.2rem; }}
+.next-action-card strong {{ color:var(--ink); }}
+.money-summary-card {{ background:var(--surface)!important; border:1px solid var(--line)!important; border-radius:1rem; padding:1rem 1.05rem; margin:.8rem 0 1.1rem; box-shadow:none; }}
+.money-flow-table {{ width:100%; border-collapse:collapse; font-size:.96rem; }}
+.money-flow-table th {{ text-align:left; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.055em; padding:.55rem .45rem; border-bottom:1px solid var(--line); }}
+.money-flow-table td {{ padding:.7rem .45rem; border-bottom:1px solid var(--line); color:var(--ink); }}
+.money-flow-table tr:last-child td {{ border-bottom:none; }}
+.money-amount {{ font-weight:780; white-space:nowrap; }}
+@media (max-width: 860px) {{ .pillar-grid, .metric-strip {{ grid-template-columns:1fr; }} }}
 [data-testid="stHeader"] {{ background: transparent !important; }}
 section[data-testid="stSidebar"] {{ background: var(--surface) !important; color: var(--ink) !important; }}
 @media (max-width: 860px) {{ .grid-3, .grid-2, .meta-grid {{ grid-template-columns: 1fr; }} }}
@@ -4119,51 +4149,64 @@ def load_spending_income_starters(sheet_id: str) -> tuple[bool, str]:
 def render_spending_assessment(sheet_id: str) -> None:
     summary = spending_summary(sheet_id)
     st.markdown("#### Assessment")
-    st.write(
-        "This assessment turns the income and outflow lists into a weekly money-flow plan. "
-        "It is intended to show where money should go before it gets spent."
-    )
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        render_money_metric("Income / week", summary["income_weekly"])
-    with c2:
-        render_money_metric("Safe weekly spend", summary["everyday_weekly"], "The planned weekly amount for the everyday card account.")
-    with c3:
-        render_money_metric("APs / week", summary["fixed_weekly"] + summary["sinking_weekly"], "Fixed bills plus planned irregular costs.")
-    with c4:
-        render_money_metric("Unallocated / week", summary["surplus_weekly"], "Income minus all planned outflows, divided by 52.")
+    st.caption("A calm summary of where income should go before it disappears. Edit the detailed rows in Income and Spending.")
+
+    st.markdown(f"""
+    <div class="metric-strip">
+      <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(summary['everyday_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">APs / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly'] + summary['sinking_weekly']))}</div></div>
+      <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(summary['surplus_weekly']))}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
 
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
-    warnings = []
+    high: list[str] = []
+    medium: list[str] = []
     if income.empty or summary["income_annual"] <= 0:
-        warnings.append("Add at least one active income source before relying on the assessment.")
-    if expenses.empty:
-        warnings.append("Load the common spending checklist and enter amounts for the items that apply.")
+        high.append("Add at least one active income source before relying on the assessment.")
     if summary["surplus_annual"] < 0:
-        warnings.append("Planned outflows are higher than income. Reduce everyday spending, fixed costs, or planned irregular costs before adding savings goals.")
+        high.append("Planned outflows are higher than income. Reduce costs or adjust the plan before adding savings goals.")
+    if expenses.empty:
+        medium.append("Load the common spending checklist and enter amounts for the items that apply.")
     if summary["sinking_weekly"] <= 0 and not expenses.empty:
-        warnings.append("No planned irregular costs are funded yet. Annual costs such as Christmas, car costs, clothes, dental and holidays can become emergencies if they are not smoothed through the year.")
+        medium.append("No planned irregular costs are funded yet. Predictable annual costs can become emergencies if they are not smoothed through the year.")
     if summary["everyday_weekly"] <= 0 and not expenses.empty:
-        warnings.append("No everyday spending allowance is set. Add a realistic weekly amount for groceries, fuel, cafes and day-to-day spending.")
-    if warnings:
-        for warning in warnings:
-            st.warning(warning)
+        medium.append("No everyday spending allowance is set. Add a realistic weekly amount for groceries, fuel, cafes and day-to-day spending.")
+
+    if high or medium:
+        st.markdown("##### Needs attention")
+        for item in high:
+            st.markdown(f"<div class='attention-card high'><div class='attention-label'>High priority</div><div class='attention-text'>{html.escape(item)}</div></div>", unsafe_allow_html=True)
+        for item in medium[:4]:
+            st.markdown(f"<div class='attention-card medium'><div class='attention-label'>Medium priority</div><div class='attention-text'>{html.escape(item)}</div></div>", unsafe_allow_html=True)
     elif summary["income_annual"] > 0:
         st.success("The plan has income, spending categories and a weekly money-flow result.")
 
-    st.markdown("#### Suggested weekly APs / transfers")
-    ap_rows = [
-        {"From": "Hub account", "To": "Everyday card account", "Weekly amount": summary["everyday_weekly"], "Purpose": "Safe weekly spend money"},
-        {"From": "Hub account", "To": "Planned irregular costs", "Weekly amount": summary["sinking_weekly"], "Purpose": "Gifts, clothes, Christmas, holidays, annual fees and other predictable irregular costs"},
-        {"From": "Hub account", "To": "Debt reduction or savings goals", "Weekly amount": max(summary["surplus_weekly"], 0.0), "Purpose": "Extra debt repayment first, then emergency savings, then longer-term goals"},
+    st.markdown("##### Recommended weekly money flow")
+    rows = [
+        ("Income lands in", "Hub account", summary["income_weekly"], "Starting point for bills, APs and transfers"),
+        ("Transfer to", "Everyday card account", summary["everyday_weekly"], "Safe weekly spend money"),
+        ("Keep/transfer for", "Regular bills and commitments", summary["fixed_weekly"], "Rent, utilities, subscriptions, insurance and minimum repayments"),
+        ("Transfer to", "Planned irregular costs", summary["sinking_weekly"], "Christmas, clothes, car costs, annual fees and other predictable irregular costs"),
+        ("Direct surplus to", "Debt, emergency fund, then savings/goals", max(summary["surplus_weekly"], 0.0), "Extra repayment first, then resilience, then longer-term goals"),
     ]
-    ap_df = pd.DataFrame(ap_rows)
-    ap_df["Weekly amount"] = ap_df["Weekly amount"].map(lambda value: money_text(value))
-    st.dataframe(ap_df, use_container_width=True, hide_index=True)
+    body = "".join(
+        f"<tr><td>{html.escape(a)}</td><td>{html.escape(b)}</td><td class='money-amount'>{html.escape(money_text(c))}</td><td>{html.escape(d)}</td></tr>"
+        for a,b,c,d in rows
+    )
+    st.markdown(f"""
+    <div class="money-summary-card">
+      <table class="money-flow-table">
+        <thead><tr><th>Action</th><th>Destination</th><th>Weekly amount</th><th>Purpose</th></tr></thead>
+        <tbody>{body}</tbody>
+      </table>
+    </div>
+    """, unsafe_allow_html=True)
 
-    render_spending_flow_guidance(summary)
-
+    with st.expander("How to use this assessment", expanded=False):
+        render_spending_flow_guidance(summary)
 
 def render_spending_income_form(sheet_id: str) -> None:
     st.markdown("#### Setup income")
@@ -4468,7 +4511,7 @@ def render_spending_records(sheet_id: str) -> None:
 
 def render_spending_plan_manager(sheet_id: str) -> None:
     st.subheader("Spending Plan beta")
-    st.caption("Set up income and outflows once. Pathmark then assesses weekly money flow and AP/account-role instructions.")
+    st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
 
@@ -4501,7 +4544,7 @@ def render_tasklist_manager(sheet_id: str) -> None:
     st.write("Use a printed tasklist as the paper alternative to Google Tasks checklist items. Choose the routine activities and project steps you want to tick off by hand.")
     tasklist = staged_tasklist(sheet_id)
     if tasklist.empty:
-        st.info("No tasklist rows yet. Add project steps or routine activities and choose 'Add this activity to the weekly tasklist'.")
+        st.info("No tasklist rows yet. Add project steps or routine activities; Pathmark will stage tasklist rows automatically.")
         return
     with st.expander("Choose what goes on the tasklist", expanded=True):
         title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
@@ -6210,8 +6253,14 @@ def render_wizard_review(sheet_id: str, draft: dict[str, Any]) -> None:
 
 
 def render_online_overview(sheet_id: str) -> None:
-    st.subheader("Dashboard")
-    st.caption("Protect your stability. Make progress. Direct your resources.")
+    st.markdown("""
+    <div class="dashboard-hero">
+      <h2>Dashboard</h2>
+      <p><strong>Protect your stability. Make progress. Direct your resources.</strong><br>
+      Pathmark shows whether the life you are trying to build is supported this week.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     data = read_online_tables(sheet_id)
     areas = active_online_df(data.get("areas", pd.DataFrame()))
     goals = active_online_df(data.get("goals", pd.DataFrame()))
@@ -6231,55 +6280,66 @@ def render_online_overview(sheet_id: str) -> None:
         if "routine_id" in actions.columns:
             routine_actions = actions[actions["routine_id"].fillna("").astype(str).str.strip().ne("")].copy()
 
-    st.markdown("""
-    <div class="guide-box"><strong>Is the life you are trying to build supported this week?</strong><br>
-    Pathmark brings three supports together: wellbeing routines, progress projects, and a spending plan that directs income before it disappears.</div>
+    routine_count = len(routine_actions) if not routine_actions.empty else 0
+    project_count = len(project_actions) if not project_actions.empty else 0
+    safe_spend = money_text(money.get("everyday_weekly", 0.0))
+    surplus = money.get("surplus_weekly", 0.0)
+
+    st.markdown(f"""
+    <div class="pillar-grid">
+      <div class="pillar-card">
+        <div class="kicker">Stability</div>
+        <h3>Wellbeing routines</h3>
+        <p>Protect the repeating supports that keep you steady before life gets busy.</p>
+        <div class="pillar-stat">{routine_count}</div>
+        <div class="pillar-foot">routine activities set up</div>
+      </div>
+      <div class="pillar-card">
+        <div class="kicker">Progress</div>
+        <h3>Meaningful projects</h3>
+        <p>Turn goals with a definition of done into scheduled project steps.</p>
+        <div class="pillar-stat">{project_count}</div>
+        <div class="pillar-foot">project steps set up</div>
+      </div>
+      <div class="pillar-card">
+        <div class="kicker">Resources</div>
+        <h3>Money flow</h3>
+        <p>Direct income into spending, bills, irregular costs, debt and savings.</p>
+        <div class="pillar-stat">{html.escape(safe_spend)}</div>
+        <div class="pillar-foot">safe weekly spend</div>
+      </div>
+    </div>
     """, unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("""<div class="process-card"><div class="kicker">Stability</div><h4>Protect wellbeing</h4><p>Routines protect the things that keep you steady before the week gets busy.</p></div>""", unsafe_allow_html=True)
-        st.metric("Routine activities", len(routine_actions) if not routine_actions.empty else 0)
-    with c2:
-        st.markdown("""<div class="process-card"><div class="kicker">Progress</div><h4>Move projects forward</h4><p>Projects turn meaningful goals into scheduled steps with a clear definition of done.</p></div>""", unsafe_allow_html=True)
-        st.metric("Project steps", len(project_actions) if not project_actions.empty else 0)
-    with c3:
-        st.markdown("""<div class="process-card"><div class="kicker">Resources</div><h4>Keep money aligned</h4><p>The Spending Plan turns income and outflows into practical AP and safe-to-spend guidance.</p></div>""", unsafe_allow_html=True)
-        st.metric("Safe weekly spend", money_text(money.get("everyday_weekly", 0.0)))
+    st.markdown("<div class='dashboard-section'><h3>Your week at a glance</h3></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-strip">
+      <div class="metric-tile"><div class="metric-label">Calendar time</div><div class="metric-value">{len(calendar_rows) if not calendar_rows.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Tasklist items</div><div class="metric-value">{len(task_rows) if not task_rows.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Checklist items</div><div class="metric-value">{len(task_prompts) if not task_prompts.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(surplus))}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("### Your week at a glance")
-    w1, w2, w3, w4 = st.columns(4)
-    w1.metric("Calendar time", len(calendar_rows) if not calendar_rows.empty else 0, help="Routine activities and project steps currently staged for Google Calendar export.")
-    w2.metric("Tasklist items", len(task_rows) if not task_rows.empty else 0, help="Routine activities and project steps available for the printable tasklist.")
-    w3.metric("Checklist items", len(task_prompts) if not task_prompts.empty else 0, help="Google Tasks checklist items, including helper items that reduce activation energy.")
-    w4.metric("Unallocated / week", money_text(money.get("surplus_weekly", 0.0)), help="Income left after planned outflows. A negative amount means the plan has a shortfall.")
-
-    focus = online_setting(sheet_id, "weekly_focus", "")
-    st.markdown("### Weekly review focus")
-    with st.form("weekly_focus_home_form"):
-        new_focus = st.text_area("What should Pathmark protect, move forward, or check financially this week?", value=focus, placeholder="For example: protect sleep, schedule one pottery design step, and check planned irregular costs.", height=90)
-        save_focus = st.form_submit_button("Save weekly focus", use_container_width=True)
-    if save_focus:
-        ok, message = save_online_setting(sheet_id, "weekly_focus", new_focus.strip())
-        if ok:
-            st.success("Weekly focus saved.")
-        else:
-            st.warning(safe_user_message(message))
-
-    attention: list[str] = []
+    attention_high: list[str] = []
+    attention_medium: list[str] = []
+    if money.get("income_weekly", 0.0) <= 0:
+        attention_high.append("Spending Plan has no active income source yet.")
+    if money.get("surplus_weekly", 0.0) < 0:
+        attention_high.append(f"Spending Plan shows a weekly shortfall of {money_text(abs(money.get('surplus_weekly', 0.0)))}.")
     if areas.empty:
-        attention.append("Create at least one Area so projects, routines, calendar time and money decisions have a home.")
+        attention_medium.append("Create at least one Area so routines, projects, calendar time and money decisions have a home.")
     if routines.empty:
-        attention.append("No wellbeing routines are active yet.")
+        attention_medium.append("No wellbeing routines are active yet.")
     if goals.empty:
-        attention.append("No progress projects are active yet.")
+        attention_medium.append("No progress projects are active yet.")
     if not goals.empty:
         goal_ids_with_steps = set(project_actions.get("goal_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not project_actions.empty else set()
         for _, row in goals.iterrows():
             gid = str(row.get("goal_id", "") or "").strip()
             title = str(row.get("title", "Project") or "Project").strip()
             if gid and gid not in goal_ids_with_steps:
-                attention.append(f"Project needs a next step: {title}.")
+                attention_medium.append(f"Project needs a next step: {title}.")
                 break
     if not routines.empty:
         routine_ids_with_activities = set(routine_actions.get("routine_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not routine_actions.empty else set()
@@ -6287,32 +6347,59 @@ def render_online_overview(sheet_id: str) -> None:
             rid = str(row.get("routine_id", "") or "").strip()
             title = str(row.get("title", "Routine") or "Routine").strip()
             if rid and rid not in routine_ids_with_activities:
-                attention.append(f"Routine needs at least one protected activity: {title}.")
+                attention_medium.append(f"Routine needs at least one protected activity: {title}.")
                 break
     if calendar_rows.empty and (not goals.empty or not routines.empty):
-        attention.append("No active project steps or routine activities are currently staged as calendar time.")
-    if money.get("income_weekly", 0.0) <= 0:
-        attention.append("Spending Plan has no active income source yet.")
-    if money.get("surplus_weekly", 0.0) < 0:
-        attention.append(f"Spending Plan shows a weekly shortfall of {money_text(abs(money.get('surplus_weekly', 0.0)))}.")
+        attention_medium.append("No active project steps or routine activities are currently staged as calendar time.")
     if money.get("income_weekly", 0.0) > 0 and money.get("sinking_weekly", 0.0) <= 0:
-        attention.append("Planned irregular costs have not been funded yet.")
+        attention_medium.append("Planned irregular costs have not been funded yet.")
 
-    st.markdown("### Needs attention")
-    if attention:
-        for item in attention[:6]:
-            st.markdown(f"<div class='issue-card' style='padding:.9rem 1rem; border-radius:1rem; margin:.55rem 0;'>{html.escape(item)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='dashboard-section'><h3>Needs attention</h3></div>", unsafe_allow_html=True)
+    if attention_high or attention_medium:
+        for item in attention_high[:3]:
+            st.markdown(f"<div class='attention-card high'><div class='attention-label'>High priority</div><div class='attention-text'>{html.escape(item)}</div></div>", unsafe_allow_html=True)
+        remaining_slots = max(0, 5 - len(attention_high[:3]))
+        for item in attention_medium[:remaining_slots]:
+            st.markdown(f"<div class='attention-card medium'><div class='attention-label'>Medium priority</div><div class='attention-text'>{html.escape(item)}</div></div>", unsafe_allow_html=True)
     else:
-        st.success("Your active routines, projects and spending plan have no obvious setup gaps.")
+        st.success("Nothing urgent needs attention. Your routines, projects and spending plan have no obvious setup gaps.")
 
-    st.markdown("### Core system")
-    st.markdown("""
-    <div class="grid-3">
-      <div class="process-card"><h4>Wellbeing routines</h4><p>Use routines for the repeating supports that keep you well: sleep, movement, food, recovery, connection and admin.</p></div>
-      <div class="process-card"><h4>Progress projects</h4><p>Use projects for meaningful outcomes that have a definition of done, then schedule only the first or next step.</p></div>
-      <div class="process-card"><h4>Spending Plan</h4><p>Use finance setup and assessment to decide where income should go before it disappears.</p></div>
+    next_action = "Open the Creation Wizard to create a routine or project."
+    if attention_high:
+        next_action = "Open Spending Plan beta and resolve the high-priority money-flow issue first."
+    elif attention_medium:
+        first = attention_medium[0].lower()
+        if "routine" in first:
+            next_action = "Review Routines or use the Creation Wizard to protect a repeating wellbeing support."
+        elif "project" in first:
+            next_action = "Review Projects or use the Creation Wizard to add a scheduled next step."
+        elif "area" in first:
+            next_action = "Open Areas or the Creation Wizard and create your first life area."
+        elif "calendar" in first:
+            next_action = "Open Projects or Routines and add calendar time to the next step or activity."
+        elif "irregular" in first:
+            next_action = "Open Spending Plan beta and add planned irregular costs."
+    elif not task_rows.empty:
+        next_action = "Open Tasklist to choose what you want to print or use this week."
+
+    st.markdown(f"""
+    <div class="next-action-card">
+      <strong>Next useful action</strong><br>{html.escape(next_action)}
     </div>
     """, unsafe_allow_html=True)
+
+    focus = online_setting(sheet_id, "weekly_focus", "")
+    with st.expander("Weekly review focus", expanded=not bool(focus)):
+        with st.form("weekly_focus_home_form"):
+            new_focus = st.text_area("What should Pathmark protect, move forward, or check financially this week?", value=focus, placeholder="For example: protect sleep, schedule one pottery design step, and check planned irregular costs.", height=90)
+            save_focus = st.form_submit_button("Save weekly focus", use_container_width=True)
+        if save_focus:
+            ok, message = save_online_setting(sheet_id, "weekly_focus", new_focus.strip())
+            if ok:
+                st.success("Weekly focus saved.")
+            else:
+                st.warning(safe_user_message(message))
+
     if areas.empty and goals.empty and routines.empty:
         st.info("Use the Creation Wizard tab to create your first Area, then build either a Project or a Routine from start to finish.")
 
