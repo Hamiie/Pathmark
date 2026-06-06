@@ -1,21 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.45",
+  "version": "0.6.46",
   "release_date": "2026-06-05",
   "notes": [
-    "Simplifies Pathmark theming so Streamlit fully owns Light, Dark and System appearance.",
-    "Keeps seasonal themes as accent-only choices: Summer, Autumn, Winter and Spring.",
-    "Removes Pathmark JavaScript appearance watching and legacy light/dark override styling.",
-    "Stops overriding Streamlit page backgrounds, core text, inputs, popovers and settings menu styling.",
-    "Keeps Pathmark custom cards and buttons styled with seasonal accent variables only."
+    "Strengthens contrast for muted text, captions, card borders and Pathmark-owned UI in Streamlit dark mode.",
+    "Makes seasonal accent changes immediately visible when selecting Summer, Autumn, Winter or Spring before saving.",
+    "Uses stronger seasonal accent colours so changes are visible in both Streamlit Light and Dark appearances.",
+    "Keeps Streamlit in control of Light, Dark and System appearance while Pathmark only controls seasonal accents."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_45.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_46.zip",
   "mac_package": "",
-  "release": "v0.6.45 Streamlit-native seasonal accent themes",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip",
-  "release_name": "Streamlit-native seasonal accent themes",
-  "release_notes": "Simplifies the theme system: Streamlit controls appearance, while Pathmark seasonal themes only set accents and custom component styling.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip",
-  "label": "Streamlit-native seasonal accent themes",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_45.zip"
+  "release": "v0.6.46 Seasonal accent visibility and contrast repair",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip",
+  "release_name": "Seasonal accent visibility and contrast repair",
+  "release_notes": "Improves contrast under Streamlit light/dark mode and makes seasonal accent changes visibly apply as a live preview.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip",
+  "label": "Seasonal accent visibility and contrast repair",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip"
 }
