@@ -1,21 +1,21 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.59",
+  "version": "0.6.60",
   "release_date": "2026-06-06",
   "notes": [
-    "Adds Google Calendar Sync foundation for Pathmark Online.",
-    "Creates or reuses a Google Calendar named Pathmark.",
-    "Syncs project steps as one-off events and routine activities as recurring events.",
-    "Stores Google Calendar event IDs and flags moved or missing events for review.",
-    "Keeps ICS export as a fallback."
+    "Updates About & Privacy for optional Google Tasks and Google Calendar sync.",
+    "Adds Settings > Backup & restore for Pathmark Sync.",
+    "Creates separate timestamped Pathmark Backup Google Sheets.",
+    "Adds restore from backup with a safety backup first.",
+    "Adds restore Pathmark Sync to default with optional starter examples."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_59.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_60.zip",
   "mac_package": "",
-  "release": "v0.6.59 Google Calendar sync foundation",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_59.zip",
-  "release_name": "Google Calendar sync foundation",
-  "release_notes": "Adds direct Google Calendar sync while keeping Pathmark as the planning source of truth.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_59.zip",
-  "label": "Google Calendar sync foundation",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_59.zip"
+  "release": "v0.6.60 Pathmark Sync backup and restore foundation",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_60.zip",
+  "release_name": "Pathmark Sync backup and restore foundation",
+  "release_notes": "Adds privacy updates plus Pathmark Sync backup, restore, and restore-to-default tools.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_60.zip",
+  "label": "Pathmark Sync backup and restore foundation",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_60.zip"
 }

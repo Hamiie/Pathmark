@@ -19,3 +19,7 @@ Pathmark is a Streamlit-based planning and export system that supports wellbeing
 ## Repository layout
 
 See `REPOSITORY_STRUCTURE.txt`.
+
+
+## v0.6.60
+Pathmark Sync backup and restore foundation.
