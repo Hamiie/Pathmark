@@ -74,15 +74,23 @@ GOOGLE_COLOUR_BY_CODE_OR_NAME.update({name.lower(): name for code, name, _hex in
 
 ONLINE_THEME_OPTIONS = [
     "Seasonal",
-    "Primary Navy",
-    "Primary Cyan",
-    "Secondary Steel",
-    "Tertiary Mist",
-    "Tertiary Pearl",
-    "Graphite",
-    "Clay",
-    "Olive",
+    "Cyan",
+    "Sky",
+    "Blue",
+    "Indigo",
+    "Violet",
     "Plum",
+    "Rose",
+    "Terracotta",
+    "Clay",
+    "Amber",
+    "Olive",
+    "Sage",
+    "Teal",
+    "Steel",
+    "Graphite",
+    "Pearl",
+    "Custom",
 ]
 ONLINE_APPEARANCE_OPTIONS = ["System", "Light", "Dark"]
 SEASONAL_ACCENTS = {
@@ -95,29 +103,40 @@ SEASONAL_ACCENTS = {
 }
 ONLINE_THEMES = {
     # Pathmark themes are accent themes only. Streamlit owns Light, Dark and System.
-    # Primary / secondary / tertiary options are based on the Pathmark/PSNZ palette family.
+    # Seasonal is the default Pathmark accent and updates automatically by Southern Hemisphere season.
     "Seasonal": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": "", "auto": True},
-    "Primary Navy": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": ""},
-    "Primary Cyan": {"accent": "#1B8EA8", "accent_2": "#334E9E", "seasonal_icon": ""},
-    "Secondary Steel": {"accent": "#4F7F95", "accent_2": "#334E9E", "seasonal_icon": ""},
-    "Tertiary Mist": {"accent": "#4CAABD", "accent_2": "#1B8EA8", "seasonal_icon": ""},
-    "Tertiary Pearl": {"accent": "#7FA9B8", "accent_2": "#4F7F95", "seasonal_icon": ""},
-    "Graphite": {"accent": "#475569", "accent_2": "#7FA9B8", "seasonal_icon": ""},
-    "Clay": {"accent": "#A33A16", "accent_2": "#C2410C", "seasonal_icon": ""},
-    "Olive": {"accent": "#4D7C0F", "accent_2": "#0B8043", "seasonal_icon": ""},
+    "Cyan": {"accent": "#1B8EA8", "accent_2": "#334E9E", "seasonal_icon": ""},
+    "Sky": {"accent": "#0284C7", "accent_2": "#38BDF8", "seasonal_icon": ""},
+    "Blue": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Indigo": {"accent": "#4F46E5", "accent_2": "#334E9E", "seasonal_icon": ""},
+    "Violet": {"accent": "#7C3AED", "accent_2": "#8B5CF6", "seasonal_icon": ""},
     "Plum": {"accent": "#8B4E9F", "accent_2": "#B05A7A", "seasonal_icon": ""},
+    "Rose": {"accent": "#BE4B6A", "accent_2": "#B05A7A", "seasonal_icon": ""},
+    "Terracotta": {"accent": "#A33A16", "accent_2": "#C2410C", "seasonal_icon": ""},
+    "Clay": {"accent": "#8A5A44", "accent_2": "#A33A16", "seasonal_icon": ""},
+    "Amber": {"accent": "#B66A00", "accent_2": "#D97706", "seasonal_icon": ""},
+    "Olive": {"accent": "#4D7C0F", "accent_2": "#0B8043", "seasonal_icon": ""},
+    "Sage": {"accent": "#5D7F61", "accent_2": "#2F7D50", "seasonal_icon": ""},
+    "Teal": {"accent": "#0F766E", "accent_2": "#1B8EA8", "seasonal_icon": ""},
+    "Steel": {"accent": "#4F7F95", "accent_2": "#334E9E", "seasonal_icon": ""},
+    "Graphite": {"accent": "#475569", "accent_2": "#7FA9B8", "seasonal_icon": ""},
+    "Pearl": {"accent": "#7FA9B8", "accent_2": "#4F7F95", "seasonal_icon": ""},
+    "Custom": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": "", "custom": True},
     # Compatibility aliases for old saved preferences.
     "Default": {"alias_for": "Seasonal"},
-    "Teal": {"alias_for": "Primary Cyan"},
-    "Navy": {"alias_for": "Primary Navy"},
-    "Mist": {"alias_for": "Tertiary Mist"},
+    "Pathmark": {"alias_for": "Seasonal"},
+    "Primary Navy": {"alias_for": "Blue"},
+    "Primary Cyan": {"alias_for": "Cyan"},
+    "Secondary Steel": {"alias_for": "Steel"},
+    "Tertiary Mist": {"alias_for": "Cyan"},
+    "Tertiary Pearl": {"alias_for": "Pearl"},
+    "Navy": {"alias_for": "Blue"},
+    "Mist": {"alias_for": "Cyan"},
     "Summer": {"alias_for": "Seasonal"},
     "Autumn": {"alias_for": "Seasonal"},
     "Winter": {"alias_for": "Seasonal"},
     "Spring": {"alias_for": "Seasonal"},
-    "Sage": {"alias_for": "Olive"},
-    "Blue": {"alias_for": "Primary Navy"},
-    "Warm": {"alias_for": "Clay"},
+    "Warm": {"alias_for": "Terracotta"},
     "Dark": {"alias_for": "Graphite"},
     "Summer dark": {"alias_for": "Seasonal"},
     "Autumn dark": {"alias_for": "Seasonal"},
@@ -376,56 +395,33 @@ def streamlit_appearance_mode() -> str:
 def pathmark_theme_tokens_css(mode: str = "") -> str:
     """Return CSS variables for Pathmark custom styling.
 
-    v0.6.44 stops trying to infer Streamlit's appearance setting with
-    fragile JavaScript. Instead, the default token set reads Streamlit's own
-    CSS variables directly. When the user changes Streamlit's built-in
-    System/Light/Dark menu, Streamlit updates those variables and Pathmark's
-    cards, text, inputs and page background follow automatically. Explicit
-    light/dark blocks remain as fallbacks for browsers that preserve the older
-    Pathmark data attributes.
+    Pathmark does not try to own Streamlit's Light/Dark/System appearance.
+    Custom card surfaces and their text are derived as a pair from Streamlit's
+    current background/text variables so contrast follows the actual surface
+    rather than assuming either black or white. This prevents both charcoal-on-
+    black and white-on-white failures when the built-in Streamlit menu changes
+    appearance without a full app rerun.
     """
-    mode = (mode or "streamlit").lower()
-    if mode == "dark":
-        return """
-          --bg: #05080C;
-          --ink: #F8FAFC;
-          --muted: #CBD5E1;
-          --surface: #111827;
-          --surface-2: #0B1220;
-          --line: #334155;
-          --shadow: rgba(0,0,0,.45);
-          --accent-soft: color-mix(in srgb, var(--accent) 24%, var(--surface));
-        """
-    if mode == "light":
-        return """
-          --bg: #F7F6F2;
-          --ink: #1F2221;
-          --muted: #5B6268;
-          --surface: #FFFFFF;
-          --surface-2: #F2F1EC;
-          --line: #D8D4CB;
-          --shadow: rgba(0,0,0,.13);
-          --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
-        """
     return """
           --bg: var(--background-color, #F7F6F2);
           --ink: var(--text-color, #1F2221);
-          --muted: color-mix(in srgb, var(--text-color, #1F2221) 84%, var(--background-color, #F7F6F2));
-          --surface: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 78%, var(--text-color, #1F2221) 5%);
-          --surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 70%, var(--text-color, #1F2221) 8%);
-          --line: color-mix(in srgb, var(--text-color, #1F2221) 38%, var(--background-color, #F7F6F2));
+          --surface: color-mix(in srgb, var(--background-color, #F7F6F2) 94%, var(--text-color, #1F2221) 6%);
+          --surface-2: color-mix(in srgb, var(--background-color, #F7F6F2) 88%, var(--text-color, #1F2221) 12%);
+          --line: color-mix(in srgb, var(--text-color, #1F2221) 34%, var(--background-color, #F7F6F2));
+          --muted: color-mix(in srgb, var(--text-color, #1F2221) 76%, var(--background-color, #F7F6F2) 24%);
           --shadow: color-mix(in srgb, #000000 18%, transparent);
-          --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--surface));
+          --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
         """
+
 
 
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.52 theme model
+Pathmark v0.6.54 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
-inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
+inputs, popovers and the Settings menu. Pathmark only adds a restrained accent
 and styles Pathmark-owned custom cards/badges. Avoid global body/app/text/input
 colour overrides so Streamlit's Light/Dark/System menu behaves natively.
 */
@@ -461,7 +457,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   box-shadow: 0 10px 24px color-mix(in srgb, #000000 10%, transparent);
 }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
-.card h3 {{ margin-top: 0; margin-bottom: .55rem; }}
+.card h3 {{ margin-top: 0; margin-bottom: .55rem; color: var(--ink); }}
 .card p {{ margin-bottom: 0; color: var(--muted); }}
 .card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{ border-top: 1px solid var(--line); }}
 .meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
@@ -586,6 +582,15 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .metric-tile, .attention-card, .money-summary-card, .helper-row-card, .repeat-summary {{
   background: var(--surface) !important;
   border-color: var(--line) !important;
+  color: var(--ink) !important;
+}}
+.card h3, .meta-card h3, .download-panel h3, .account-card h3, .connection-card h3, .setup-shell h3, .guide-box h3,
+.step-card h3, .process-card h3, .pathmark-card h3, .workspace-card h3, .issue-card h3, .pillar-card h3,
+.metric-tile h3, .attention-card h3, .money-summary-card h3, .helper-row-card h3, .repeat-summary h3,
+.card h4, .meta-card h4, .download-panel h4, .account-card h4, .connection-card h4, .setup-shell h4, .guide-box h4,
+.step-card h4, .process-card h4, .pathmark-card h4, .workspace-card h4, .issue-card h4, .pillar-card h4,
+.metric-tile h4, .attention-card h4, .money-summary-card h4, .helper-row-card h4, .repeat-summary h4 {{
+  color: var(--ink) !important;
 }}
 .helper-row-card, .repeat-summary, .metric-tile {{ background: var(--surface-2) !important; }}
 .pillar-card, .card, .pathmark-card, .workspace-card, .download-panel {{
@@ -593,32 +598,10 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 }}
 .pillar-card::before, .card::before, .pathmark-card::before, .workspace-card::before {{ content: none !important; }}
 
-/* Streamlit may resolve Dark through Settings rather than the browser's
-   prefers-color-scheme. These selectors intentionally adjust only Pathmark's
-   custom tokens/components, not Streamlit's global page or widget theme. */
-html[data-theme="dark"], body[data-theme="dark"], [data-theme="dark"],
-.stApp[data-theme="dark"], [data-baseweb-theme="dark"], [class*="dark"] .stApp {{
-  --bg: #0E1117;
-  --ink: #F8FAFC;
-  --muted: #D1D5DB;
-  --surface: #171C24;
-  --surface-2: #1F2630;
-  --line: #3A4656;
-  --shadow: rgba(0,0,0,.48);
-  --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
-}}
-@media (prefers-color-scheme: dark) {{
-  :root {{
-    --bg: #0E1117;
-    --ink: #F8FAFC;
-    --muted: #D1D5DB;
-    --surface: #171C24;
-    --surface-2: #1F2630;
-    --line: #3A4656;
-    --shadow: rgba(0,0,0,.48);
-    --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
-  }}
-}}
+/* Appearance contrast is paired through Streamlit CSS variables above.
+   Avoid separate dark-mode text rules; they can place light text on a light
+   card if the menu changes before a full rerun. */
+
 
 </style>
 """
@@ -1138,7 +1121,7 @@ def update_supabase_user_theme(email: str, theme_name: str, actor_email: str = "
     if not ok:
         return False, "Could not save the theme to your Pathmark profile. The app will still use the theme in this session."
     write_audit_log(actor_email or email, "update_theme", email, {"theme": theme_name})
-    return True, "Seasonal theme saved to your Pathmark profile."
+    return True, "Theme saved to your Pathmark profile."
 
 
 def theme_for_user(email: str) -> str:
@@ -2415,7 +2398,12 @@ def resolved_accent_theme(theme_name: str | None = None) -> tuple[str, dict[str,
     if theme_name == "Seasonal":
         season = current_southern_hemisphere_season()
         return f"Seasonal — {season}", SEASONAL_ACCENTS.get(season, SEASONAL_ACCENTS["Winter"])
-    return theme_name, ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Navy"])
+    if theme_name == "Custom":
+        custom = str(st.session_state.get("hosted_custom_accent", "#334E9E") or "#334E9E")
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", custom):
+            custom = "#334E9E"
+        return "Custom", {"accent": custom, "accent_2": custom, "seasonal_icon": "", "custom": True}
+    return theme_name, ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Blue"])
 
 
 def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
@@ -2478,6 +2466,8 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
 
 def apply_online_theme(sheet_id: str) -> None:
     theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Seasonal")) if sheet_id else st.session_state.get("hosted_theme_preference", "Seasonal")
+    if sheet_id:
+        st.session_state["hosted_custom_accent"] = online_setting(sheet_id, "custom_accent", st.session_state.get("hosted_custom_accent", "#334E9E"))
     inject_theme_css(normalise_online_theme(theme_name))
 
 
@@ -4898,53 +4888,36 @@ def render_spending_plan_manager(sheet_id: str) -> None:
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
 
-    section_options = ["Assessment", "Income", "Spending", "APs", "Records"]
-    current_section = st.session_state.get("spending_plan_section", "Assessment")
-    if current_section not in section_options:
-        current_section = "Assessment"
-
     st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
-    if hasattr(st, "segmented_control"):
-        selected_section = st.segmented_control(
-            "Spending Plan section",
-            section_options,
-            selection_mode="single",
-            default=current_section,
-            label_visibility="collapsed",
-            key="spending_plan_section_segmented",
-        ) or current_section
-        st.session_state["spending_plan_section"] = selected_section
-    else:
-        selected_section = st.radio(
-            "Spending Plan section",
-            section_options,
-            index=section_options.index(current_section),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="spending_plan_section_radio",
-        )
-        st.session_state["spending_plan_section"] = selected_section
+    section_options = ["Assessment", "Income", "Spending", "APs", "Records"]
 
-    if selected_section != "Assessment":
+    def _render_spending_summary_strip() -> None:
         summary = spending_summary(sheet_id)
+        surplus = float(summary.get("surplus_weekly", 0.0) or 0.0)
+        safe_spend = 0.0 if surplus < -0.005 else float(summary.get("everyday_weekly", 0.0) or 0.0)
         st.markdown(f"""
         <div class="metric-strip">
           <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
           <div class="metric-tile"><div class="metric-label">Outflows / week</div><div class="metric-value">{html.escape(money_text(summary['expense_weekly']))}</div></div>
-          <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(summary['everyday_weekly']))}</div></div>
-          <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(summary['surplus_weekly']))}</div></div>
+          <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(safe_spend))}</div></div>
+          <div class="metric-tile {'warning' if surplus < -0.005 else ''}"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(surplus))}</div></div>
         </div>
         """, unsafe_allow_html=True)
 
-    if selected_section == "Assessment":
+    tabs = st.tabs(section_options)
+    with tabs[0]:
         render_spending_assessment(sheet_id)
-    elif selected_section == "Income":
+    with tabs[1]:
+        _render_spending_summary_strip()
         render_spending_income_form(sheet_id)
-    elif selected_section == "Spending":
+    with tabs[2]:
+        _render_spending_summary_strip()
         render_spending_expense_form(sheet_id)
-    elif selected_section == "APs":
+    with tabs[3]:
+        _render_spending_summary_strip()
         render_spending_account_form(sheet_id)
-    else:
+    with tabs[4]:
+        _render_spending_summary_strip()
         render_spending_records(sheet_id)
 
 def render_tasklist_manager(sheet_id: str) -> None:
@@ -6677,17 +6650,24 @@ def render_online_overview(sheet_id: str) -> None:
 
     routine_count = len(routine_actions) if not routine_actions.empty else 0
     project_count = len(project_actions) if not project_actions.empty else 0
-    surplus = money.get("surplus_weekly", 0.0)
+    surplus = float(money.get("surplus_weekly", 0.0) or 0.0)
     money_overcommitted = surplus < -0.005
-    safe_spend = money_text(0.0 if money_overcommitted else money.get("everyday_weekly", 0.0))
-    money_flow_title = "Weekly shortfall" if money_overcommitted else "Money flow"
-    money_flow_foot = "shortfall to resolve" if money_overcommitted else "safe weekly spend"
-    money_flow_value = money_text(abs(surplus)) if money_overcommitted else safe_spend
-    money_flow_body = (
-        "Planned outflows are higher than income. Treat safe-to-spend as $0.00 until adjusted."
-        if money_overcommitted
-        else "Direct income into spending, bills, irregular costs, debt and savings."
-    )
+    money_balanced = abs(surplus) <= 0.005
+    if money_overcommitted:
+        money_flow_title = "Shortfall"
+        money_flow_value = money_text(abs(surplus))
+        money_flow_foot = "planned outflows exceed income"
+        money_flow_body = "Planned outflows are higher than income. Treat safe-to-spend as $0.00 until adjusted."
+    elif money_balanced:
+        money_flow_title = "Money flow balanced"
+        money_flow_value = money_text(0.0)
+        money_flow_foot = "nothing left to allocate this week"
+        money_flow_body = "Income is fully allocated across spending, bills, irregular costs, debt and savings."
+    else:
+        money_flow_title = "Money available to allocate"
+        money_flow_value = money_text(surplus)
+        money_flow_foot = "to emergency, savings, debt, or planned costs"
+        money_flow_body = "Move unallocated money into emergency, savings, debt, or planned irregular costs."
     money_flow_class = "pillar-card warning" if money_overcommitted else "pillar-card"
 
     st.markdown(f"""
@@ -6831,7 +6811,7 @@ def download_tab() -> None:
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>Sign in to manage routines, goals, spending plans, tasklists, and exports from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
+      <div class="card"><h3>Pathmark Online</h3><p>Sign in to manage routines, projects, spending plans, tasklists, and exports from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
       <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown records, backups, and desktop publishing/export workflows.</p></div>
     </div>
     """, unsafe_allow_html=True)
@@ -6884,51 +6864,88 @@ def download_tab() -> None:
 
 def theme_tab() -> None:
     st.header("Theme")
-    st.write("Choose a Pathmark accent theme. Streamlit still controls Light, Dark and System from its built-in menu.")
-    st.markdown(
-        """<p class="small-muted">Seasonal is one automatic option that follows the current Southern Hemisphere season. The other options are stable, simple accent themes. Accents are deliberately restrained: they affect tabs, buttons, badges and small highlights, not the whole page.</p>""",
-        unsafe_allow_html=True,
-    )
+    st.caption("Use Streamlit’s top-right menu for Light, Dark or System. Pathmark only changes the accent colour.")
+
     user = current_user()
     sheet_id = st.session_state.get("sync_sheet_id", "")
     if user.get("email"):
         current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or theme_for_user(user.get("email", "")))
     else:
         current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal")
-    theme_name = st.selectbox("Pathmark theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
-    # Apply the selected accent immediately for preview on this rerun, even before saving.
+
+    if sheet_id:
+        st.session_state["hosted_custom_accent"] = online_setting(sheet_id, "custom_accent", st.session_state.get("hosted_custom_accent", "#334E9E"))
+    custom_accent = str(st.session_state.get("hosted_custom_accent", "#334E9E") or "#334E9E")
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", custom_accent):
+        custom_accent = "#334E9E"
+
+    c1, c2 = st.columns([1.1, .9])
+    with c1:
+        theme_name = st.selectbox("Accent theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
+    with c2:
+        picked_custom = st.color_picker("Custom accent", custom_accent, key="top_level_custom_accent")
+
+    if theme_name == "Custom":
+        st.session_state["hosted_custom_accent"] = picked_custom
     inject_theme_css(theme_name)
+
     current_display, _theme_tokens = resolved_accent_theme(theme_name)
     current_season = current_southern_hemisphere_season()
-    st.markdown(f"""
-    <div class="grid-2">
-      <div class="card"><h3>Seasonal</h3><p>Seasonal is a single automatic option. It currently resolves to <strong>{html.escape(current_season)}</strong> for Southern Hemisphere timing, and will change as the year changes.</p></div>
-      <div class="card"><h3>Stable colour themes</h3><p>Primary Navy, Primary Cyan, Secondary Steel, Tertiary Mist, Tertiary Pearl, Graphite, Clay, Olive and Plum stay the same all year.</p></div>
-      <div class="card"><h3>Light, Dark and System</h3><p>Use Streamlit's built-in menu for the base appearance. Pathmark does not override the page background, global text, widgets or menus.</p></div>
-      <div class="card"><h3>Dark-mode guardrails</h3><p>Pathmark keeps body text, muted text, cards and borders above minimum contrast in dark mode. Very dark accents are lifted before they are used on black or near-black surfaces.</p></div>
+    st.markdown(f'''
+    <div class="seasonal-preview-card">Accent preview: <span class="seasonal-theme-name"></span></div>
+    <div class="grid-3">
+      <div class="card"><h3>Selected accent</h3><p><strong>{html.escape(current_display)}</strong></p></div>
+      <div class="card"><h3>Seasonal default</h3><p>Seasonal currently resolves to <strong>{html.escape(current_season)}</strong> and updates automatically.</p></div>
+      <div class="card"><h3>Contrast</h3><p>Card text and card surfaces are paired from the active background so the accent does not create white-on-white or charcoal-on-black text.</p></div>
     </div>
-    <div class="seasonal-preview-card">Current Pathmark accent: <span class="seasonal-theme-name"></span></div>
-    """, unsafe_allow_html=True)
-    if st.button("Save Pathmark theme", use_container_width=True):
+    ''', unsafe_allow_html=True)
+
+    b1, b2 = st.columns([1, 1])
+    with b1:
+        save_clicked = st.button("Save theme", use_container_width=True)
+    with b2:
+        reset_clicked = st.button("Reset to Seasonal", use_container_width=True)
+
+    if reset_clicked:
+        theme_name = "Seasonal"
+        st.session_state["hosted_theme_preference"] = "Seasonal"
+        messages = []
+        ok_any = True
+        if sheet_id:
+            ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", "Seasonal")
+            ok_any = ok_any and ok_sheet
+            messages.append(message_sheet)
+        if user.get("email"):
+            ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), "Seasonal", actor_email=user.get("email", ""))
+            ok_any = ok_any and ok_profile
+            messages.append(message_profile)
+        st.success("Theme reset to Seasonal." if ok_any else safe_user_message("Theme reset for this session, but could not be fully persisted."))
+        st.rerun()
+
+    if save_clicked:
         theme_name = normalise_online_theme(theme_name)
         st.session_state["hosted_theme_preference"] = theme_name
+        if theme_name == "Custom":
+            st.session_state["hosted_custom_accent"] = picked_custom
         messages = []
         ok_any = True
         if sheet_id:
             ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
             ok_any = ok_any and ok_sheet
             messages.append(message_sheet)
+            if theme_name == "Custom":
+                ok_custom, message_custom = save_online_setting(sheet_id, "custom_accent", picked_custom)
+                ok_any = ok_any and ok_custom
+                messages.append(message_custom)
         if user.get("email"):
             ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
             ok_any = ok_any and ok_profile
             messages.append(message_profile)
         if ok_any:
-            st.success("Pathmark theme saved.")
+            st.success("Theme saved.")
             st.rerun()
         else:
             st.warning(safe_user_message(" ".join([m for m in messages if m]) or "The theme was saved for this session, but could not be fully persisted."))
-    with st.expander("Why the Streamlit menu still appears", expanded=False):
-        st.write("Streamlit provides the built-in System, Light and Dark menu. Pathmark uses that for the base appearance and only changes accent details such as selected tabs, buttons, card strips, badges and highlights.")
 
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
