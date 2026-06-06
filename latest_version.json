@@ -1,19 +1,21 @@
 {
-  "version": "0.6.73",
+  "version": "0.6.74",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_73.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_73.zip",
-  "release": "v0.6.73 CSS brace and Streamlit HTML deprecation hotfix",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_73.zip",
-  "label": "CSS brace and Streamlit HTML deprecation hotfix",
-  "release_notes": "Fixes a CSS f-string brace error in the completion view styles and removes the deprecated st.components.v1.html metadata injection hook.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_74.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_74.zip",
+  "release": "v0.6.74 Area calendars and default Areas refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_74.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_74.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_74.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_74.zip",
+  "label": "Area calendars and default Areas refinement",
+  "release_notes": "Calendar Sync now creates or reuses Google calendars named after Pathmark Areas, with fresh sheets starting from four broad default Areas.",
   "notes": [
-    "Fixes NameError: name 'margin' is not defined from unescaped CSS braces",
-    "Removes st.components.v1.html usage to avoid the Streamlit deprecation warning",
-    "Preserves the v0.6.72 routine/project completion view functionality"
+    "Calendar Sync creates or reuses Google calendars named exactly after the relevant Area",
+    "Project steps and routine activities sync to their matching Area calendar",
+    "Area colour metadata is stored and used when applying Google calendar colours where possible",
+    "Fresh Pathmark Sync sheets now begin with Body And Stability, Expression And Culture, Home And Garden, and Making And Craft",
+    "Privacy and consent wording now reflects Area calendar management"
   ]
 }

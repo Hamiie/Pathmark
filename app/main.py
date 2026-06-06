@@ -43,7 +43,7 @@ SYNC_COLUMNS = [
 
 ONLINE_TABLES = {
     "settings": ["key", "value", "updated_at", "source"],
-    "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "google_calendar_id", "google_calendar_name", "google_calendar_colour_id", "google_calendar_synced_at", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status", "google_calendar_id", "google_calendar_event_id", "google_calendar_status", "google_calendar_updated_at", "google_calendar_synced_at", "google_calendar_recurrence", "calendar_sync_status", "archived_at", "archived_reason", "restored_at"],
@@ -1212,7 +1212,7 @@ def render_google_permissions_onboarding(compact: bool = False) -> None:
         <div class="pathmark-panel pathmark-consent-panel">
           <h3>Terms & Privacy summary</h3>
           <p>Pathmark uses Google so your planning records can stay in files owned by you.</p>
-          <p>By continuing, you understand that Pathmark may use Google access to create and update your Pathmark Sync sheet, backups, finance template, Google Tasks items, and Google Calendar events when you choose to use those features.</p>
+          <p>By continuing, you understand that Pathmark may use Google access to create and update your Pathmark Sync sheet, backups, finance template, Google Tasks items, and Google Calendar events in calendars named after your Areas when you choose to use those features.</p>
           <p>Pathmark does not sell your data, does not store your private planning or finance content in Supabase, and does not create Google Tasks or Calendar events unless you choose to sync them.</p>
         </div>
         """,
@@ -1222,7 +1222,7 @@ def render_google_permissions_onboarding(compact: bool = False) -> None:
     with st.expander("What Pathmark stores", expanded=False):
         st.write("Your planning and Spending Plan records are stored in Google Sheets owned by you. Supabase stores access/profile metadata only; it is not used as the store for your private planning or finance content.")
     with st.expander("Google access used by Pathmark", expanded=False):
-        st.write("Google Drive/Sheets access is used for Pathmark Sync, finance templates, and backups. Google Tasks access is used for Tasks Sync. Google Calendar access is used for Calendar Sync. Sync actions remain user-controlled.")
+        st.write("Google Drive/Sheets access is used for Pathmark Sync, finance templates, and backups. Google Tasks access is used for Tasks Sync. Google Calendar access is used for Calendar Sync, including creating or reusing calendars named after your Areas. Sync actions remain user-controlled.")
     with st.expander("Tasks and Calendar sync", expanded=False):
         st.write("Pathmark only creates or updates Google Tasks and Google Calendar events when you press the relevant sync actions. Pathmark remains the planning source of truth and flags changes for review rather than silently overwriting your plan.")
     with st.expander("How to revoke access", expanded=False):
@@ -1771,7 +1771,7 @@ def create_user_sync_sheet(include_default_areas: bool = True) -> tuple[bool, st
             if dservice is not None and sheet_id:
                 dservice.files().update(
                     fileId=sheet_id,
-                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.69"}},
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.74"}},
                     fields="id",
                 ).execute()
         except Exception:
@@ -3284,11 +3284,9 @@ def build_default_area_records() -> dict[str, list[dict[str, Any]]]:
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     default_areas = [
         ("Body And Stability", "Sleep, movement, strength, mobility, appointments and routines that support energy.", "Sage"),
-        ("Food And Home", "Meals, groceries, household reset, cleaning and the routines that make home life easier.", "Tangerine"),
-        ("Work And Admin", "Work tasks, errands, paperwork, planning, money admin and weekly review.", "Blueberry"),
-        ("Learning And Creativity", "Study, creative practice, making, reading and skills you want to develop.", "Grape"),
-        ("Relationships And Community", "People, family, friends, community, shared commitments and social rhythms.", "Flamingo"),
-        ("Money And Resources", "Spending Plan review, emergency funds, savings, debt, tools and practical resources.", "Peacock"),
+        ("Expression And Culture", "Creative practice, study, language, culture, reading and skills you want to develop.", "Grape"),
+        ("Home And Garden", "Meals, household reset, gardening, repairs and routines that support home life.", "Basil"),
+        ("Making And Craft", "Practical making, craft, tools, materials and hands-on projects.", "Tangerine"),
     ]
     areas = []
     for name, description, colour in default_areas:
@@ -3300,6 +3298,10 @@ def build_default_area_records() -> dict[str, list[dict[str, Any]]]:
             "status": "active",
             "default_calendar": name,
             "default_task_list": "Pathmark",
+            "google_calendar_id": "",
+            "google_calendar_name": name,
+            "google_calendar_colour_id": GOOGLE_COLOUR_BY_LABEL.get(colour, {}).get("code", ""),
+            "google_calendar_synced_at": "",
             "notes": "Default Area. Edit, rename, archive, or delete if it does not fit.",
             "created_at": now,
             "updated_at": now,
@@ -3329,14 +3331,14 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     """
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     area_body = f"area-{uuid.uuid4().hex}"
-    area_food = f"area-{uuid.uuid4().hex}"
-    area_admin = f"area-{uuid.uuid4().hex}"
-    area_learning = f"area-{uuid.uuid4().hex}"
+    area_home = f"area-{uuid.uuid4().hex}"
+    area_expression = f"area-{uuid.uuid4().hex}"
+    area_making = f"area-{uuid.uuid4().hex}"
     areas = [
-        {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_food, "area_name": "Food And Home", "description": "Meals, groceries, household reset, cleaning and the routines that make home life easier.", "colour": "ochre", "status": "active", "default_calendar": "Food And Home", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_admin, "area_name": "Work And Admin", "description": "Planning, errands, paperwork, money, work tasks and weekly review.", "colour": "blue", "status": "active", "default_calendar": "Work And Admin", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_learning, "area_name": "Learning And Creativity", "description": "Creative practice, study, music, sketching and personal projects.", "colour": "plum", "status": "active", "default_calendar": "Learning And Creativity", "default_task_list": "Pathmark", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "Sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Body And Stability", "google_calendar_colour_id": "2", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_expression, "area_name": "Expression And Culture", "description": "Creative practice, study, language, culture, reading and skills you want to develop.", "colour": "Grape", "status": "active", "default_calendar": "Expression And Culture", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Expression And Culture", "google_calendar_colour_id": "3", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_home, "area_name": "Home And Garden", "description": "Meals, household reset, gardening, repairs and routines that support home life.", "colour": "Basil", "status": "active", "default_calendar": "Home And Garden", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Home And Garden", "google_calendar_colour_id": "10", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_making, "area_name": "Making And Craft", "description": "Practical making, craft, tools, materials and hands-on projects.", "colour": "Tangerine", "status": "active", "default_calendar": "Making And Craft", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Making And Craft", "google_calendar_colour_id": "6", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
     ]
 
     def routine(title: str, area_id: str, area_name: str, purpose: str, frequency: str, preferred_days: str, next_due: str, checklist: str = "") -> dict[str, Any]:
@@ -3351,11 +3353,11 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     running_id = f"routine-{uuid.uuid4().hex}"
     routines = [
         {"routine_id": sleep_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Protect an 8-hour sleep block", "description": "Give tomorrow a better starting point by protecting enough time for sleep.", "frequency": "Daily", "preferred_days": "Every day", "duration_minutes": "480", "status": "Active", "purpose": "Protect sleep before adding more work to the system.", "next_due": date.today().isoformat(), "checklist": "Set wind-down time\nPut phone away\nPrepare tomorrow's first action", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": cook_weeknight_id, "area_id": area_food, "area_name": "Food And Home", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": friday_takeaways_id, "area_id": area_food, "area_name": "Food And Home", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": sunday_meal_id, "area_id": area_food, "area_name": "Food And Home", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": cook_weeknight_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": friday_takeaways_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": sunday_meal_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
         {"routine_id": strength_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Strength training", "description": "A four-session weekly strength routine split into A, B, C and D activities.", "frequency": "Weekly", "preferred_days": "Monday, Tuesday, Thursday, Friday", "duration_minutes": "45", "status": "Active", "purpose": "Keep strength work visible and repeatable.", "next_due": next_weekday_iso("Monday"), "checklist": "Warm up\nMain lift\nAccessory work\nLog session", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": violin_id, "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": violin_id, "area_id": area_expression, "area_name": "Expression And Culture", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
         {"routine_id": running_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Run 30 minutes", "description": "A weekday running habit that can be reduced or paused if recovery needs it.", "frequency": "Weekdays", "preferred_days": "Monday, Tuesday, Wednesday, Thursday, Friday", "duration_minutes": "30", "status": "Active", "purpose": "Make regular cardiovascular work easy to see in the calendar.", "next_due": next_weekday_iso("Monday"), "checklist": "Shoes ready\nEasy pace\nLog how it felt", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
     ]
 
@@ -3364,26 +3366,26 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
 
     actions = [
         activity(sleep_id, area_body, "Body And Stability", "Sleep block", "Every day", "22:30", "06:30", "480", "Start wind-down routine"),
-        activity(cook_weeknight_id, area_food, "Food And Home", "Cook weeknight dinner", "Monday, Wednesday", "18:00", "18:45", "45", "Open the meal plan and start the first prep step"),
-        activity(friday_takeaways_id, area_food, "Food And Home", "Takeaway dinner", "Friday", "18:30", "19:00", "30", "Choose takeaway option"),
-        activity(sunday_meal_id, area_food, "Food And Home", "Cook weekend meal", "Sunday", "17:00", "18:30", "90", "Open the recipe and check ingredients"),
+        activity(cook_weeknight_id, area_home, "Home And Garden", "Cook weeknight dinner", "Monday, Wednesday", "18:00", "18:45", "45", "Open the meal plan and start the first prep step"),
+        activity(friday_takeaways_id, area_home, "Home And Garden", "Takeaway dinner", "Friday", "18:30", "19:00", "30", "Choose takeaway option"),
+        activity(sunday_meal_id, area_home, "Home And Garden", "Cook weekend meal", "Sunday", "17:00", "18:30", "90", "Open the recipe and check ingredients"),
         activity(strength_id, area_body, "Body And Stability", "Strength training A", "Monday", "07:00", "07:45", "45", "Start warm-up for strength A"),
         activity(strength_id, area_body, "Body And Stability", "Strength training B", "Tuesday", "07:00", "07:45", "45", "Start warm-up for strength B"),
         activity(strength_id, area_body, "Body And Stability", "Strength training C", "Thursday", "07:00", "07:45", "45", "Start warm-up for strength C"),
         activity(strength_id, area_body, "Body And Stability", "Strength training D", "Friday", "07:00", "07:45", "45", "Start warm-up for strength D"),
-        activity(violin_id, area_learning, "Learning And Creativity", "Practice violin", "Wednesday", "19:00", "19:45", "45", "Tune violin and start with scales"),
+        activity(violin_id, area_expression, "Expression And Culture", "Practice violin", "Wednesday", "19:00", "19:45", "45", "Tune violin and start with scales"),
         activity(running_id, area_body, "Body And Stability", "Run 30 minutes", "Monday, Tuesday, Wednesday, Thursday, Friday", "17:30", "18:00", "30", "Put on running shoes and start easy"),
     ]
 
     sketch_goal = f"goal-{uuid.uuid4().hex}"
     run_goal = f"goal-{uuid.uuid4().hex}"
     goals = [
-        {"goal_id": sketch_goal, "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Learn to sketch", "description": "Build enough basic skill to sketch simple forms confidently.", "specific_area": "Sketching", "status": "Captured", "target_date": "", "purpose": "Create a small creative learning project with clear first actions.", "desired_outcome": "Complete a few beginner sketching exercises and keep the materials ready.", "closure_criteria": "A beginner guide has been started and at least three sketches have been completed.", "notes": "Starter goal. Edit, archive or replace if it does not fit."},
+        {"goal_id": sketch_goal, "area_id": area_expression, "area_name": "Expression And Culture", "title": "Learn to sketch", "description": "Build enough basic skill to sketch simple forms confidently.", "specific_area": "Sketching", "status": "Captured", "target_date": "", "purpose": "Create a small creative learning project with clear first actions.", "desired_outcome": "Complete a few beginner sketching exercises and keep the materials ready.", "closure_criteria": "A beginner guide has been started and at least three sketches have been completed.", "notes": "Starter goal. Edit, archive or replace if it does not fit."},
         {"goal_id": run_goal, "area_id": area_body, "area_name": "Body And Stability", "title": "Build running distance", "description": "Increase distance gradually while keeping the next step clear.", "specific_area": "Running", "status": "Captured", "target_date": "", "purpose": "Turn a broad running ambition into visible next actions.", "desired_outcome": "Run 6.5 km comfortably enough to plan the next distance step.", "closure_criteria": "6.5 km run completed and next distance goal chosen.", "notes": "Starter goal. Edit, archive or replace if it does not fit."},
     ]
     actions.extend([
-        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Purchase beginner sketching guide", "description": "Find and purchase a beginner-friendly sketching guide.", "status": "Next", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Search for one beginner sketching guide", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
-        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_learning, "area_name": "Learning And Creativity", "title": "Purchase sketching materials", "description": "Buy a simple sketchbook, pencils and eraser.", "status": "Planned", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Choose a sketchbook and pencil set", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_expression, "area_name": "Expression And Culture", "title": "Purchase beginner sketching guide", "description": "Find and purchase a beginner-friendly sketching guide.", "status": "Next", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Search for one beginner sketching guide", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
+        {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": sketch_goal, "routine_id": "", "area_id": area_expression, "area_name": "Expression And Culture", "title": "Purchase sketching materials", "description": "Buy a simple sketchbook, pencils and eraser.", "status": "Planned", "priority": "Medium", "specific_area": "Sketching", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "30", "calendar_block": "0", "reminder": "1", "include_tasklist": "1", "first_step": "Choose a sketchbook and pencil set", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:30", "calendar_location": "", "notes": "Starter action."},
         {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": run_goal, "routine_id": "", "area_id": area_body, "area_name": "Body And Stability", "title": "Run 6 km", "description": "Complete one steady 6 km run.", "status": "Next", "priority": "Medium", "specific_area": "Running", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "45", "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": "Choose the 6 km route", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:45", "calendar_location": "", "notes": "Starter action."},
         {"action_id": f"action-{uuid.uuid4().hex}", "goal_id": run_goal, "routine_id": "", "area_id": area_body, "area_name": "Body And Stability", "title": "Run 6.5 km", "description": "Complete one steady 6.5 km run after the 6 km action is done.", "status": "Planned", "priority": "Medium", "specific_area": "Running", "due_date": "", "scheduled_date": "", "activity_days": "", "estimated_minutes": "50", "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": "Choose the 6.5 km route", "task_reminder_time": "09:00", "calendar_start_time": "09:00", "calendar_end_time": "09:50", "calendar_location": "", "notes": "Starter action."},
     ])
@@ -3402,7 +3404,7 @@ def render_area_manager(sheet_id: str) -> None:
     st.subheader("Areas")
     st.markdown("""
     <div class='guide-box'><strong>Areas become your Google subcalendars.</strong><br>
-    Create broad Areas such as Body and Stability, Food and Home, Work and Admin, or Learning and Creativity. Pathmark uses each Area to group related routines and goals, and to keep calendar exports visually organised.</div>
+    Create broad Areas such as Body And Stability, Expression And Culture, Home And Garden, or Making And Craft. Pathmark uses each Area to group related routines and projects, and to place synced calendar time into the matching Google calendar.</div>
     """, unsafe_allow_html=True)
     df = active_online_df(read_online_table(sheet_id, "areas"))
     col_list, col_main = st.columns([0.34, 0.66])
@@ -3417,12 +3419,12 @@ def render_area_manager(sheet_id: str) -> None:
             selected_id = labels.get(selected_label, "")
         with st.expander("Add Area", expanded=df.empty):
             st.caption("Examples are prompts only. Save the Area when it matches your life.")
-            name = st.text_input("Area name", key="add_area_name", placeholder="For example, Body and Stability")
+            name = st.text_input("Area name", key="add_area_name", placeholder="For example, Body And Stability")
             description = st.text_area("Description", key="add_area_description", height=90, placeholder="Sleep, movement, strength, mobility and health routines.")
             colour_label = st.selectbox("Google Calendar colour", GOOGLE_COLOUR_LABELS, index=0, key="add_area_colour", help="Choose the colour Pathmark should use for this Area in Google Calendar exports.")
             render_google_colour_swatch(colour_label)
             colour = google_colour_code(colour_label)
-            default_calendar = st.text_input("Default Google Calendar", key="add_area_calendar", placeholder="Usually the Area name")
+            default_calendar = name.strip()
             default_task_list = st.text_input("Default Google Tasks list", key="add_area_task_list", placeholder="Usually Pathmark or the Area name")
             notes = st.text_area("Notes", key="add_area_notes", height=70)
             if st.button("Save Area", use_container_width=True, key="add_area_save"):
@@ -3434,8 +3436,12 @@ def render_area_manager(sheet_id: str) -> None:
                         "area_name": name.strip(),
                         "description": description.strip(),
                         "colour": colour,
-                        "default_calendar": default_calendar.strip() or name.strip(),
+                        "default_calendar": name.strip(),
                         "default_task_list": default_task_list.strip() or "Pathmark",
+                        "google_calendar_id": "",
+                        "google_calendar_name": name.strip(),
+                        "google_calendar_colour_id": GOOGLE_COLOUR_BY_LABEL.get(colour_label, {}).get("code", ""),
+                        "google_calendar_synced_at": "",
                         "notes": notes.strip(),
                     })
                     if ok:
@@ -3454,7 +3460,7 @@ def render_area_manager(sheet_id: str) -> None:
             colour_label = st.selectbox("Google Calendar colour", GOOGLE_COLOUR_LABELS, index=GOOGLE_COLOUR_LABELS.index(current_colour) if current_colour in GOOGLE_COLOUR_LABELS else 0, key=f"edit_area_colour_{selected_id}")
             render_google_colour_swatch(colour_label)
             colour = google_colour_code(colour_label)
-            default_calendar = st.text_input("Default Google Calendar", value=str(row.get("default_calendar", "")), key=f"edit_area_calendar_{selected_id}")
+            default_calendar = name.strip()
             default_task_list = st.text_input("Default Google Tasks list", value=str(row.get("default_task_list", "")), key=f"edit_area_task_list_{selected_id}")
             notes = st.text_area("Notes", value=str(row.get("notes", "")), height=90, key=f"edit_area_notes_{selected_id}")
             if st.button("Save changes", use_container_width=True, key=f"edit_area_save_{selected_id}"):
@@ -3463,7 +3469,7 @@ def render_area_manager(sheet_id: str) -> None:
                 else:
                     ok, message = update_online_record(sheet_id, "areas", selected_id, {
                         "area_name": name.strip(), "description": description.strip(), "colour": colour,
-                        "default_calendar": default_calendar.strip(), "default_task_list": default_task_list.strip(), "notes": notes.strip(), "status": row.get("status", "active") or "active"
+                        "default_calendar": name.strip(), "default_task_list": default_task_list.strip(), "google_calendar_name": name.strip(), "google_calendar_colour_id": GOOGLE_COLOUR_BY_LABEL.get(colour_label, {}).get("code", ""), "notes": notes.strip(), "status": row.get("status", "active") or "active"
                     })
                     if ok:
                         st.success(message)
@@ -5426,7 +5432,7 @@ def _ensure_finance_template_file() -> tuple[bool, str, str, str]:
             if dservice is not None and template_id:
                 dservice.files().update(
                     fileId=template_id,
-                    body={"appProperties": {"pathmark_finance_template": "true", "pathmark_version": "0.6.56"}},
+                    body={"appProperties": {"pathmark_finance_template": "true", "pathmark_version": "0.6.74"}},
                     fields="id,webViewLink",
                 ).execute()
         except Exception:
@@ -5870,6 +5876,71 @@ def get_or_create_pathmark_calendar(title: str = "Pathmark") -> tuple[bool, str,
         return False, "", f"Could not find or create the Google Calendar: {exc}"
 
 
+def _google_calendar_colour_code_from_area(area: dict[str, str]) -> str:
+    raw = str(area.get("colour", "") or area.get("google_calendar_colour_id", "") or "").strip()
+    if not raw:
+        return ""
+    if raw.lower() in GOOGLE_COLOUR_BY_CODE_OR_NAME:
+        label = GOOGLE_COLOUR_BY_CODE_OR_NAME.get(raw.lower(), "")
+        return GOOGLE_COLOUR_BY_LABEL.get(label, {}).get("code", "")
+    if raw in {code for code, _name, _hex in GOOGLE_CALENDAR_COLOURS}:
+        return raw
+    return str(area.get("google_calendar_colour_id", "") or "").strip()
+
+
+def _maybe_apply_calendar_colour(service: Any, calendar_id: str, colour_code: str) -> None:
+    if not colour_code:
+        return
+    try:
+        service.calendarList().patch(calendarId=calendar_id, body={"colorId": str(colour_code)}).execute()
+    except Exception:
+        # Calendar colour support differs slightly between Google calendar/event palettes.
+        # A failed colour update should not prevent event sync.
+        pass
+
+
+def get_or_create_area_calendar(sheet_id: str, area_name: str) -> tuple[bool, str, str]:
+    """Create or reuse a Google Calendar named exactly after the Pathmark Area."""
+    service = calendar_service()
+    if service is None:
+        return False, "", "Google Calendar access is not available for this session. Reconnect Google to enable Calendar sync."
+    wanted = str(area_name or "").strip() or "Pathmark"
+    area = area_defaults(sheet_id, wanted) if sheet_id else {}
+    stored_id = str(area.get("google_calendar_id", "") or "").strip()
+    colour_code = _google_calendar_colour_code_from_area(area)
+    area_id = str(area.get("area_id", "") or "").strip()
+    try:
+        if stored_id:
+            try:
+                existing = service.calendarList().get(calendarId=stored_id).execute()
+                _maybe_apply_calendar_colour(service, stored_id, colour_code)
+                return True, stored_id, f"Using Area calendar: {existing.get('summary', wanted)}."
+            except Exception:
+                # Stored ID may be stale if the Google calendar was deleted. Fall through and re-find/create.
+                pass
+        token = None
+        while True:
+            result = service.calendarList().list(maxResults=250, pageToken=token).execute()
+            for item in result.get("items", []) or []:
+                if str(item.get("summary", "")).strip().lower() == wanted.lower():
+                    calendar_id = str(item.get("id", "") or "")
+                    _maybe_apply_calendar_colour(service, calendar_id, colour_code)
+                    if area_id:
+                        update_online_record(sheet_id, "areas", area_id, {"google_calendar_id": calendar_id, "google_calendar_name": wanted, "google_calendar_colour_id": colour_code, "google_calendar_synced_at": utc_now_text(), "default_calendar": wanted})
+                    return True, calendar_id, f"Using Area calendar: {wanted}."
+            token = result.get("nextPageToken")
+            if not token:
+                break
+        created = service.calendars().insert(body={"summary": wanted, "description": f"Pathmark calendar time for the {wanted} Area."}).execute()
+        calendar_id = str(created.get("id", "") or "")
+        _maybe_apply_calendar_colour(service, calendar_id, colour_code)
+        if area_id:
+            update_online_record(sheet_id, "areas", area_id, {"google_calendar_id": calendar_id, "google_calendar_name": wanted, "google_calendar_colour_id": colour_code, "google_calendar_synced_at": utc_now_text(), "default_calendar": wanted})
+        return True, calendar_id, f"Created Area calendar: {wanted}."
+    except Exception as exc:
+        return False, "", f"Could not find or create the Area calendar {wanted}: {exc}"
+
+
 def _calendar_update_for_block(event: dict[str, Any], calendar_id: str, recurrence: str, sync_status: str) -> dict[str, str]:
     return {
         "google_calendar_id": calendar_id,
@@ -6012,9 +6083,6 @@ def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tup
     if valid_blocks.empty:
         st.session_state["calendar_sync_results"] = pd.DataFrame(results)
         return False, "No calendar items passed validation. Open the sync details table to see what needs fixing."
-    ok, calendar_id, cal_msg = get_or_create_pathmark_calendar("Pathmark")
-    if not ok or not calendar_id:
-        return False, cal_msg
     action_lookup = _action_calendar_lookup(sheet_id)
     created = updated = failed = skipped = 0
     for _, block in valid_blocks.iterrows():
@@ -6025,8 +6093,6 @@ def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tup
         start_text = str(block.get("start", "") or "")
         end_text = str(block.get("end", "") or "")
         action = action_lookup.get(linked_id, {})
-        existing_id = str(action.get("google_calendar_event_id", "") or "").strip()
-        body = _google_calendar_event_body(block)
         base_result = {
             "Item": title,
             "Type": block_type,
@@ -6035,8 +6101,18 @@ def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tup
             "Repeat": recurrence or "Does not repeat",
             "Suggested fix": "",
         }
+        ok_cal, calendar_id, cal_msg = get_or_create_area_calendar(sheet_id, str(block.get("area_name", "") or ""))
+        if not ok_cal or not calendar_id:
+            failed += 1
+            result = dict(base_result)
+            result.update({"Status": "Could not sync", "Reason": cal_msg, "Suggested fix": "Check the Area name and Google Calendar permission, then try again.", "Sync stage": "Area calendar"})
+            results.append(result)
+            continue
+        existing_id = str(action.get("google_calendar_event_id", "") or "").strip()
+        existing_calendar_id = str(action.get("google_calendar_id", "") or "").strip()
+        body = _google_calendar_event_body(block)
         try:
-            if existing_id:
+            if existing_id and (not existing_calendar_id or existing_calendar_id == calendar_id):
                 event = service.events().patch(calendarId=calendar_id, eventId=existing_id, body=body).execute()
                 updated += 1
                 status = "Updated"
@@ -6071,7 +6147,7 @@ def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tup
             results.append(result)
     clear_online_cache(sheet_id)
     st.session_state["calendar_sync_results"] = pd.DataFrame(results)
-    msg = f"{cal_msg} Created {created} new calendar item(s) and updated {updated} existing item(s)."
+    msg = f"Created {created} new calendar item(s) and updated {updated} existing item(s) across Area calendars."
     skipped = len([r for r in results if r.get("Sync stage") == "Validation"])
     if skipped:
         msg += f" {skipped} item(s) were skipped because they need review."
@@ -6093,7 +6169,7 @@ def _calendar_event_key_from_values(title: Any, start: Any, end: Any) -> tuple[s
 
 
 def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFrame | None = None) -> tuple[int, str]:
-    """Repair Pathmark calendar rows when Google events exist but IDs were not stored."""
+    """Repair Pathmark calendar rows when Area calendar events exist but IDs were not stored."""
     service = calendar_service()
     if service is None:
         return 0, "Google Calendar access is not available for repair."
@@ -6101,36 +6177,16 @@ def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFra
         blocks = staged_calendar_blocks(sheet_id)
     if blocks.empty:
         return 0, "No Pathmark calendar items are available for repair."
-    ok, calendar_id, cal_msg = get_or_create_pathmark_calendar("Pathmark")
-    if not ok or not calendar_id:
-        return 0, cal_msg
     actions = read_online_table(sheet_id, "actions")
     existing_linked = set(actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not actions.empty else set()
     diagnostics: list[dict[str, str]] = []
     try:
-        # Search a broad window around Pathmark staged items. Recurring series masters
-        # are returned with singleEvents=False; one-off events are also included.
+        repaired = 0
+        considered = 0
+        events_checked = 0
         now = datetime.now(timezone.utc)
         time_min = (now - timedelta(days=365)).isoformat(timespec="seconds")
         time_max = (now + timedelta(days=730)).isoformat(timespec="seconds")
-        events: list[dict[str, Any]] = []
-        token = None
-        while True:
-            result = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max, singleEvents=False, showDeleted=False, maxResults=250, pageToken=token).execute()
-            events.extend(result.get("items", []) or [])
-            token = result.get("nextPageToken")
-            if not token:
-                break
-        by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
-        by_title: dict[str, list[dict[str, Any]]] = {}
-        for ev in events:
-            start_s = _event_time_string(ev.get("start", {}) or {})
-            end_s = _event_time_string(ev.get("end", {}) or {})
-            key = _calendar_event_key_from_values(ev.get("summary", ""), start_s, end_s)
-            by_key.setdefault(key, []).append(ev)
-            by_title.setdefault(key[0], []).append(ev)
-        repaired = 0
-        considered = 0
         for _, block in blocks.iterrows():
             linked_id = str(block.get("linked_record_id", "") or "").strip()
             if not linked_id:
@@ -6142,6 +6198,27 @@ def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFra
             if current_event_id:
                 continue
             considered += 1
+            ok_cal, calendar_id, cal_msg = get_or_create_area_calendar(sheet_id, str(block.get("area_name", "") or ""))
+            if not ok_cal or not calendar_id:
+                diagnostics.append({"Pathmark item": str(block.get("title", "") or ""), "Pathmark start": str(block.get("start", "") or ""), "Google candidate": "", "Google start": "", "Result": "Not matched", "Reason": cal_msg})
+                continue
+            token = None
+            events: list[dict[str, Any]] = []
+            while True:
+                result = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max, singleEvents=False, showDeleted=False, maxResults=250, pageToken=token).execute()
+                events.extend(result.get("items", []) or [])
+                token = result.get("nextPageToken")
+                if not token:
+                    break
+            events_checked += len(events)
+            by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+            by_title: dict[str, list[dict[str, Any]]] = {}
+            for ev in events:
+                start_s = _event_time_string(ev.get("start", {}) or {})
+                end_s = _event_time_string(ev.get("end", {}) or {})
+                key = _calendar_event_key_from_values(ev.get("summary", ""), start_s, end_s)
+                by_key.setdefault(key, []).append(ev)
+                by_title.setdefault(key[0], []).append(ev)
             key = _calendar_event_key_from_values(block.get("title", ""), block.get("start", ""), block.get("end", ""))
             exact = [ev for ev in by_key.get(key, []) if str(ev.get("id", "") or "") not in existing_linked]
             title_matches = [ev for ev in by_title.get(key[0], []) if str(ev.get("id", "") or "") not in existing_linked]
@@ -6155,11 +6232,11 @@ def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFra
                 reason = "Multiple Google Calendar events matched the same title and time"
             elif len(title_matches) == 1:
                 match = title_matches[0]
-                match_type = "unique title"
+                match_type = "unique title in the Area calendar"
             elif len(title_matches) > 1:
-                reason = "Multiple Google Calendar events matched the title; start/end times did not identify one clear event"
+                reason = "Multiple Google Calendar events matched the title in this Area calendar; start/end times did not identify one clear event"
             else:
-                reason = "No Google Calendar event with the same title was found in the Pathmark calendar"
+                reason = "No Google Calendar event with the same title was found in the Area calendar"
             if match is not None:
                 recurrence = ";".join(match.get("recurrence", []) or [])
                 ok_update, update_msg = update_online_record(sheet_id, "actions", linked_id, _calendar_update_for_block(match, calendar_id, recurrence, "repaired_google_calendar_link"))
@@ -6173,7 +6250,7 @@ def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFra
         if repaired:
             clear_online_cache(sheet_id)
         st.session_state["calendar_repair_results"] = pd.DataFrame(diagnostics)
-        return repaired, f"{cal_msg} Found {len(events)} Google Calendar event(s), checked {considered} unlinked Pathmark item(s), and repaired {repaired} link(s)."
+        return repaired, f"Checked {events_checked} Google Calendar event(s) across Area calendars, checked {considered} unlinked Pathmark item(s), and repaired {repaired} link(s)."
     except Exception as exc:
         return 0, f"Could not repair Google Calendar links: {_sync_error_detail(exc)}"
 
@@ -6249,7 +6326,7 @@ def google_calendar_sync_summary(sheet_id: str) -> dict[str, int]:
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Sync")
     st.write("Send Pathmark calendar time directly to Google Calendar. Project steps sync as one-off events; routine activities sync as recurring events so your calendar stays clean.")
-    st.info("Calendar Sync actions are optional and user-controlled. Your Google connection may already include Calendar permission, but Pathmark only creates or updates Pathmark calendar events when you press a sync button.")
+    st.info("Calendar Sync creates or reuses Google calendars named after your Pathmark Areas, then places each project step or routine activity into its matching Area calendar. Sync actions remain user-controlled.")
 
     scopes_ready = google_calendar_scope_ready()
     if not scopes_ready:
@@ -6257,7 +6334,7 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
         auth_url = google_auth_url(GOOGLE_CALENDAR_SCOPES, return_hint="calendar_sync")
         if auth_url:
             st.link_button("Reconnect Google and enable Calendar sync", auth_url, use_container_width=True)
-        st.caption("Pathmark uses Calendar access only for Pathmark Calendar Sync actions. No refresh token is stored by the hosted app.")
+        st.caption("Pathmark uses Calendar access to create or reuse Area calendars and to update linked Pathmark events only. No refresh token is stored by the hosted app.")
 
     blocks = staged_calendar_blocks(sheet_id)
     stats = google_calendar_sync_summary(sheet_id)
@@ -6296,7 +6373,7 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             st.warning(safe_user_message(message))
         st.rerun()
 
-    if st.button("Repair missing Google Calendar links", use_container_width=True, disabled=blocks.empty or not scopes_ready, help="Use this if events were created in Google Calendar but Pathmark did not store their event IDs. It matches Pathmark calendar items to events in the Pathmark calendar by title and start/end time."):
+    if st.button("Repair missing Google Calendar links", use_container_width=True, disabled=blocks.empty or not scopes_ready, help="Use this if events were created in Google Calendar but Pathmark did not store their event IDs. It matches Pathmark calendar items to events in their Area calendars by title and start/end time."):
         repaired, message = repair_google_calendar_links_by_title_time(sheet_id, blocks)
         if repaired:
             st.success(message)
@@ -7020,7 +7097,7 @@ def render_online_settings(sheet_id: str) -> None:
         st.markdown("""
         - Google login uses identity plus the limited `drive.file` permission so Pathmark can create and update Pathmark-owned Google Sheets.
         - Google Tasks Sync and Google Calendar Sync are optional. Their extra permissions are requested from the relevant sync tab when you choose to enable them.
-        - Pathmark uses dedicated Pathmark task lists/calendars and stored Google IDs so sync actions focus on linked Pathmark items.
+        - Pathmark uses a dedicated Pathmark task list and calendars named after your Areas, with stored Google IDs so sync actions focus on linked Pathmark items.
         - OAuth tokens are used for the current session and should never be stored in Supabase, GitHub, logs, or user-visible error messages.
         - Backup, restore, reset, template import, and bulk sync actions include safety-backup options.
         - Resetting Pathmark Sync does not delete Google Tasks or Google Calendar items; those can be reviewed separately in Google.
@@ -8082,7 +8159,7 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
                 step_key="area_name",
                 label="Area name",
                 value=str(area.get("area_name", "")),
-                placeholder="Body and Stability",
+                placeholder="Body And Stability",
             )
             if go_back:
                 _wizard_back(sheet_id, draft)
@@ -8899,7 +8976,7 @@ def about_privacy_tab() -> None:
     <div class="grid-2">
       <div class="card"><h3>Your planning records</h3><p>Pathmark Online saves your Areas, routines, goals, actions, spending plan records, setup progress, tasklists, export records and archive status in your <strong>Pathmark Sync</strong> Google Sheet.</p></div>
       <div class="card"><h3>Your Google Drive</h3><p>Pathmark uses Google's limited <strong>drive.file</strong> permission. It can create and update Pathmark files you use with the app, including Pathmark Sync, Pathmark Finance Template, and Pathmark backup sheets.</p></div>
-      <div class="card"><h3>Optional Google sync</h3><p>Google Tasks and Google Calendar sync are optional. If enabled, Pathmark can create Pathmark checklist items/events and read linked completion or event status back into Pathmark.</p></div>
+      <div class="card"><h3>Optional Google sync</h3><p>Google Tasks and Google Calendar sync are optional. If enabled, Pathmark can create Pathmark checklist items and create/update events in calendars named after your Areas, then read linked completion or event status back into Pathmark.</p></div>
       <div class="card"><h3>Your access profile</h3><p>Supabase stores only small access/profile details: email, role, account status, feature flags, theme preference and audit records.</p></div>
       <div class="card"><h3>The app code</h3><p>GitHub stores the Pathmark code, release packages, documentation and database migrations. The current release package has been checked for obvious secrets and private planning records.</p></div>
     </div>
@@ -8913,7 +8990,7 @@ def about_privacy_tab() -> None:
     2. **Your Pathmark Sync sheet** — Pathmark creates or updates the Google Sheet that stores your online planning records.
     3. **Finance template and backups** — Pathmark can create a separate Pathmark Finance Template and timestamped Pathmark Backup sheets when you choose those actions.
     4. **Google Tasks permission** — Pathmark can create or update Pathmark checklist items and read linked completion status when you choose Tasks Sync.
-    5. **Google Calendar permission** — Pathmark can create or update Pathmark calendar events and check linked event status when you choose Calendar Sync.
+    5. **Google Calendar permission** — Pathmark can create or reuse calendars named after your Areas, create or update Pathmark events in those calendars, and check linked event status when you choose Calendar Sync.
 
     Pathmark now explains these permissions before sending you to Google for the first time. The Google connection may grant Sheets/Drive, Tasks, and Calendar together, but Tasks and Calendar actions remain optional and user-controlled: Pathmark does not create tasks or events unless you press a sync button. Pathmark uses the limited `drive.file` permission for Drive files. In practical terms, Pathmark works with Pathmark files it creates or files you explicitly use with Pathmark. It does **not** request the broader Google Drive permission that would allow general access to all Drive files.
     """)
@@ -8929,7 +9006,7 @@ def about_privacy_tab() -> None:
 
     - Use the least privileged Google scopes practical for the feature.
     - Keep Google Tasks and Google Calendar Sync optional in behaviour, even where permission is granted at sign-in.
-    - Create or reuse dedicated Pathmark task lists and calendars rather than treating your whole Google account as Pathmark content.
+    - Create or reuse a dedicated Pathmark task list and calendars named after your Areas rather than treating your whole Google account as Pathmark content.
     - Store Google task/event IDs so linked items can be updated without relying on broad title searches.
     - Never store OAuth tokens in Supabase, GitHub, logs, or user-visible error messages.
     - Create safety backups before import, restore, reset, and bulk sync actions.
@@ -8953,7 +9030,7 @@ def about_privacy_tab() -> None:
     | Spending Plan income, outflows, account roles and template-import records | Your Pathmark Sync Google Sheet and optional Pathmark Finance Template | Pathmark Finance Template is created only when you choose to export a template. |
     | Pathmark Sync backups | Separate Google Sheets named Pathmark Backup - timestamp | Created only when you choose backup, restore, template import, or reset actions that create a safety backup. |
     | Google Tasks checklist items and completion status | Google Tasks | Permission may be granted during Google connection, but tasks are created/read only when you use Google Tasks Sync. Pathmark stores linked task IDs/status in Pathmark Sync so it can avoid duplicates and reflect completion. |
-    | Google Calendar events and moved/missing status | Google Calendar | Permission may be granted during Google connection, but events are created/read only when you use Google Calendar Sync. Pathmark stores linked event IDs/status in Pathmark Sync so it can avoid duplicates and flag changes for review. |
+    | Google Calendar events and moved/missing status | Google Calendar | Permission may be granted during Google connection. Pathmark uses it to create or reuse calendars named after your Areas, then create/read linked Pathmark events only when you use Google Calendar Sync. Pathmark stores linked event IDs/status in Pathmark Sync so it can avoid duplicates and flag changes for review. |
     | Local Workspace folders, Markdown files, local exports, backups and desktop tasklists | Your chosen Workspace folder on your computer | These are created by Pathmark Desktop, not by Pathmark Online. |
     | Email, access role, account status, feature flags, theme preference and audit records | Supabase | This controls beta/developer access and basic profile behaviour. It does not contain your planning records. |
     | App code, release files, public documentation and Supabase migration files | GitHub | This is the public/deployment codebase. The current package does not contain Google OAuth tokens, Supabase secret keys, client secrets or private planning records. |
@@ -8964,7 +9041,7 @@ def about_privacy_tab() -> None:
     st.markdown("""
     **Google Sheets** store your online Pathmark records, optional finance template, and optional backup sheets.  
     **Google Tasks** stores synced checklist items only after you choose Google Tasks Sync.  
-    **Google Calendar** stores synced Pathmark calendar events only after you choose Google Calendar Sync.  
+    **Google Calendar** stores synced Pathmark events in calendars named after your Areas only after you choose Google Calendar Sync.  
     **Supabase** stores access/profile metadata only.  
     **GitHub** stores code and release files only.  
     **Streamlit** hosts the app and stores deployment secrets outside the repository.
