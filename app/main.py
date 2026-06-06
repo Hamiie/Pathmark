@@ -5736,6 +5736,222 @@ def render_spending_template_tools(sheet_id: str) -> None:
         else:
             st.warning(safe_user_message(msg))
 
+
+PROJECTION_ACCOUNT_NAMES = {
+    "debt": "Projection — Debt payoff",
+    "emergency": "Projection — Emergency fund",
+    "savings": "Projection — Savings goal",
+}
+
+
+def _account_rows_by_name(sheet_id: str) -> dict[str, pd.Series]:
+    accounts = active_online_df(read_online_table(sheet_id, "spending_accounts"))
+    out: dict[str, pd.Series] = {}
+    if accounts.empty or "account_name" not in accounts.columns:
+        return out
+    for _, row in accounts.iterrows():
+        name = str(row.get("account_name", "") or "").strip()
+        if name:
+            out[name] = row
+    return out
+
+
+def _projection_row(sheet_id: str, key: str) -> pd.Series | None:
+    return _account_rows_by_name(sheet_id).get(PROJECTION_ACCOUNT_NAMES[key])
+
+
+def _projection_value(row: pd.Series | None, column: str, default: float = 0.0) -> float:
+    if row is None:
+        return default
+    return money_value(row.get(column, default))
+
+
+def _upsert_spending_account_by_name(sheet_id: str, account_name: str, updates: dict[str, Any]) -> tuple[bool, str]:
+    accounts = active_online_df(read_online_table(sheet_id, "spending_accounts"))
+    now = utc_now_text()
+    if not accounts.empty and "account_name" in accounts.columns:
+        matches = accounts[accounts["account_name"].fillna("").astype(str).str.strip().str.lower().eq(account_name.strip().lower())]
+        if not matches.empty:
+            record_id = str(matches.iloc[0].get("account_id", "") or "").strip()
+            updates = {**updates, "updated_at": now, "status": "active"}
+            return update_online_record(sheet_id, "spending_accounts", record_id, updates)
+    record = {
+        "account_id": f"account-{uuid.uuid4().hex[:12]}",
+        "account_name": account_name,
+        "purpose": updates.get("purpose", "Spending Plan projection."),
+        "bank": updates.get("bank", ""),
+        "account_number_hint": updates.get("account_number_hint", ""),
+        "transfer_per_week": updates.get("transfer_per_week", "0"),
+        "target_balance": updates.get("target_balance", "0"),
+        "current_balance": updates.get("current_balance", "0"),
+        "notes": updates.get("notes", ""),
+        "status": "active",
+        "created_at": now,
+        "updated_at": now,
+        "source": updates.get("source", "Spending Plan projections"),
+    }
+    return append_online_record(sheet_id, "spending_accounts", record)
+
+
+def _payday_date_from_settings(sheet_id: str, weeks_from_now: int) -> date:
+    today = _today_nz()
+    day_name = online_setting(sheet_id, "spending_pay_day", "Monday").strip().title() or "Monday"
+    weekday_lookup = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}
+    target = weekday_lookup.get(day_name, 0)
+    days_until = (target - today.weekday()) % 7
+    first_pay_day = today + timedelta(days=days_until)
+    return first_pay_day + timedelta(weeks=max(int(weeks_from_now or 0), 0))
+
+
+def _projection_weeks_to_target(kind: str, current: float, target: float, weekly: float) -> int | None:
+    weekly = float(weekly or 0.0)
+    if weekly <= 0.005:
+        return None
+    if kind == "debt":
+        remaining = max(float(current or 0.0), 0.0)
+    else:
+        remaining = max(float(target or 0.0) - float(current or 0.0), 0.0)
+    if remaining <= 0.005:
+        return 0
+    import math
+    return int(math.ceil(remaining / weekly))
+
+
+def _projection_summary(sheet_id: str) -> dict[str, Any]:
+    summary = spending_summary(sheet_id)
+    surplus_weekly = float(summary.get("surplus_weekly", 0.0) or 0.0)
+    rows = {key: _projection_row(sheet_id, key) for key in PROJECTION_ACCOUNT_NAMES}
+    debt_balance = _projection_value(rows.get("debt"), "current_balance", 0.0)
+    debt_weekly = _projection_value(rows.get("debt"), "transfer_per_week", 0.0)
+    emergency_current = _projection_value(rows.get("emergency"), "current_balance", 0.0)
+    emergency_target = _projection_value(rows.get("emergency"), "target_balance", float(summary.get("emergency_target", 0.0) or 0.0))
+    emergency_weekly = _projection_value(rows.get("emergency"), "transfer_per_week", 0.0)
+    savings_current = _projection_value(rows.get("savings"), "current_balance", 0.0)
+    savings_target = _projection_value(rows.get("savings"), "target_balance", 0.0)
+    savings_weekly = _projection_value(rows.get("savings"), "transfer_per_week", 0.0)
+    return {
+        "surplus_weekly": surplus_weekly,
+        "debt_balance": debt_balance,
+        "debt_weekly": debt_weekly,
+        "debt_weeks": _projection_weeks_to_target("debt", debt_balance, 0.0, debt_weekly),
+        "emergency_current": emergency_current,
+        "emergency_target": emergency_target,
+        "emergency_weekly": emergency_weekly,
+        "emergency_weeks": _projection_weeks_to_target("emergency", emergency_current, emergency_target, emergency_weekly),
+        "savings_current": savings_current,
+        "savings_target": savings_target,
+        "savings_weekly": savings_weekly,
+        "savings_weeks": _projection_weeks_to_target("savings", savings_current, savings_target, savings_weekly),
+        "pay_day": online_setting(sheet_id, "spending_pay_day", "Monday").strip().title() or "Monday",
+        "pay_frequency": online_setting(sheet_id, "spending_pay_frequency", "Weekly").strip().title() or "Weekly",
+    }
+
+
+def _projection_card_html(title: str, current: float, target: float, weekly: float, weeks: int | None, sheet_id: str, kind: str) -> str:
+    if kind == "debt":
+        done = max(target - current, 0.0) if target > 0 else 0.0
+        total = max(target, current, 0.0)
+        remaining_label = money_text(max(current, 0.0))
+        status_line = f"{remaining_label} remaining"
+    else:
+        total = max(target, 0.0)
+        done = min(max(current, 0.0), total) if total else 0.0
+        remaining_label = money_text(max(target - current, 0.0))
+        status_line = f"{money_text(current)} of {money_text(target)} saved"
+    percent = int(round((done / total) * 100)) if total > 0 else 0
+    if weeks is None:
+        date_line = "Add a weekly amount to project a date."
+    elif weeks <= 0:
+        date_line = "Target already reached."
+    else:
+        projected = _payday_date_from_settings(sheet_id, weeks)
+        date_line = f"About {weeks} week{'s' if weeks != 1 else ''} — around {projected.strftime('%d/%m/%Y')}."
+    return f"""
+    <div class="card projection-card">
+      <div class="kicker">{html.escape(title)}</div>
+      <h3>{html.escape(status_line)}</h3>
+      <p>{html.escape(date_line)}</p>
+      <div class="progress-summary"><div class="progress-head percent-only"><span></span><span>{percent}%</span></div><div class="progress-track"><div class="progress-fill" style="width:{max(min(percent,100),0)}%;"></div></div></div>
+      <div class="pillar-foot">Weekly allocation: {html.escape(money_text(weekly))}</div>
+    </div>
+    """
+
+
+def render_spending_projections(sheet_id: str) -> None:
+    st.markdown("#### Projections")
+    st.write(
+        "Use optional balances and targets to estimate how long debt, emergency savings and savings goals may take if the Spending Plan is followed."
+    )
+    st.caption("These are budgeting estimates only. They are based on the figures you enter and are not financial advice.")
+    summary = spending_summary(sheet_id)
+    available = max(float(summary.get("surplus_weekly", 0.0) or 0.0), 0.0)
+    shortfall = float(summary.get("surplus_weekly", 0.0) or 0.0) < -0.005
+    if shortfall:
+        st.warning("Your planned outflows are higher than income. Projections are paused until the plan has money available to allocate.")
+    else:
+        st.info(f"Current money available to allocate: **{money_text(available)} / week**.")
+
+    proj = _projection_summary(sheet_id)
+    day_options = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    frequency_options = ["Weekly", "Fortnightly", "Monthly"]
+    with st.form("spending_projection_settings_form", clear_on_submit=False):
+        c1, c2 = st.columns(2)
+        pay_frequency = c1.selectbox("Pay frequency", frequency_options, index=frequency_options.index(proj.get("pay_frequency", "Weekly")) if proj.get("pay_frequency", "Weekly") in frequency_options else 0)
+        pay_day = c2.selectbox("Pay day", day_options, index=day_options.index(proj.get("pay_day", "Monday")) if proj.get("pay_day", "Monday") in day_options else 0)
+        st.markdown("##### Balances and targets")
+        d1, d2 = st.columns(2)
+        debt_balance = d1.number_input("Current debt balance", min_value=0.0, step=100.0, value=float(proj.get("debt_balance", 0.0) or 0.0), format="%.2f")
+        debt_weekly = d2.number_input("Weekly debt repayment from available money", min_value=0.0, step=10.0, value=float(proj.get("debt_weekly", 0.0) or 0.0), format="%.2f")
+        e1, e2, e3 = st.columns(3)
+        emergency_current = e1.number_input("Emergency current balance", min_value=0.0, step=100.0, value=float(proj.get("emergency_current", 0.0) or 0.0), format="%.2f")
+        emergency_target = e2.number_input("Emergency target", min_value=0.0, step=100.0, value=float(proj.get("emergency_target", summary.get("emergency_target", 0.0)) or 0.0), format="%.2f")
+        emergency_weekly = e3.number_input("Weekly emergency contribution", min_value=0.0, step=10.0, value=float(proj.get("emergency_weekly", 0.0) or 0.0), format="%.2f")
+        s1, s2, s3 = st.columns(3)
+        savings_current = s1.number_input("Savings goal current balance", min_value=0.0, step=100.0, value=float(proj.get("savings_current", 0.0) or 0.0), format="%.2f")
+        savings_target = s2.number_input("Savings goal target", min_value=0.0, step=100.0, value=float(proj.get("savings_target", 0.0) or 0.0), format="%.2f")
+        savings_weekly = s3.number_input("Weekly savings contribution", min_value=0.0, step=10.0, value=float(proj.get("savings_weekly", 0.0) or 0.0), format="%.2f")
+        total_allocated = debt_weekly + emergency_weekly + savings_weekly
+        st.caption(f"Weekly projection allocations: {money_text(total_allocated)}. Current available to allocate: {money_text(available)}.")
+        save_projection = st.form_submit_button("Save projection settings", use_container_width=True)
+    if save_projection:
+        warnings = []
+        if not shortfall and total_allocated > available + 0.005:
+            warnings.append("Projection allocations are higher than the current money available to allocate. Pathmark will save them, but the estimate assumes you can actually fund those amounts.")
+        ok_settings_1, msg1 = save_online_setting(sheet_id, "spending_pay_frequency", pay_frequency, source="spending_projections")
+        ok_settings_2, msg2 = save_online_setting(sheet_id, "spending_pay_day", pay_day, source="spending_projections")
+        account_updates = [
+            (PROJECTION_ACCOUNT_NAMES["debt"], {"purpose": "Projected debt payoff based on the weekly amount entered.", "current_balance": str(debt_balance), "target_balance": "0", "transfer_per_week": str(debt_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
+            (PROJECTION_ACCOUNT_NAMES["emergency"], {"purpose": "Projected emergency fund target based on the weekly amount entered.", "current_balance": str(emergency_current), "target_balance": str(emergency_target), "transfer_per_week": str(emergency_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
+            (PROJECTION_ACCOUNT_NAMES["savings"], {"purpose": "Projected savings goal based on the weekly amount entered.", "current_balance": str(savings_current), "target_balance": str(savings_target), "transfer_per_week": str(savings_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
+        ]
+        failures = []
+        if not ok_settings_1:
+            failures.append(safe_user_message(msg1))
+        if not ok_settings_2:
+            failures.append(safe_user_message(msg2))
+        for name, updates in account_updates:
+            ok, msg = _upsert_spending_account_by_name(sheet_id, name, updates)
+            if not ok:
+                failures.append(safe_user_message(msg))
+        if failures:
+            st.warning("Some projection settings could not be saved: " + "; ".join(failures[:3]))
+        else:
+            msg = "Saved Spending Plan projections."
+            if warnings:
+                st.warning(" ".join(warnings))
+            spending_save_and_refresh(msg)
+
+    proj = _projection_summary(sheet_id)
+    st.markdown("#### Estimated pathway")
+    st.markdown(
+        "<div class='pillar-grid'>" +
+        _projection_card_html("Debt payoff", proj["debt_balance"], max(proj["debt_balance"], 0.0), proj["debt_weekly"], proj["debt_weeks"], sheet_id, "debt") +
+        _projection_card_html("Emergency fund", proj["emergency_current"], proj["emergency_target"], proj["emergency_weekly"], proj["emergency_weeks"], sheet_id, "emergency") +
+        _projection_card_html("Savings goal", proj["savings_current"], proj["savings_target"], proj["savings_weekly"], proj["savings_weeks"], sheet_id, "savings") +
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
 def render_spending_records(sheet_id: str) -> None:
     st.markdown("#### Spending Plan records")
     st.caption("These are the live rows in your Pathmark Sync sheet. Use this tab for checking what has been saved.")
@@ -5758,7 +5974,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         st.success(st.session_state.pop("spending_notice"))
 
     st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
-    section_options = ["Assessment", "Income", "Spending", "APs", "Template", "Records"]
+    section_options = ["Assessment", "Income", "Spending", "APs", "Projections", "Template", "Records"]
 
     def _render_spending_summary_strip() -> None:
         summary = spending_summary(sheet_id)
@@ -5788,8 +6004,11 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         render_spending_account_form(sheet_id)
     with tabs[4]:
         _render_spending_summary_strip()
-        render_spending_template_tools(sheet_id)
+        render_spending_projections(sheet_id)
     with tabs[5]:
+        _render_spending_summary_strip()
+        render_spending_template_tools(sheet_id)
+    with tabs[6]:
         _render_spending_summary_strip()
         render_spending_records(sheet_id)
 
@@ -6882,14 +7101,15 @@ def status_chip(label: str) -> str:
     return f"<span class='status-chip {cls}'>{html.escape(str(label or 'Not sent'))}</span>"
 
 
-def progress_bar_html(done: int, total: int, label: str = "") -> str:
+def progress_bar_html(done: int, total: int, label: str = "", show_label: bool = True) -> str:
     total = max(int(total or 0), 0)
     done = max(min(int(done or 0), total), 0) if total else 0
     percent = int(round((done / total) * 100)) if total else 0
     display = label or (f"{done} of {total} complete" if total else "No items planned")
+    head = f"<div class='progress-head'><span>{html.escape(display)}</span><span>{percent}%</span></div>" if show_label else f"<div class='progress-head percent-only'><span></span><span>{percent}%</span></div>"
     return (
         "<div class='progress-summary'>"
-        f"<div class='progress-head'><span>{html.escape(display)}</span><span>{percent}%</span></div>"
+        f"{head}"
         "<div class='progress-track'>"
         f"<div class='progress-fill' style='width:{percent}%;'></div>"
         "</div></div>"
@@ -8776,8 +8996,8 @@ def render_online_overview(sheet_id: str) -> None:
     project_action_count = len(project_actions) if not project_actions.empty else 0
     project_completed, project_count = project_overall_completion_summary(sheet_id)
     project_progress_label = f"{project_completed} of {project_count} project steps complete" if project_count else "No project steps linked to Google Tasks yet" if project_action_count else "project steps set up"
-    routine_progress_html = progress_bar_html(routine_done_week, routine_total_week, routine_progress_label) if routine_total_week else ""
-    project_progress_html = progress_bar_html(project_completed, project_count, project_progress_label) if project_count else ""
+    routine_progress_html = progress_bar_html(routine_done_week, routine_total_week, routine_progress_label, show_label=False) if routine_total_week else ""
+    project_progress_html = progress_bar_html(project_completed, project_count, project_progress_label, show_label=False) if project_count else ""
     surplus = float(money.get("surplus_weekly", 0.0) or 0.0)
     money_overcommitted = surplus < -0.005
     money_balanced = abs(surplus) <= 0.005
@@ -8796,6 +9016,29 @@ def render_online_overview(sheet_id: str) -> None:
         money_flow_value = money_text(surplus)
         money_flow_foot = "to emergency, savings, debt, or planned costs"
         money_flow_body = "Move unallocated money into emergency, savings, debt, or planned irregular costs."
+    if not money_overcommitted and surplus > 0.005:
+        try:
+            proj = _projection_summary(sheet_id)
+            if proj.get("debt_weeks") is not None and float(proj.get("debt_balance", 0.0) or 0.0) > 0.005 and float(proj.get("debt_weekly", 0.0) or 0.0) > 0.005:
+                weeks = int(proj.get("debt_weeks") or 0)
+                money_flow_title = "Debt pathway"
+                money_flow_value = f"{weeks} week{'s' if weeks != 1 else ''}"
+                money_flow_foot = f"projected payoff around {_payday_date_from_settings(sheet_id, weeks).strftime('%d/%m/%Y')}"
+                money_flow_body = "Based on the debt balance and weekly allocation entered in Spending Plan projections."
+            elif proj.get("emergency_weeks") is not None and float(proj.get("emergency_target", 0.0) or 0.0) > float(proj.get("emergency_current", 0.0) or 0.0) and float(proj.get("emergency_weekly", 0.0) or 0.0) > 0.005:
+                weeks = int(proj.get("emergency_weeks") or 0)
+                money_flow_title = "Emergency target"
+                money_flow_value = f"{weeks} week{'s' if weeks != 1 else ''}"
+                money_flow_foot = f"target date around {_payday_date_from_settings(sheet_id, weeks).strftime('%d/%m/%Y')}"
+                money_flow_body = "Based on the emergency target and weekly allocation entered in Spending Plan projections."
+            elif proj.get("savings_weeks") is not None and float(proj.get("savings_target", 0.0) or 0.0) > float(proj.get("savings_current", 0.0) or 0.0) and float(proj.get("savings_weekly", 0.0) or 0.0) > 0.005:
+                weeks = int(proj.get("savings_weeks") or 0)
+                money_flow_title = "Savings target"
+                money_flow_value = f"{weeks} week{'s' if weeks != 1 else ''}"
+                money_flow_foot = f"target date around {_payday_date_from_settings(sheet_id, weeks).strftime('%d/%m/%Y')}"
+                money_flow_body = "Based on the savings target and weekly allocation entered in Spending Plan projections."
+        except Exception:
+            pass
     money_flow_class = "pillar-card warning" if money_overcommitted else "pillar-card"
 
     st.markdown(f"""
@@ -9647,38 +9890,36 @@ def render_app() -> None:
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
 
-    if user.get("email") and st.session_state.pop("post_login_show_dashboard", False) and role_can_use_on_the_go(role, status):
-        on_the_go_tab()
-        return
-
     if not user.get("email") and st.session_state.get("show_login_terms") and login_configured():
         render_google_permissions_onboarding(compact=False)
         return
 
-    tabs = ["Home", "Theme", "About & Privacy"]
-    if role_can_use_on_the_go(role, status):
-        tabs.append("Pathmark Online beta")
-        tabs.append("Spending Plan beta")
+    # After login, land the user in Pathmark Online by making it the first tab,
+    # but keep the rest of the top-level navigation available. This avoids the
+    # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
+    post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
+    if post_login_landing:
+        tabs = ["Pathmark Online beta", "Home", "Theme", "About & Privacy", "Spending Plan beta"]
+    else:
+        tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
         tabs.append("Developer")
+
     created_tabs = st.tabs(tabs)
-    with created_tabs[0]:
-        download_tab()
-    with created_tabs[1]:
-        theme_tab()
-    with created_tabs[2]:
-        about_privacy_tab()
-    idx = 3
-    if role_can_use_on_the_go(role, status):
-        with created_tabs[idx]:
-            on_the_go_tab()
-        idx += 1
-        with created_tabs[idx]:
-            spending_plan_beta_tab()
-        idx += 1
-    if role_can_develop(role, status):
-        with created_tabs[idx]:
-            developer_tab()
+    for tab_obj, tab_name in zip(created_tabs, tabs):
+        with tab_obj:
+            if tab_name == "Home":
+                download_tab()
+            elif tab_name == "Theme":
+                theme_tab()
+            elif tab_name == "About & Privacy":
+                about_privacy_tab()
+            elif tab_name == "Pathmark Online beta":
+                on_the_go_tab()
+            elif tab_name == "Spending Plan beta":
+                spending_plan_beta_tab()
+            elif tab_name == "Developer":
+                developer_tab()
 
 
 render_app()

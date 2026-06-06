@@ -1,5 +1,12 @@
 # Pathmark Release Hub
 
+## v0.6.80 — Spending Plan projections foundation
+
+- After Google login, Pathmark Online is used as the landing tab without hiding Home, Theme, About & Privacy, Spending Plan beta, or Developer tools.
+- Dashboard progress cards no longer repeat the same completion phrase above and inside the progress bar; the card footer carries the phrase and the bar shows the percentage only.
+- Preserves the v0.6.78 Terms CSS brace hotfix and the v0.6.77 task progress consistency/dashboard visual changes.
+
+
 ## v0.6.68 Google permissions onboarding and sync diagnostics
 
 Adds a first-connection Google permissions explainer; updates privacy wording for combined Google permissions; adds Calendar Sync validation/results diagnostics; improves Tasks Sync write-back, refresh messaging, and repair by title/date for tasks created before IDs were stored.
