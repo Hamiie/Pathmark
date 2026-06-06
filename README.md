@@ -1,3 +1,9 @@
+# Pathmark Release Hub
+
+## v0.6.66 Google permissions onboarding and sync diagnostics
+
+Adds a first-connection Google permissions explainer; updates privacy wording for combined Google permissions; adds Calendar Sync validation/results diagnostics; improves Tasks Sync write-back, refresh messaging, and repair by title/date for tasks created before IDs were stored.
+
 # Pathmark release hub
 
 Current release: **v0.6.51 Dark-mode contrast guardrails**
@@ -23,7 +29,7 @@ See `REPOSITORY_STRUCTURE.txt`.
 
 ## v0.6.60
 Pathmark Sync backup and restore foundation.
-## v0.6.63 Requirements deploy hotfix
+## v0.6.65 Default Areas for fresh Pathmark Sync
 
 Rewrites `requirements.txt` as a dependency-only file so Streamlit Cloud can install dependencies correctly. Preserves the v0.6.62 missing Pathmark Sync recovery, backup/restore, Google Tasks sync, and Google Calendar sync foundations.
 
@@ -38,4 +44,17 @@ Rewrites `requirements.txt` as a dependency-only file so Streamlit Cloud can ins
 ## v0.6.61 Google security guardrails
 
 This release adds clearer Google security and consent guardrails: optional Tasks/Calendar scopes at the point of use, a Security & permissions section in Settings, safety-backup options before direct Tasks/Calendar sync, and expanded About & Privacy wording for dedicated Pathmark task lists/calendars, linked IDs, and token handling.
+
+
+
+### v0.6.65 Default Areas for fresh Pathmark Sync
+- Reworked the missing Pathmark Sync screen so it welcomes new users rather than presenting recovery as an error.
+- Keeps the options to create a fresh sheet, create with starter examples, restore from backup, or check Google Drive Trash.
+- Clarifies why the screen appears when no Pathmark Sync sheet is visible to the app.
+
+### v0.6.65 Default Areas for fresh Pathmark Sync
+- Fresh Pathmark Sync sheets now include editable default Areas so the Creation Wizard can be used immediately.
+- Create-with-starter-examples still loads full editable examples without duplicating the default Area set.
+- Restore-to-default now rebuilds the default schema and reloads default Areas unless starter examples are selected.
+- The wizard can move from “+ Add a new area” into the area creation steps.
 
