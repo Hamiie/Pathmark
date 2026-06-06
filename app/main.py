@@ -72,42 +72,88 @@ GOOGLE_COLOUR_BY_LABEL = {name: {"code": code, "name": name, "hex": _hex} for co
 GOOGLE_COLOUR_BY_CODE_OR_NAME = {code.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS}
 GOOGLE_COLOUR_BY_CODE_OR_NAME.update({name.lower(): name for code, name, _hex in GOOGLE_CALENDAR_COLOURS})
 
-ONLINE_THEME_OPTIONS = ["Summer", "Autumn", "Winter", "Spring"]
+ONLINE_THEME_OPTIONS = [
+    "Seasonal",
+    "Primary Navy",
+    "Primary Cyan",
+    "Secondary Steel",
+    "Tertiary Mist",
+    "Tertiary Pearl",
+    "Graphite",
+    "Clay",
+    "Olive",
+    "Plum",
+]
 ONLINE_APPEARANCE_OPTIONS = ["System", "Light", "Dark"]
+SEASONAL_ACCENTS = {
+    # Southern Hemisphere seasons, suitable for New Zealand as Pathmark's initial hosted audience.
+    # Seasonal is one theme: the accent automatically follows the current season.
+    "Summer": {"accent": "#F59E0B", "accent_2": "#41C4DC", "seasonal_icon": "☀️"},
+    "Autumn": {"accent": "#A33A16", "accent_2": "#6B4E2E", "seasonal_icon": "🍂"},
+    "Winter": {"accent": "#1E2171", "accent_2": "#6BA2B8", "seasonal_icon": "❄️"},
+    "Spring": {"accent": "#0B8043", "accent_2": "#41C4DC", "seasonal_icon": "🌸"},
+}
 ONLINE_THEMES = {
-    # Seasonal choice controls Pathmark's accent, tint and icon. Light/dark mode
-    # is deliberately left to Streamlit's own Settings menu: System, Light or Dark.
-    "Summer": {"accent": "#B45309", "soft_light": "#FFF3C4", "soft_dark": "#403A1E", "seasonal_icon": "☀️ 🏖️"},
-    "Autumn": {"accent": "#9A3412", "soft_light": "#F6E7D8", "soft_dark": "#3A2418", "seasonal_icon": "🍂"},
-    "Winter": {"accent": "#2563EB", "soft_light": "#E7EEF4", "soft_dark": "#1D3142", "seasonal_icon": "❄️ ⛄"},
-    "Spring": {"accent": "#BE185D", "soft_light": "#F8EAF3", "soft_dark": "#3A2132", "seasonal_icon": "🌸"},
-    # Compatibility aliases for existing saved preferences. These are normalised
-    # before display, so users no longer choose separate light/dark theme names.
-    "Default": {"alias_for": "Winter"},
-    "Sage": {"alias_for": "Spring"},
-    "Blue": {"alias_for": "Winter"},
-    "Plum": {"alias_for": "Spring"},
-    "Warm": {"alias_for": "Autumn"},
-    "Dark": {"alias_for": "Winter"},
-    "Summer dark": {"alias_for": "Summer"},
-    "Autumn dark": {"alias_for": "Autumn"},
-    "Winter dark": {"alias_for": "Winter"},
-    "Spring dark": {"alias_for": "Spring"},
+    # Pathmark themes are accent themes only. Streamlit owns Light, Dark and System.
+    # Primary / secondary / tertiary options are based on the Pathmark/PSNZ palette family.
+    "Seasonal": {"accent": "#1E2171", "accent_2": "#41C4DC", "seasonal_icon": "☀️🍂❄️🌸", "auto": True},
+    "Primary Navy": {"accent": "#1E2171", "accent_2": "#41C4DC", "seasonal_icon": ""},
+    "Primary Cyan": {"accent": "#41C4DC", "accent_2": "#1E2171", "seasonal_icon": ""},
+    "Secondary Steel": {"accent": "#6BA2B8", "accent_2": "#1E2171", "seasonal_icon": ""},
+    "Tertiary Mist": {"accent": "#A0E2EE", "accent_2": "#41C4DC", "seasonal_icon": ""},
+    "Tertiary Pearl": {"accent": "#D9EEF3", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Graphite": {"accent": "#334155", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Clay": {"accent": "#A33A16", "accent_2": "#C2410C", "seasonal_icon": ""},
+    "Olive": {"accent": "#4D7C0F", "accent_2": "#0B8043", "seasonal_icon": ""},
+    "Plum": {"accent": "#7E22CE", "accent_2": "#BE185D", "seasonal_icon": ""},
+    # Compatibility aliases for old saved preferences.
+    "Default": {"alias_for": "Seasonal"},
+    "Teal": {"alias_for": "Primary Cyan"},
+    "Navy": {"alias_for": "Primary Navy"},
+    "Mist": {"alias_for": "Tertiary Mist"},
+    "Summer": {"alias_for": "Seasonal"},
+    "Autumn": {"alias_for": "Seasonal"},
+    "Winter": {"alias_for": "Seasonal"},
+    "Spring": {"alias_for": "Seasonal"},
+    "Sage": {"alias_for": "Olive"},
+    "Blue": {"alias_for": "Primary Navy"},
+    "Warm": {"alias_for": "Clay"},
+    "Dark": {"alias_for": "Graphite"},
+    "Summer dark": {"alias_for": "Seasonal"},
+    "Autumn dark": {"alias_for": "Seasonal"},
+    "Winter dark": {"alias_for": "Seasonal"},
+    "Spring dark": {"alias_for": "Seasonal"},
 }
 
 
-def normalise_online_theme(theme_name: str | None) -> str:
-    """Return a seasonal Pathmark theme name.
+def current_southern_hemisphere_season(today: date | None = None) -> str:
+    """Return the current Southern Hemisphere season.
 
-    The seasonal theme is separate from Streamlit's built-in appearance mode.
-    Streamlit controls System/Light/Dark; Pathmark controls Summer/Autumn/Winter/Spring.
+    Pathmark currently defaults to New Zealand/Southern Hemisphere timing:
+    Spring = Sep-Nov, Summer = Dec-Feb, Autumn = Mar-May, Winter = Jun-Aug.
+    """
+    today = today or date.today()
+    month = today.month
+    if month in (12, 1, 2):
+        return "Summer"
+    if month in (3, 4, 5):
+        return "Autumn"
+    if month in (6, 7, 8):
+        return "Winter"
+    return "Spring"
+
+
+def normalise_online_theme(theme_name: str | None) -> str:
+    """Return a supported Pathmark accent theme name.
+
+    Streamlit controls System/Light/Dark. Pathmark controls accent themes only.
     """
     name = str(theme_name or "").strip()
     if name in ONLINE_THEME_OPTIONS:
         return name
     info = ONLINE_THEMES.get(name, {})
     alias = str(info.get("alias_for", "") or "") if isinstance(info, dict) else ""
-    return alias if alias in ONLINE_THEME_OPTIONS else "Winter"
+    return alias if alias in ONLINE_THEME_OPTIONS else "Seasonal"
 
 
 
@@ -364,19 +410,19 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
     return """
           --bg: var(--background-color, #F7F6F2);
           --ink: var(--text-color, #1F2221);
-          --muted: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #F7F6F2));
-          --surface: var(--secondary-background-color, #FFFFFF);
-          --surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 86%, var(--background-color, #F7F6F2));
-          --line: color-mix(in srgb, var(--text-color, #1F2221) 28%, var(--background-color, #F7F6F2));
+          --muted: color-mix(in srgb, var(--text-color, #1F2221) 84%, var(--background-color, #F7F6F2));
+          --surface: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 78%, var(--text-color, #1F2221) 5%);
+          --surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 70%, var(--text-color, #1F2221) 8%);
+          --line: color-mix(in srgb, var(--text-color, #1F2221) 38%, var(--background-color, #F7F6F2));
           --shadow: color-mix(in srgb, #000000 18%, transparent);
-          --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
+          --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--surface));
         """
 
 
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.46 theme model
+Pathmark v0.6.48 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
@@ -388,12 +434,12 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
   --ink: var(--text-color, inherit);
-  --muted: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #FFFFFF));
-  --surface: var(--secondary-background-color, transparent);
-  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 88%, var(--background-color, transparent));
-  --line: color-mix(in srgb, var(--text-color, #1F2221) 28%, transparent);
+  --muted: color-mix(in srgb, var(--text-color, #1F2221) 84%, var(--background-color, #FFFFFF));
+  --surface: color-mix(in srgb, var(--secondary-background-color, transparent) 82%, var(--text-color, #1F2221) 5%);
+  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 72%, var(--text-color, #1F2221) 8%);
+  --line: color-mix(in srgb, var(--text-color, #1F2221) 40%, var(--background-color, transparent));
   --shadow: color-mix(in srgb, #000000 14%, transparent);
-  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--secondary-background-color, transparent));
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
@@ -418,11 +464,12 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {{
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 14px 34px var(--shadow);
+  box-shadow: 0 14px 34px var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--text-color, #1F2221) 5%, transparent);
 }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
 .card h3 {{ margin-top: 0; margin-bottom: .55rem; }}
 .card p {{ margin-bottom: 0; color: var(--muted); }}
+.card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{ border-top: 4px solid color-mix(in srgb, var(--accent) 70%, transparent); }}
 .meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
 .meta-card {{ border-radius: 1.25rem; padding: 1rem 1.15rem; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
@@ -477,10 +524,18 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .dashboard-hero h2 {{ margin:.05rem 0 .25rem 0; font-size:clamp(1.9rem,3vw,2.55rem); letter-spacing:-.055em; }}
 .dashboard-hero p {{ margin:0; color:var(--muted); max-width:820px; line-height:1.48; }}
 .pillar-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; margin:1rem 0 1.35rem; align-items:stretch; }}
-.pillar-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow); min-height:230px; display:flex; flex-direction:column; }}
+.pillar-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1.05rem; padding:1rem 1.05rem; box-shadow:0 8px 20px var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--text-color, #1F2221) 6%, transparent); min-height:230px; display:flex; flex-direction:column; }}
 .pillar-card h3 {{ margin:.1rem 0 .35rem; font-size:1.15rem; letter-spacing:-.025em; }}
 .pillar-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; margin-bottom:.55rem; }}
 .pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
+@media (prefers-color-scheme: dark) {{
+  :root {{
+    --surface: color-mix(in srgb, var(--background-color, #0E1117) 76%, var(--text-color, #FAFAFA) 9%);
+    --surface-2: color-mix(in srgb, var(--background-color, #0E1117) 70%, var(--text-color, #FAFAFA) 12%);
+    --line: color-mix(in srgb, var(--text-color, #FAFAFA) 34%, var(--background-color, #0E1117));
+    --muted: color-mix(in srgb, var(--text-color, #FAFAFA) 82%, var(--background-color, #0E1117));
+  }}
+}}
 .pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
 .pillar-stat {{ font-size:1.55rem; font-weight:780; line-height:1.1; }}
 .pillar-foot {{ color:var(--muted); font-size:.88rem; margin-top:.2rem; }}
@@ -1043,7 +1098,7 @@ def theme_for_user(email: str) -> str:
     if cached:
         return normalise_online_theme(cached)
     rec = read_supabase_user(email) if email else None
-    theme = rec.get("theme_preference", "Winter") if rec else "Winter"
+    theme = rec.get("theme_preference", "Seasonal") if rec else "Seasonal"
     theme = normalise_online_theme(theme)
     st.session_state["hosted_theme_preference"] = theme
     return theme
@@ -2305,43 +2360,60 @@ def save_online_setting(sheet_id: str, key: str, value: str, source: str = "path
     return append_online_record(sheet_id, "settings", {"key": key, "value": value, "updated_at": utc_now_text(), "source": source})
 
 
-def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
-    """Apply seasonal accent variables only.
-
-    Streamlit's built-in System/Light/Dark menu owns full appearance. This
-    function deliberately does not set app backgrounds, body text, inputs,
-    popovers, or Streamlit widget colours. Seasonal themes only alter accent
-    colour and Pathmark-owned decorative surfaces.
-    """
+def resolved_accent_theme(theme_name: str | None = None) -> tuple[str, dict[str, str]]:
+    """Return the display name and accent tokens for the selected Pathmark theme."""
     theme_name = normalise_online_theme(theme_name)
-    theme = ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Winter"])
+    if theme_name == "Seasonal":
+        season = current_southern_hemisphere_season()
+        return f"Seasonal — {season}", SEASONAL_ACCENTS.get(season, SEASONAL_ACCENTS["Winter"])
+    return theme_name, ONLINE_THEMES.get(theme_name, ONLINE_THEMES["Navy"])
+
+
+def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
+    """Apply Pathmark accent variables only.
+
+    Streamlit owns System/Light/Dark. Pathmark accent themes affect only
+    Pathmark-owned affordances such as buttons, tabs, card accent strips,
+    progress bars, badges and highlight panels.
+    """
+    display_name, theme = resolved_accent_theme(theme_name)
     accent = theme.get("accent", "#334E68")
+    accent_2 = theme.get("accent_2", accent)
     seasonal_icon = theme.get("seasonal_icon", "")
     st.markdown(
         f"""
         <style>
         :root {{
           --accent: {accent};
-          --accent-2: {accent};
+          --accent-2: {accent_2};
           --pathmark-accent: {accent};
+          --pathmark-accent-2: {accent_2};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 78%, black);
-          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 20%, var(--secondary-background-color, transparent));
+          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 20%, var(--surface));
+          --accent-soft-2: color-mix(in srgb, var(--pathmark-accent-2) 14%, var(--surface));
         }}
         .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
+        .seasonal-theme-name::after {{ content: "{display_name}"; }}
         .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview, .next-action-card {{
-          background: var(--accent-soft);
+          background: linear-gradient(135deg, var(--accent-soft), var(--accent-soft-2));
         }}
         .guide-box {{
           border-left: 5px solid var(--pathmark-accent);
           padding-left: 1.45rem;
         }}
-        .setup-progress-fill, .wizard-progress-fill {{ background: var(--pathmark-accent); }}
+        .setup-progress-fill, .wizard-progress-fill {{ background: linear-gradient(90deg, var(--pathmark-accent), var(--pathmark-accent-2)); }}
         .kicker, [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
           color: var(--pathmark-accent) !important;
         }}
+        [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
+          border-bottom-color: var(--pathmark-accent) !important;
+        }}
+        .card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{
+          border-top-color: var(--pathmark-accent) !important;
+        }}
         .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a,
         a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {{
-          background: var(--pathmark-accent) !important;
+          background: linear-gradient(135deg, var(--pathmark-accent), var(--pathmark-accent-2)) !important;
           border-color: color-mix(in srgb, var(--pathmark-accent) 72%, black) !important;
           color: #FFFFFF !important;
         }}
@@ -2356,7 +2428,7 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
 
 
 def apply_online_theme(sheet_id: str) -> None:
-    theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Winter")) if sheet_id else st.session_state.get("hosted_theme_preference", "Winter")
+    theme_name = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Seasonal")) if sheet_id else st.session_state.get("hosted_theme_preference", "Seasonal")
     inject_theme_css(normalise_online_theme(theme_name))
 
 
@@ -6721,25 +6793,30 @@ def download_tab() -> None:
 
 def theme_tab() -> None:
     st.header("Theme")
-    st.write("Choose the seasonal character of Pathmark. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
-    st.markdown('<p class="small-muted">Pathmark follows Streamlit\'s own light/dark background and text colours. Seasonal themes change only the accent colour, such as buttons, highlights, tab accents and Pathmark-owned cards.</p>', unsafe_allow_html=True)
+    st.write("Choose a Pathmark accent theme. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
+    st.markdown(
+        """<p class="small-muted">Seasonal is one automatic theme: it follows the current Southern Hemisphere season. The other options are stable accent themes based on Pathmark's primary, secondary and tertiary colour families. Streamlit still controls the app's light or dark base.</p>""",
+        unsafe_allow_html=True,
+    )
     user = current_user()
     sheet_id = st.session_state.get("sync_sheet_id", "")
     if user.get("email"):
         current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or theme_for_user(user.get("email", "")))
     else:
-        current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Winter")
-    theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
+        current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal")
+    theme_name = st.selectbox("Pathmark theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
     # Apply the selected accent immediately for preview on this rerun, even before saving.
     inject_theme_css(theme_name)
-    st.markdown("""
+    current_display, _theme_tokens = resolved_accent_theme(theme_name)
+    current_season = current_southern_hemisphere_season()
+    st.markdown(f"""
     <div class="grid-2">
-      <div class="card"><h3>Seasonal theme</h3><p>Summer, Autumn, Winter and Spring set the Pathmark accent and seasonal character.</p></div>
-      <div class="card"><h3>Appearance</h3><p>Use Streamlit's menu in the top right for System, Light or Dark. Pathmark reads Streamlit's CSS theme variables rather than maintaining a second appearance setting.</p></div>
+      <div class="card"><h3>Seasonal</h3><p>Seasonal is a single automatic option. It currently resolves to <strong>{html.escape(current_season)}</strong> for Southern Hemisphere timing, and will change as the year changes.</p></div>
+      <div class="card"><h3>Stable colour themes</h3><p>Primary Navy, Primary Cyan, Secondary Steel, Tertiary Mist, Tertiary Pearl, Graphite, Clay, Olive and Plum stay the same all year.</p></div>
     </div>
-    <div class="seasonal-preview-card"><span class="seasonal-mark">Current seasonal accent</span></div>
+    <div class="seasonal-preview-card"><span class="seasonal-mark">Current Pathmark accent: <span class="seasonal-theme-name"></span></span></div>
     """, unsafe_allow_html=True)
-    if st.button("Save seasonal theme", use_container_width=True):
+    if st.button("Save Pathmark theme", use_container_width=True):
         theme_name = normalise_online_theme(theme_name)
         st.session_state["hosted_theme_preference"] = theme_name
         messages = []
@@ -6753,12 +6830,12 @@ def theme_tab() -> None:
             ok_any = ok_any and ok_profile
             messages.append(message_profile)
         if ok_any:
-            st.success("Seasonal theme saved.")
+            st.success("Pathmark theme saved.")
             st.rerun()
         else:
-            st.warning(safe_user_message(" ".join([m for m in messages if m]) or "The seasonal theme was saved for this session, but could not be fully persisted."))
+            st.warning(safe_user_message(" ".join([m for m in messages if m]) or "The theme was saved for this session, but could not be fully persisted."))
     with st.expander("Why the Streamlit menu still appears", expanded=False):
-        st.write("Streamlit provides the built-in System, Light and Dark menu. Pathmark cannot remove it reliably, so Pathmark treats it as the single appearance control and uses only a separate seasonal theme selector here.")
+        st.write("Streamlit provides the built-in System, Light and Dark menu. Pathmark uses that for the base appearance and only changes accent details such as selected tabs, buttons, card strips, badges and highlights.")
 
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
@@ -7129,7 +7206,7 @@ def render_app() -> None:
     if user.get("email"):
         inject_theme_css(theme_for_user(user.get("email", "")))
     else:
-        inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Winter"))
+        inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
     maybe_record_login(user.get("email", ""), role, status)
     render_account_bar(role, user)
     if status == "disabled":

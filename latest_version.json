@@ -1,20 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.46",
-  "release_date": "2026-06-05",
+  "version": "0.6.48",
+  "release_date": "2026-06-06",
   "notes": [
-    "Strengthens contrast for muted text, captions, card borders and Pathmark-owned UI in Streamlit dark mode.",
-    "Makes seasonal accent changes immediately visible when selecting Summer, Autumn, Winter or Spring before saving.",
-    "Uses stronger seasonal accent colours so changes are visible in both Streamlit Light and Dark appearances.",
-    "Keeps Streamlit in control of Light, Dark and System appearance while Pathmark only controls seasonal accents."
+    "Clarifies Seasonal as one automatic Pathmark theme that follows the current Southern Hemisphere season.",
+    "Adds stable Pathmark themes based on primary, secondary and tertiary colour families.",
+    "Keeps Streamlit responsible for Light, Dark and System while Pathmark only applies accent styling.",
+    "Updates the Theme tab wording so users are not asked to pick individual seasons."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_46.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_48.zip",
   "mac_package": "",
-  "release": "v0.6.46 Seasonal accent visibility and contrast repair",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip",
-  "release_name": "Seasonal accent visibility and contrast repair",
-  "release_notes": "Improves contrast under Streamlit light/dark mode and makes seasonal accent changes visibly apply as a live preview.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip",
-  "label": "Seasonal accent visibility and contrast repair",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_46.zip"
+  "release": "v0.6.48 Accent theme system clarification",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip",
+  "release_name": "Accent theme system clarification",
+  "release_notes": "Seasonal is now one automatic theme, with stable primary, secondary and tertiary colour-family themes available alongside it.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip",
+  "label": "Accent theme system clarification",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip"
 }

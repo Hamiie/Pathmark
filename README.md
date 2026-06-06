@@ -1,43 +1,21 @@
 # Pathmark release hub
 
-Current release: **v0.6.46 Seasonal accent visibility and contrast repair**
+Current release: **v0.6.48 Accent theme system clarification**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_46_seasonal_accent_visibility_contrast_repair.zip`
-- `Pathmark_Local_App_Windows_v0_6_46.zip`
+- `pathmark_release_hub_v0_6_48_accent_theme_system_clarification.zip`
+- `Pathmark_Local_App_Windows_v0_6_48.zip`
 
-## v0.6.46 Seasonal accent visibility and contrast repair
+## What changed in v0.6.48
 
-This release continues the Streamlit-native theme approach. Streamlit still owns Light, Dark and System appearance, while Pathmark seasonal themes control accents only.
+- Clarified that **Seasonal** is one automatic theme rather than four separate seasonal choices.
+- Seasonal uses Southern Hemisphere timing to resolve to the current season.
+- Added stable accent themes based on Pathmark primary, secondary and tertiary colour families.
+- Kept Streamlit responsible for Light, Dark and System, with Pathmark controlling accents only.
 
-Changes:
+## Repository layout
 
-- Improves contrast for muted text, captions, card borders and Pathmark-owned surfaces in dark mode.
-- Makes the seasonal accent preview apply immediately when Summer, Autumn, Winter or Spring is selected, even before saving.
-- Uses stronger seasonal accent colours so the selected season is visibly reflected in buttons, selected tabs, progress bars and accent panels.
-- Keeps Pathmark from overriding Streamlit's core page background, text, input and settings-menu styling.
-- Adds a small seasonal preview card to make it obvious when the selected seasonal accent has changed.
-
-## Structure
-
-```text
-.gitignore
-README.md
-requirements.txt
-latest_version.json
-REPOSITORY_STRUCTURE.txt
-app/
-  main.py
-  assets/
-  static/
-downloads/
-  Pathmark_Local_App_Windows_v0_6_46.zip
-.streamlit/
-  config.toml
-supabase/
-  README.md
-  migrations/
-```
+See `REPOSITORY_STRUCTURE.txt`.
