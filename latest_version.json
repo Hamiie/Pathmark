@@ -1,5 +1,5 @@
 {
-  "version": "0.6.68",
+  "version": "0.6.69",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
   "filename": "Pathmark_Local_App_Windows_v0_6_68.zip",
@@ -8,7 +8,12 @@
   "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
   "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
   "download": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
-  "notes": "Improves Google Calendar event ID write-back, calendar repair matching, item-level sync diagnostics, Google Tasks repair diagnostics, and first-time Google consent wording.",
+  "notes": [
+    "Google Tasks/Calendar pull status write-back fix",
+    "Calendar timezone comparison refinement",
+    "Polished Google permissions consent page"
+  ],
   "label": "Google Calendar write-back and repair diagnostics",
-  "release_notes": "Improves Google Calendar and Google Tasks sync diagnostics, write-back reliability, repair matching, and first-time Google consent wording."
+  "release_notes": "Improves Google Calendar and Google Tasks sync diagnostics, write-back reliability, repair matching, and first-time Google consent wording.",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_69.zip"
 }

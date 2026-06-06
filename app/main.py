@@ -1284,35 +1284,38 @@ def render_google_permissions_onboarding(compact: bool = False) -> None:
     """First-time Google consent screen shown before launching OAuth."""
     if not compact:
         st.markdown("## Welcome to Pathmark Online")
-    st.write("Before you continue, please review how Pathmark uses Google access.")
+    st.write("Pathmark uses Google so your planning records stay in files owned by you.")
     st.markdown(
         """
-        <div class="pathmark-panel">
-          <h3>Google access requested by Pathmark</h3>
-          <p><strong>Pathmark Sync:</strong> Pathmark creates and updates your Pathmark Sync Google Sheet, finance template, and backup sheets in Google Drive.</p>
-          <p><strong>Google Tasks:</strong> Pathmark can create checklist items and read linked completion status when you choose to use Tasks Sync.</p>
-          <p><strong>Google Calendar:</strong> Pathmark can create or update Pathmark calendar events when you choose to use Calendar Sync.</p>
+        <div class="pathmark-panel pathmark-consent-panel">
+          <h3>Before you continue</h3>
+          <p>Please review how Pathmark uses Google access.</p>
+          <ul>
+            <li>Create and update your <strong>Pathmark Sync</strong> sheet.</li>
+            <li>Create finance templates and backup sheets in your Google Drive.</li>
+            <li>Create checklist items in Google Tasks when you use <strong>Tasks Sync</strong>.</li>
+            <li>Create calendar events when you use <strong>Calendar Sync</strong>.</li>
+          </ul>
+          <p>Pathmark will not sell your data, store your private planning or finance content in Supabase, or create Google Tasks/Calendar items unless you choose to sync them.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     with st.expander("What Pathmark stores", expanded=False):
         st.write("Your planning and Spending Plan records are stored in Google Sheets owned by you. Supabase stores access/profile metadata only; it is not used as the store for your private planning or finance content.")
+    with st.expander("What Google permissions are used for", expanded=False):
+        st.write("Google Drive/Sheets access is used for Pathmark Sync, finance templates, and backups. Google Tasks access is used for Tasks Sync. Google Calendar access is used for Calendar Sync. Sync actions remain user-controlled.")
     with st.expander("What Pathmark will not do", expanded=False):
         st.write("Pathmark will not sell your data, create Google Tasks or Calendar events until you press a sync button, or deliberately scan unrelated calendars for general content.")
     with st.expander("How to revoke access", expanded=False):
         st.write("You can revoke Pathmark's Google access later from your Google Account. If you disconnect access, Pathmark Online will not be able to update your Pathmark Sync sheet, Google Tasks, or Google Calendar until you reconnect.")
-    st.markdown(
-        """
-        <div class="pathmark-note">
-        By continuing, you understand that Pathmark will request Google permissions to support these features. Sync actions remain user-controlled.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.checkbox("I understand and want to continue", key="google_permissions_ack")
     auth_url = login_auth_url()
     if auth_url:
-        same_tab_oauth_button("Continue to Google", auth_url)
+        if st.session_state.get("google_permissions_ack"):
+            same_tab_oauth_button("Continue to Google", auth_url)
+        else:
+            st.button("Continue to Google", use_container_width=True, disabled=True)
     else:
         st.button("Google permissions unavailable", use_container_width=True, disabled=True)
 
@@ -1843,7 +1846,7 @@ def create_user_sync_sheet(include_default_areas: bool = True) -> tuple[bool, st
             if dservice is not None and sheet_id:
                 dservice.files().update(
                     fileId=sheet_id,
-                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.68"}},
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.69"}},
                     fields="id",
                 ).execute()
         except Exception:
@@ -2217,6 +2220,7 @@ ONLINE_ID_COLUMNS = {
     "spending_accounts": "account_id",
     "wizard_drafts": "draft_id",
     "pending_changes": "sync_id",
+    "task_prompts": "prompt_id",
 }
 
 
@@ -5814,6 +5818,35 @@ def _parse_calendar_block_datetime(value: Any) -> datetime | None:
         return None
 
 
+
+def _pathmark_nz_timezone():
+    if ZoneInfo is not None:
+        return ZoneInfo("Pacific/Auckland")
+    return timezone(timedelta(hours=12))
+
+
+def _calendar_value_to_nz_naive(value: Any) -> datetime | None:
+    dt = _parse_calendar_block_datetime(value)
+    if dt is None:
+        return None
+    nz_tz = _pathmark_nz_timezone()
+    try:
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(nz_tz).replace(tzinfo=None)
+    except Exception:
+        try:
+            dt = dt.replace(tzinfo=None)
+        except Exception:
+            pass
+    return dt.replace(second=0, microsecond=0)
+
+
+def _calendar_key_from_any(value: Any) -> str:
+    dt = _calendar_value_to_nz_naive(value)
+    if dt is not None:
+        return dt.strftime("%Y-%m-%d %H:%M")
+    return str(value or "")[:16].replace("T", " ")
+
 def _google_calendar_datetime_body(value: Any) -> dict[str, str]:
     dt = _parse_calendar_block_datetime(value)
     if dt is None:
@@ -5822,10 +5855,7 @@ def _google_calendar_datetime_body(value: Any) -> dict[str, str]:
     # timezone offset as well as the named timezone so one-off and recurring
     # events are accepted consistently.
     if dt.tzinfo is None:
-        if ZoneInfo is not None:
-            dt = dt.replace(tzinfo=ZoneInfo("Pacific/Auckland"))
-        else:
-            dt = dt.replace(tzinfo=timezone(timedelta(hours=12)))
+        dt = dt.replace(tzinfo=_pathmark_nz_timezone())
     return {"dateTime": dt.isoformat(timespec="seconds"), "timeZone": "Pacific/Auckland"}
 
 
@@ -6065,15 +6095,11 @@ def _event_time_string(value: dict[str, Any]) -> str:
     raw = str(value.get("dateTime") or value.get("date") or "")
     if not raw:
         return ""
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
-    except Exception:
-        return raw[:16].replace("T", " ")
+    return _calendar_key_from_any(raw)
 
 
 def _calendar_event_key_from_values(title: Any, start: Any, end: Any) -> tuple[str, str, str]:
-    return (_normalise_match_text(title), str(start or "")[:16].replace("T", " "), str(end or "")[:16].replace("T", " "))
+    return (_normalise_match_text(title), _calendar_key_from_any(start), _calendar_key_from_any(end))
 
 
 def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFrame | None = None) -> tuple[int, str]:
@@ -6195,8 +6221,8 @@ def pull_google_calendar_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
             if block is not None:
                 google_start = _event_time_string(event.get("start", {}) or {})
                 google_end = _event_time_string(event.get("end", {}) or {})
-                pathmark_start = str(block.get("start", "") or "")
-                pathmark_end = str(block.get("end", "") or "")
+                pathmark_start = _calendar_key_from_any(block.get("start", ""))
+                pathmark_end = _calendar_key_from_any(block.get("end", ""))
                 if google_start and pathmark_start and (google_start != pathmark_start or google_end != pathmark_end):
                     moved += 1
                     sync_status = "moved_in_google_calendar_review_needed"
