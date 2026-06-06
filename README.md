@@ -1,6 +1,17 @@
 # Pathmark Release Hub
 
-## v0.6.80 — Spending Plan projections foundation
+## v0.6.85 Starter Packs foundation
+
+- Adds a Shopping List Nutrition tab with kcal and nutrition values by ingredient/portion.
+- Loads the uploaded nutrition examples into Pathmark Sync defaults and maps them into grocery inventory categories.
+- Recipes now estimate kcal per recipe and per serving when ingredient quantity/unit can be matched to nutrition data.
+- Missing nutrition data and unsupported unit conversions are shown on the recipe page.
+- Recipes can be exported to Pathmark Projects as a cooking activity.
+- Adds a Pathmark Grocery Template Google Sheet workflow for bulk export/import of nutrition, inventory and recipes, with merge and clean import modes.
+
+# Pathmark Release Hub
+
+## v0.6.83 Shopping List beta foundation
 
 - After Google login, Pathmark Online is used as the landing tab without hiding Home, Theme, About & Privacy, Spending Plan beta, or Developer tools.
 - Dashboard progress cards no longer repeat the same completion phrase above and inside the progress bar; the card footer carries the phrase and the bar shows the percentage only.

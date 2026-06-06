@@ -54,3 +54,23 @@ secret_key = "sb_secret_YOUR_SUPABASE_SECRET_API_KEY"
 ```
 
 Never commit Streamlit secrets, Supabase keys, Google OAuth client secrets, or local `.env` files to GitHub.
+
+## Optional starter-pack library
+
+The migration `20260607000000_add_starter_pack_tables.sql` adds optional read-only starter-pack tables:
+
+- `public.pathmark_starter_packs`
+- `public.pathmark_starter_pack_rows`
+
+These can hold curated library data such as NZ Seasonal Produce, nutrition reference rows, and recipe starters. They are for controlled starter-library distribution only. User-edited grocery inventory, recipes, shopping lists, planning records, calendar rows, and spending data still belong in the user's own Pathmark Sync Google Sheet, not in Supabase.
+
+Suggested Streamlit secrets for gated imports:
+
+```toml
+[starter_packs]
+nz_seasonal_produce_code_hash = "sha256_hex_of_access_code"
+# or, for local testing only:
+# nz_seasonal_produce_code = "plain-text-code"
+```
+
+Imported starter-pack rows are copied into the user's Pathmark Sync sheet and become editable user data. This is controlled distribution, not copy protection.

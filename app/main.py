@@ -61,6 +61,13 @@ ONLINE_TABLES = {
     "spending_income": ["income_id", "person", "category", "weekly_amount", "fortnightly_amount", "monthly_amount", "yearly_amount", "annual_amount", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "spending_expenses": ["expense_id", "expense_kind", "group_name", "item", "weekly_amount", "fortnightly_amount", "monthly_amount", "quarterly_amount", "yearly_amount", "annual_amount", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "spending_accounts": ["account_id", "account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_categories": ["category_id", "category_name", "description", "colour", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_inventory": ["inventory_id", "category_name", "item", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_nutrition": ["nutrition_id", "item", "category_name", "portion_quantity", "portion_unit", "kcal_per_portion", "total_carbohydrate", "total_fat", "protein", "saturated_fat", "trans_fat", "monounsat_fat", "polyunsat_fat", "cholesterol", "sodium", "potassium", "dietary_fibre", "sugars", "vitamin_a", "vitamin_c", "calcium", "iron", "vitamin_d", "caffeine", "magnesium", "phosphorus", "zinc", "copper", "manganese", "thiamine", "riboflavin", "niacin", "folate", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "recipes": ["recipe_id", "recipe_name", "category_name", "servings", "source_url", "notes", "exported_goal_id", "exported_action_id", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "recipe_ingredients": ["recipe_ingredient_id", "recipe_id", "recipe_name", "inventory_id", "ingredient", "quantity", "unit", "category_name", "kcal_estimate", "nutrition_status", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "shopping_lists": ["shopping_list_id", "list_name", "planned_date", "status", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "checked", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
 }
 
 GOOGLE_CALENDAR_COLOURS = [
@@ -1276,7 +1283,7 @@ def render_google_permissions_onboarding(compact: bool = False) -> None:
       <h4>7. Backups and restore</h4>
       <p>Pathmark can create backup Google Sheets and can restore or reset Pathmark Sync when you ask it to. Some actions may create a safety backup first. Resetting Pathmark Sync does not automatically delete Google Tasks or Google Calendar events.</p>
       <h4>8. What Supabase stores</h4>
-      <p>Supabase is used for access/profile metadata only, such as email, role, status, feature flags, theme preference and audit records. Supabase is not used to store your private planning, task, calendar or spending-plan content.</p>
+      <p>Supabase is used for access/profile metadata, such as email, role, status, feature flags, theme preference and audit records. Supabase may also hold optional read-only starter-pack library rows, such as grocery, nutrition, produce or recipe starter data. Supabase is not used to store your private planning, task, calendar, spending-plan content, or your edited grocery inventory.</p>
       <h4>9. What Pathmark does not do</h4>
       <p>Pathmark does not sell your data, does not store your Google password, does not store OAuth tokens in Supabase, does not use your planning or finance content for advertising, and does not intentionally scan unrelated Google Drive, Tasks or Calendar content.</p>
       <h4>10. User responsibility</h4>
@@ -2206,6 +2213,13 @@ ONLINE_ID_COLUMNS = {
     "wizard_drafts": "draft_id",
     "pending_changes": "sync_id",
     "task_prompts": "prompt_id",
+    "grocery_categories": "category_id",
+    "grocery_inventory": "inventory_id",
+    "grocery_nutrition": "nutrition_id",
+    "recipes": "recipe_id",
+    "recipe_ingredients": "recipe_ingredient_id",
+    "shopping_lists": "shopping_list_id",
+    "shopping_items": "shopping_item_id",
 }
 
 
@@ -2329,10 +2343,10 @@ def restore_online_record(sheet_id: str, table: str, record_id: str) -> tuple[bo
     return update_online_record(sheet_id, table, record_id, updates)
 
 
-def mark_actions_exported(sheet_id: str, action_ids: list[str], export_type: str, *, archive: bool = True) -> tuple[bool, str]:
+def mark_actions_exported(sheet_id: str, action_ids: list[str], export_type: str, *, archive: bool = False) -> tuple[bool, str]:
     ids = [str(x).strip() for x in action_ids if str(x).strip()]
     if not ids:
-        return False, "No exported items were available to move."
+        return False, "No exported items were available to mark."
     batch_id = f"export-{uuid.uuid4().hex[:12]}"
     stamp = utc_now_text()
     ok_count = 0
@@ -2355,8 +2369,10 @@ def mark_actions_exported(sheet_id: str, action_ids: list[str], export_type: str
             ok_count += 1
     clear_online_cache(sheet_id)
     if ok_count:
-        return True, f"Moved {ok_count} exported item(s) to Archive. Batch: {batch_id}."
-    return False, last_message or "Could not move the exported items to Archive."
+        if archive:
+            return True, f"Archived {ok_count} selected item(s). Batch: {batch_id}."
+        return True, f"Marked {ok_count} item(s) as exported. They remain in their project or routine until you pause or archive them. Batch: {batch_id}."
+    return False, last_message or "Could not update the exported item records."
 
 
 def active_online_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -3660,8 +3676,8 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
                 action=data,
             )
             if rid:
-                if st.button("Move this activity to Archive", key=f"archive_action_{rid}", use_container_width=True):
-                    ok, message = archive_online_record(sheet_id, "actions", rid, "Archived from Pathmark Online.")
+                if st.button("Archive this completed activity", key=f"archive_action_{rid}", use_container_width=True):
+                    ok, message = archive_online_record(sheet_id, "actions", rid, "Completed or retired activity archived from Pathmark Online.")
                     if ok:
                         st.success("Activity archived. You can restore it from Archive.")
                     else:
@@ -3887,7 +3903,7 @@ def render_goal_manager(sheet_id: str) -> None:
                 render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project steps / checklist items complete")
             else:
                 st.caption("No Google Tasks checklist items are linked to this project yet.")
-            tabs = st.tabs(["Project details", "Project steps", "Archive"])
+            tabs = st.tabs(["Project details", "Project steps", "Manage"])
             with tabs[0]:
                 with st.form(f"online_edit_goal_{selected_id}"):
                     area = st.selectbox("Area", options=[""] + areas, index=([""] + areas).index(str(g.get("area_name", ""))) if str(g.get("area_name", "")) in areas else 0) if areas else st.text_input("Area", value=str(g.get("area_name", "")))
@@ -3922,11 +3938,32 @@ def render_goal_manager(sheet_id: str) -> None:
                 with st.expander("Add project step", expanded=linked.empty):
                     _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}")
             with tabs[2]:
-                st.write("Archive the project when it is finished or no longer useful. This hides it from active online views.")
-                if st.button("Archive project", key=f"archive_goal_{selected_id}"):
-                    ok, message = archive_online_record(sheet_id, "goals", selected_id, "Archived from Pathmark Online.")
+                st.markdown("""
+                **Active** projects appear in the workspace and count toward progress.  
+                **On hold** projects remain here but are not treated as current work.  
+                **Archived** projects are for completed or retired work you no longer want in the Projects tab.
+                """)
+                c1, c2, c3 = st.columns(3)
+                if c1.button("Set as active", key=f"active_goal_{selected_id}", use_container_width=True):
+                    ok, message = update_online_record(sheet_id, "goals", selected_id, {"status": "Active"})
                     if ok:
-                        st.success(message)
+                        st.success("Project set as active.")
+                    else:
+                        st.warning(safe_user_message(message))
+                    if ok:
+                        st.rerun()
+                if c2.button("Pause project", key=f"pause_goal_{selected_id}", use_container_width=True):
+                    ok, message = update_online_record(sheet_id, "goals", selected_id, {"status": "On hold"})
+                    if ok:
+                        st.success("Project paused. It remains here so you can restart it later.")
+                    else:
+                        st.warning(safe_user_message(message))
+                    if ok:
+                        st.rerun()
+                if c3.button("Archive completed project", key=f"archive_goal_{selected_id}", use_container_width=True):
+                    ok, message = archive_online_record(sheet_id, "goals", selected_id, "Completed or retired project archived from Pathmark Online.")
+                    if ok:
+                        st.success("Project archived. You can restore it from Archive.")
                     else:
                         st.warning(safe_user_message(message))
                     if ok:
@@ -4073,7 +4110,7 @@ def render_routine_manager(sheet_id: str) -> None:
                 st.markdown("""
                 **Active** routines appear in the workspace and can feed exports.  
                 **Paused** routines stay visible here but are not intended for current tasklist or export use.  
-                **Archived** routines move out of the active workspace and can be restored later.
+                **Archived** routines are for completed or retired routines you no longer want in the Routines tab. They can be restored later.
                 """)
                 c1, c2, c3 = st.columns(3)
                 if c1.button("Set as active", key=f"active_r_{selected_id}"):
@@ -4092,8 +4129,8 @@ def render_routine_manager(sheet_id: str) -> None:
                         st.warning(safe_user_message(message))
                     if ok:
                         st.rerun()
-                if c3.button("Archive routine", key=f"archive_r_{selected_id}"):
-                    ok, message = archive_online_record(sheet_id, "routines", selected_id, "Archived from Pathmark Online.")
+                if c3.button("Archive completed routine", key=f"archive_r_{selected_id}"):
+                    ok, message = archive_online_record(sheet_id, "routines", selected_id, "Completed or retired routine archived from Pathmark Online.")
                     if ok:
                         st.success("Routine archived. You can restore it from Archive.")
                     else:
@@ -6110,10 +6147,10 @@ def render_tasklist_manager(sheet_id: str) -> None:
     st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
     if not selected_rows.empty:
         with st.expander("After printing or saving"):
-            st.write("Move these rows to Archive when you want them out of your active workspace. You can restore them later.")
-            if st.button("Move selected tasklist items to Archive", use_container_width=True):
+            st.write("Printing or saving a tasklist does not move items to Archive. Project steps and routine activities remain in their Projects or Routines tabs until you pause or archive them deliberately.")
+            if st.button("Mark selected rows as exported", use_container_width=True):
                 ids = selected_rows.get("action_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
-                ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=True)
+                ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=False)
                 if ok:
                     st.success(message)
                 else:
@@ -6777,10 +6814,10 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
         st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
 
     if not blocks.empty:
-        st.info("Archive synced calendar rows only when you no longer want them in the active workspace. For recurring routines, keep the source routine activity active.")
-        if st.button("Move exported calendar items to Archive", use_container_width=True):
+        st.info("Calendar sync does not archive items. Linked project steps and routine activities remain in their Projects or Routines tabs until you pause or archive them deliberately.")
+        if st.button("Mark calendar items as synced/exported", use_container_width=True):
             ids = blocks.get("linked_record_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
-            ok, message = mark_actions_exported(sheet_id, ids, "google_calendar", archive=True)
+            ok, message = mark_actions_exported(sheet_id, ids, "google_calendar", archive=False)
             if ok:
                 st.success(message)
             else:
@@ -7399,10 +7436,10 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
                 st.warning(safe_user_message(message))
 
     if not prompts.empty:
-        st.info("Archive exported task rows only when you no longer want them in the active workspace. For recurring routines, keep the source routine activity active.")
-        if st.button("Move exported Google Tasks items to Archive", use_container_width=True):
+        st.info("Google Tasks sync does not archive items. Tasks can be pending or completed in Google Tasks while the source project step or routine activity remains visible in Pathmark.")
+        if st.button("Mark Google Tasks rows as synced/exported", use_container_width=True):
             ids = prompts.get("id", pd.Series(dtype=str)).dropna().astype(str).tolist()
-            ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=True)
+            ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=False)
             if ok:
                 st.success(message)
             else:
@@ -7411,12 +7448,12 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
 
 def render_archive_manager(sheet_id: str) -> None:
     st.subheader("Archive")
-    st.write("Archive keeps exported, completed or paused records out of the active workspace without deleting them. Restore a record when you want to work with it again.")
+    st.write("Archive is for completed or retired projects, routines and activities that you no longer want in the active tabs. Paused items stay in their original tabs so they can be restarted later, and exports do not move anything here automatically.")
     table_specs = [
         ("areas", "Areas", "area_id", "area_name", ["area_name", "description", "updated_at", "archived_at", "archived_reason"]),
         ("goals", "Projects", "goal_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
         ("routines", "Routines", "routine_id", "title", ["title", "area_name", "status", "updated_at", "archived_at", "archived_reason"]),
-        ("actions", "Goal and routine activities", "action_id", "title", ["title", "area_name", "status", "export_type", "exported_at", "archived_at", "archived_reason"]),
+        ("actions", "Project and routine activities", "action_id", "title", ["title", "area_name", "status", "export_type", "exported_at", "archived_at", "archived_reason"]),
     ]
     for table, title, id_col, label_col, cols in table_specs:
         df = read_online_table(sheet_id, table)
@@ -9279,8 +9316,19 @@ def download_tab() -> None:
     """, unsafe_allow_html=True)
     st.info("Privacy, storage, and permission details are now in the separate About & Privacy tab so the homepage stays focused on what Pathmark does.")
     st.header("Release notes")
-    for note in version.get("notes", []):
-        st.write(f"- {note}")
+    notes_value = version.get("notes", version.get("release_notes", []))
+    if isinstance(notes_value, str):
+        note_lines = [line.strip(" -•") for line in notes_value.splitlines() if line.strip(" -•")]
+        if not note_lines and notes_value.strip():
+            note_lines = [notes_value.strip()]
+    elif isinstance(notes_value, list):
+        note_lines = [str(note).strip() for note in notes_value if str(note).strip()]
+    else:
+        note_lines = []
+    if not note_lines and str(version.get("release_notes", "")).strip():
+        note_lines = [str(version.get("release_notes", "")).strip()]
+    for note in note_lines:
+        st.markdown(f"- {html.escape(note)}")
 
 
 
@@ -9439,6 +9487,7 @@ def about_privacy_tab() -> None:
     | Google Calendar events and moved/missing status | Google Calendar | Permission may be granted during Google connection. Pathmark uses it to create or reuse calendars named after your Areas, then create/read linked Pathmark events only when you use Google Calendar Sync. Pathmark stores linked event IDs/status in Pathmark Sync so it can avoid duplicates and flag changes for review. |
     | Local Workspace folders, Markdown files, local exports, backups and desktop tasklists | Your chosen Workspace folder on your computer | These are created by Pathmark Desktop, not by Pathmark Online. |
     | Email, access role, account status, feature flags, theme preference and audit records | Supabase | This controls beta/developer access and basic profile behaviour. It does not contain your planning records. |
+    | Optional starter-pack libraries | Supabase | Curated read-only library rows, such as NZ Seasonal Produce, can be copied into your Pathmark Sync sheet after access is granted. |
     | App code, release files, public documentation and Supabase migration files | GitHub | This is the public/deployment codebase. The current package does not contain Google OAuth tokens, Supabase secret keys, client secrets or private planning records. |
     | Google OAuth client secrets, Supabase secret keys and deployment secrets | Streamlit secrets | These are deployment credentials held outside the GitHub repository. |
     """)
@@ -9448,7 +9497,7 @@ def about_privacy_tab() -> None:
     **Google Sheets** store your online Pathmark records, optional finance template, and optional backup sheets.  
     **Google Tasks** stores synced checklist items only after you choose Google Tasks Sync.  
     **Google Calendar** stores synced Pathmark events in calendars named after your Areas only after you choose Google Calendar Sync.  
-    **Supabase** stores access/profile metadata only.  
+    **Supabase** stores access/profile metadata and optional read-only starter-pack library rows.  
     **GitHub** stores code and release files only.  
     **Streamlit** hosts the app and stores deployment secrets outside the repository.
 
@@ -9483,7 +9532,7 @@ def about_privacy_tab() -> None:
         Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets, outside the GitHub repository.
 
         **Supabase**  
-        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Supabase does not store your projects, routines, tasklists, calendar rows or private planning content.
+        Stores access/profile metadata only: email, role, account status, feature flags, audit logs and theme preference. Supabase does not store your projects, routines, tasklists, calendar rows, private planning content, or your edited grocery inventory.
 
         **GitHub**  
         Stores code, release packages, documentation and database migration files. The release package has been checked so it does not contain private planning sheets, Workspace folders, Google OAuth tokens, Supabase secret keys or Google client secrets.
@@ -9655,6 +9704,1470 @@ def on_the_go_tab() -> None:
         render_safe_section("Archive", render_archive_manager, sheet_id)
     with sections[10]:
         render_safe_section("Settings", render_online_settings, sheet_id)
+
+
+GROCERY_CATEGORIES = [
+    "Baby Care",
+    "Bakery",
+    "Baking Supplies & Sugar",
+    "Beauty & Grooming",
+    "Beer, Cider & Wine",
+    "Biscuits & Crackers",
+    "Breakfast Cereals",
+    "Bulk & Loose Foods",
+    "Butchery",
+    "Canned & Prepared Foods",
+    "Cheese",
+    "Cleaning Products",
+    "Cold Drinks",
+    "Condiments & Dressings",
+    "Confectionery",
+    "Dairy & Eggs",
+    "Deli, Salads & Cooked Meats",
+    "Desserts",
+    "Fruits & Vegetables",
+    "Garage & Outdoor",
+    "Health & Wellness",
+    "Hot Drinks",
+    "Household",
+    "Jams, Honey & Spreads",
+    "Laundry",
+    "Pasta, Rice & Noodles",
+    "Pet Supplies",
+    "Prep",
+    "Produce",
+    "Salad & Cooking Oils",
+    "Sauces, Stock & Marinades",
+    "Seafood",
+    "Snack Foods",
+    "Spices & Seasonings",
+    "Stationary & Entertainments",
+    "World Foods",
+    "Frozen Foods"
+]
+
+GROCERY_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+
+GROCERY_NUTRITION_SOURCE_ROWS: list[dict[str, Any]] = [
+    # Public sample rows only. The full curated starter library should be stored
+    # outside the public GitHub repository, for example in Supabase starter-pack
+    # tables, then copied into a user-owned Pathmark Sync sheet after access is
+    # granted.
+    {
+        "food": "sample.ingredient",
+        "portion": "100 g",
+        "kcal per portion": "0 kcal",
+        "total carbohydrate": "",
+        "total fat": "",
+        "protein": "",
+    }
+]
+
+def _display_food_name(name: str) -> str:
+    text = str(name or "").replace(".", " ").replace("_", " ").strip()
+    parts = [p for p in re.split(r"\s+", text) if p]
+    return " ".join(part.capitalize() if part.islower() else part for part in parts)
+
+
+def _normalise_food_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+
+
+def _parse_amount_and_unit(value: Any) -> tuple[float | None, str]:
+    text = str(value or "").strip()
+    if not text:
+        return None, ""
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if not match:
+        return None, text.lower()
+    amount = float(match.group(0))
+    unit = text[match.end():].strip().lower()
+    unit = unit.replace("grams", "g").replace("gram", "g").replace("millilitres", "ml").replace("milliliters", "ml")
+    unit = unit.replace("millilitre", "ml").replace("milliliter", "ml")
+    return amount, unit
+
+
+def _amount_from_text(value: Any) -> float:
+    amount, _unit = _parse_amount_and_unit(value)
+    return float(amount or 0.0)
+
+
+def _grocery_category_for_item(item: str) -> str:
+    key = str(item or "").lower().replace(".", " ")
+    spices = ["chilli", "pepper", "cumin", "allspice", "thyme", "basil", "coriander", "parsley", "salt"]
+    oils = ["oil"]
+    baking = ["flour", "sugar", "baking", "cornstarch", "vanilla"]
+    dairy = ["milk", "yoghurt", "yogurt", "egg", "butter", "cream", "fraiche"]
+    cheese = ["cheese", "parmesan"]
+    sauces = ["sauce", "paste", "stock", "sriracha", "kewpie", "molasses", "vinegar"]
+    spreads = ["jam", "syrup", "honey", "spread", "peanut butter", "tahini"]
+    grains = ["rice", "noodle", "pasta", "tortilla", "pita", "masa", "chickpea"]
+    produce = ["onion", "ginger", "garlic", "mushroom", "avocado", "kohlrabi", "lime", "orange", "lemon", "lettuce", "cucumber", "carrot", "capsicum", "leek", "tomato", "cabbage", "sprout", "bok choy", "asparagus", "tofu", "radish", "eggplant"]
+    snacks = ["biscuit", "cracker", "peanut", "pine nut", "sesame seed"]
+    if any(word in key for word in oils):
+        return "Salad & Cooking Oils"
+    if any(word in key for word in spices):
+        return "Spices & Seasonings"
+    if any(word in key for word in sauces):
+        return "Sauces, Stock & Marinades"
+    if any(word in key for word in baking):
+        return "Baking Supplies & Sugar"
+    if any(word in key for word in cheese):
+        return "Cheese"
+    if any(word in key for word in dairy):
+        return "Dairy & Eggs"
+    if any(word in key for word in spreads):
+        return "Jams, Honey & Spreads"
+    if any(word in key for word in grains):
+        return "Pasta, Rice & Noodles"
+    if any(word in key for word in produce):
+        return "Fruits & Vegetables"
+    if any(word in key for word in snacks):
+        return "Snack Foods"
+    if "weet" in key or "cereal" in key:
+        return "Breakfast Cereals"
+    if "hibiscus" in key:
+        return "Hot Drinks"
+    return "World Foods"
+
+
+def grocery_nutrition_starter_records() -> list[dict[str, Any]]:
+    records = []
+    seen = set()
+    for row in GROCERY_NUTRITION_SOURCE_ROWS:
+        raw = str(row.get("food", "") or "").strip()
+        if not raw:
+            continue
+        key = _normalise_food_key(raw)
+        if key in seen:
+            continue
+        seen.add(key)
+        portion_qty, portion_unit = _parse_amount_and_unit(row.get("portion", ""))
+        record = {
+            "nutrition_id": f"nutrition-{uuid.uuid4().hex[:12]}",
+            "item": _display_food_name(raw),
+            "category_name": _grocery_category_for_item(raw),
+            "portion_quantity": str(portion_qty or ""),
+            "portion_unit": portion_unit,
+            "kcal_per_portion": str(_amount_from_text(row.get("kcal per portion", ""))),
+            "notes": "Imported from previous nutrition examples.",
+            "status": "active",
+            "source": "Uploaded nutrition examples",
+        }
+        for source_key, dest_key in NUTRITION_FIELD_MAP.items():
+            record[dest_key] = str(row.get(source_key, "") or "")
+        records.append(record)
+    return records
+
+
+def grocery_nutrition_inventory_records() -> list[dict[str, Any]]:
+    records = []
+    for row in GROCERY_NUTRITION_SOURCE_ROWS:
+        item = _display_food_name(row.get("food", ""))
+        if not item:
+            continue
+        portion_qty, portion_unit = _parse_amount_and_unit(row.get("portion", ""))
+        records.append({
+            "inventory_id": f"inventory-{uuid.uuid4().hex[:12]}",
+            "category_name": _grocery_category_for_item(item),
+            "item": item,
+            "quantity": "",
+            "unit": portion_unit,
+            "expiry_date": "",
+            "storage": "",
+            "is_frozen": "",
+            "requires_substitute": "",
+            "suggested_substitute": "",
+            "must_be_homegrown": "",
+            "unavailable": "",
+            "imported": "",
+            "canned": "",
+            "in_season": "",
+            "limited_in_season": "",
+            "months": "",
+            "notes": f"Nutrition example portion: {portion_qty or ''} {portion_unit}".strip(),
+            "status": "active",
+            "source": "Uploaded nutrition examples",
+        })
+    return records
+
+GROCERY_PRODUCE_STARTERS: list[dict[str, Any]] = [
+    # Public sample row only. The full NZ Seasonal Produce starter pack is
+    # designed to be imported from Supabase after the user receives access.
+    {"item": "Sample Produce", "raw": "sample.produce", "months": [], "tag": "", "substitute": ""}
+]
+
+def _grocery_bool_text(value: bool) -> str:
+    return "TRUE" if bool(value) else ""
+
+
+def _produce_starter_to_inventory_record(item: dict[str, Any]) -> dict[str, Any]:
+    tag = str(item.get("tag", "") or "").strip().lower()
+    months = [str(m).strip() for m in item.get("months", []) if str(m).strip()]
+    raw_name = str(item.get("raw", "") or "").strip()
+    substitute = str(item.get("substitute", "") or "").replace(".", " ").strip().title()
+    requires_substitute = tag in {"substitute", "requires substitute"} or bool(substitute)
+    limited = tag in {"limited", "limited in season"}
+    in_season = bool(months) and not tag in {"unavailable"}
+    notes = "Imported from Produce.xlsx."
+    if raw_name:
+        notes += f" Original produce key: {raw_name}."
+    if tag:
+        notes += f" Produce status: {item.get('tag')}."
+    return {
+        "inventory_id": f"inventory-{uuid.uuid4().hex[:12]}",
+        "category_name": "Produce",
+        "item": str(item.get("item", "") or "").strip(),
+        "quantity": "0",
+        "unit": "",
+        "expiry_date": "",
+        "storage": "Fresh",
+        "is_frozen": _grocery_bool_text(tag == "frozen"),
+        "requires_substitute": _grocery_bool_text(requires_substitute),
+        "suggested_substitute": substitute,
+        "must_be_homegrown": _grocery_bool_text(tag == "homegrown"),
+        "unavailable": _grocery_bool_text(tag == "unavailable"),
+        "imported": _grocery_bool_text(tag == "imported"),
+        "canned": _grocery_bool_text(tag == "canned"),
+        "in_season": _grocery_bool_text(in_season),
+        "limited_in_season": _grocery_bool_text(limited),
+        "months": ", ".join(months),
+        "notes": notes,
+        "status": "active",
+        "source": "Produce.xlsx import",
+    }
+
+
+def grocery_category_starter_records() -> list[dict[str, Any]]:
+    colours = ["#334E9E", "#1B8EA8", "#5D7F61", "#8A5A44", "#B66A00", "#8B4E9F", "#475569"]
+    records: list[dict[str, Any]] = []
+    for idx, category in enumerate(GROCERY_CATEGORIES, start=1):
+        records.append({
+            "category_id": f"grocery-category-{uuid.uuid4().hex[:12]}",
+            "category_name": category,
+            "description": "Grocery shopping-list category.",
+            "colour": colours[(idx - 1) % len(colours)],
+            "sort_order": str(idx),
+            "status": "active",
+            "source": "Pathmark grocery category defaults",
+        })
+    return records
+
+
+def grocery_produce_inventory_records() -> list[dict[str, Any]]:
+    return [_produce_starter_to_inventory_record(item) for item in GROCERY_PRODUCE_STARTERS if str(item.get("item", "")).strip()]
+
+
+def ensure_grocery_default_rows(sheet_id: str) -> None:
+    """Create only the public grocery category structure where missing.
+
+    Curated nutrition, produce, and recipe data is deliberately not bundled into
+    the public app repository. It can be imported separately through Starter
+    Packs once access is granted.
+    """
+    if not sheet_id:
+        return
+    cache_key = f"grocery_defaults_checked::{sheet_id}"
+    if st.session_state.get(cache_key):
+        return
+    st.session_state[cache_key] = True
+    try:
+        records: dict[str, list[dict[str, Any]]] = {}
+        if active_online_df(read_online_table(sheet_id, "grocery_categories")).empty:
+            records["grocery_categories"] = grocery_category_starter_records()
+        if records:
+            ok, _msg = append_many_online_records(sheet_id, records)
+            if ok:
+                clear_online_cache(sheet_id)
+    except Exception:
+        pass
+
+
+def _grocery_table_options(sheet_id: str, table: str, label_col: str, fallback: list[str] | None = None) -> list[str]:
+    df = active_online_df(read_online_table(sheet_id, table))
+    if df.empty or label_col not in df.columns:
+        return list(fallback or [])
+    values = sorted({str(v).strip() for v in df[label_col].tolist() if str(v).strip()})
+    return values or list(fallback or [])
+
+
+def grocery_category_options(sheet_id: str) -> list[str]:
+    values = _grocery_table_options(sheet_id, "grocery_categories", "category_name", GROCERY_CATEGORIES)
+    return values or GROCERY_CATEGORIES
+
+
+def grocery_inventory_options(sheet_id: str) -> list[str]:
+    return _grocery_table_options(sheet_id, "grocery_inventory", "item", [])
+
+
+def _find_grocery_inventory_record(sheet_id: str, item_name: str) -> dict[str, Any] | None:
+    inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
+    target = str(item_name or "").strip().lower()
+    if inventory.empty or not target:
+        return None
+    for _, row in inventory.iterrows():
+        if str(row.get("item", "") or "").strip().lower() == target:
+            return row.to_dict()
+    return None
+
+
+def _add_inventory_item_if_needed(sheet_id: str, ingredient: str, category: str, *, unit: str = "", notes: str = "") -> str:
+    existing = _find_grocery_inventory_record(sheet_id, ingredient)
+    if existing:
+        return str(existing.get("inventory_id", "") or "")
+    record = {
+        "inventory_id": f"inventory-{uuid.uuid4().hex[:12]}",
+        "category_name": category or "Produce",
+        "item": ingredient,
+        "quantity": "0",
+        "unit": unit,
+        "expiry_date": "",
+        "storage": "",
+        "is_frozen": "",
+        "requires_substitute": "",
+        "suggested_substitute": "",
+        "must_be_homegrown": "",
+        "unavailable": "",
+        "imported": "",
+        "canned": "",
+        "in_season": "",
+        "limited_in_season": "",
+        "months": "",
+        "notes": notes or "Added while creating a recipe or shopping-list item.",
+        "status": "active",
+        "source": "Shopping List beta",
+    }
+    ok, _msg = append_online_record(sheet_id, "grocery_inventory", record)
+    return record["inventory_id"] if ok else ""
+
+
+def _shopping_items_for_list(sheet_id: str, list_id: str) -> pd.DataFrame:
+    items = active_online_df(read_online_table(sheet_id, "shopping_items"))
+    if items.empty:
+        return items
+    return items[items["shopping_list_id"].fillna("").astype(str).eq(str(list_id))].reset_index(drop=True)
+
+
+
+def grocery_nutrition_options(sheet_id: str) -> list[str]:
+    return _grocery_table_options(sheet_id, "grocery_nutrition", "item", [])
+
+
+def _find_nutrition_record(sheet_id: str, item_name: str) -> dict[str, Any] | None:
+    nutrition = active_online_df(read_online_table(sheet_id, "grocery_nutrition"))
+    if nutrition.empty:
+        return None
+    key = _normalise_food_key(item_name)
+    for _, row in nutrition.iterrows():
+        if _normalise_food_key(row.get("item", "")) == key:
+            return row.to_dict()
+    return None
+
+
+def _unit_to_base(amount: float, unit: str) -> tuple[float, str]:
+    unit = str(unit or "").strip().lower()
+    unit = unit.replace("grams", "g").replace("gram", "g").replace("kgs", "kg")
+    unit = unit.replace("millilitres", "ml").replace("milliliters", "ml").replace("litres", "l").replace("liters", "l")
+    conversions = {
+        "kg": (1000.0, "g"),
+        "g": (1.0, "g"),
+        "mg": (0.001, "g"),
+        "l": (1000.0, "ml"),
+        "ml": (1.0, "ml"),
+        "tbsp": (15.0, "ml"),
+        "tablespoon": (15.0, "ml"),
+        "tablespoons": (15.0, "ml"),
+        "tsp": (5.0, "ml"),
+        "teaspoon": (5.0, "ml"),
+        "teaspoons": (5.0, "ml"),
+        "cup": (250.0, "ml"),
+        "cups": (250.0, "ml"),
+    }
+    factor, base_unit = conversions.get(unit, (1.0, unit))
+    return amount * factor, base_unit
+
+
+def _estimate_ingredient_kcal(row: dict[str, Any], nutrition_row: dict[str, Any] | None = None) -> tuple[float | None, str]:
+    if nutrition_row is None:
+        return None, "Missing nutrition data"
+    qty = _amount_from_text(row.get("quantity", ""))
+    if qty <= 0:
+        return None, "Missing quantity"
+    recipe_unit = str(row.get("unit", "") or "").strip().lower()
+    portion_qty = _amount_from_text(nutrition_row.get("portion_quantity", ""))
+    portion_unit = str(nutrition_row.get("portion_unit", "") or "").strip().lower()
+    kcal = _amount_from_text(nutrition_row.get("kcal_per_portion", ""))
+    if portion_qty <= 0 or kcal <= 0:
+        return None, "Missing kcal or portion data"
+    recipe_amount, recipe_base = _unit_to_base(qty, recipe_unit)
+    portion_amount, portion_base = _unit_to_base(portion_qty, portion_unit)
+    if recipe_base and portion_base and recipe_base == portion_base and portion_amount > 0:
+        return kcal * (recipe_amount / portion_amount), "Calculated"
+    if recipe_unit and portion_unit and recipe_unit == portion_unit and portion_qty > 0:
+        return kcal * (qty / portion_qty), "Calculated"
+    return None, f"Cannot convert {recipe_unit or 'blank unit'} to {portion_unit or 'blank portion unit'}"
+
+
+def recipe_nutrition_summary(sheet_id: str, recipe_id: str, servings: Any) -> tuple[pd.DataFrame, float, list[str]]:
+    ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    nutrition = active_online_df(read_online_table(sheet_id, "grocery_nutrition"))
+    rows = ingredients[ingredients["recipe_id"].fillna("").eq(recipe_id)].copy() if not ingredients.empty else pd.DataFrame()
+    details = []
+    total = 0.0
+    missing = []
+    for _, ing in rows.iterrows():
+        ing_dict = ing.to_dict()
+        item = str(ing_dict.get("ingredient", "") or "")
+        nrow = None
+        if not nutrition.empty:
+            match = nutrition[nutrition["item"].fillna("").apply(_normalise_food_key).eq(_normalise_food_key(item))]
+            if not match.empty:
+                nrow = match.iloc[0].to_dict()
+        kcal, status = _estimate_ingredient_kcal(ing_dict, nrow)
+        if kcal is not None:
+            total += kcal
+        else:
+            missing.append(f"{item}: {status}")
+        details.append({
+            "Ingredient": item,
+            "Quantity": str(ing_dict.get("quantity", "") or ""),
+            "Unit": str(ing_dict.get("unit", "") or ""),
+            "Category": str(ing_dict.get("category_name", "") or ""),
+            "kcal estimate": round(kcal, 1) if kcal is not None else "",
+            "Nutrition status": status,
+        })
+    return pd.DataFrame(details), total, missing
+
+
+def render_grocery_nutrition_tab(sheet_id: str) -> None:
+    st.subheader("Nutrition information")
+    st.caption("Store kcal and nutrition values by ingredient and portion. Recipe calories use these rows when units can be matched or converted.")
+    categories = grocery_category_options(sheet_id)
+    nutrition = active_online_df(read_online_table(sheet_id, "grocery_nutrition"))
+    search = st.text_input("Search nutrition", placeholder="e.g., sesame, rice, soy sauce")
+    view = nutrition.copy()
+    if not view.empty and search.strip():
+        mask = view.apply(lambda row: search.strip().lower() in " ".join(str(v).lower() for v in row.values), axis=1)
+        view = view[mask]
+    display_cols = [c for c in ["item", "category_name", "portion_quantity", "portion_unit", "kcal_per_portion", "total_carbohydrate", "total_fat", "protein", "sodium", "dietary_fibre", "notes"] if c in view.columns]
+    st.dataframe(view[display_cols] if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=360)
+    with st.form("add_grocery_nutrition_form"):
+        st.markdown("#### Add or update nutrition item")
+        c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+        with c1:
+            item = st.text_input("Ingredient / food")
+            category = st.selectbox("Category", categories, key="nutrition_category")
+        with c2:
+            portion_quantity = st.text_input("Portion quantity", placeholder="100")
+            portion_unit = st.text_input("Portion unit", placeholder="g")
+        with c3:
+            kcal = st.text_input("kcal per portion", placeholder="120")
+        with c4:
+            protein = st.text_input("Protein", placeholder="3 g")
+        total_carbs = st.text_input("Total carbohydrate", placeholder="20 g")
+        total_fat = st.text_input("Total fat", placeholder="5 g")
+        notes = st.text_area("Notes")
+        submitted = st.form_submit_button("Save nutrition item", use_container_width=True)
+    if submitted:
+        if not item.strip():
+            st.warning("Enter an ingredient or food name.")
+        else:
+            existing = _find_nutrition_record(sheet_id, item)
+            record = {
+                "item": item.strip(),
+                "category_name": category,
+                "portion_quantity": str(_amount_from_text(portion_quantity) or portion_quantity).strip(),
+                "portion_unit": str(portion_unit or "").strip().lower(),
+                "kcal_per_portion": str(_amount_from_text(kcal) or kcal).strip(),
+                "total_carbohydrate": total_carbs.strip(),
+                "total_fat": total_fat.strip(),
+                "protein": protein.strip(),
+                "notes": notes.strip(),
+                "status": "active",
+                "source": "Shopping List beta nutrition entry",
+            }
+            if existing:
+                ok, msg = update_online_record(sheet_id, "grocery_nutrition", str(existing.get("nutrition_id", "")), record)
+            else:
+                record["nutrition_id"] = f"nutrition-{uuid.uuid4().hex[:12]}"
+                ok, msg = append_online_record(sheet_id, "grocery_nutrition", record)
+            if ok:
+                _add_inventory_item_if_needed(sheet_id, item.strip(), category, unit=str(portion_unit or "").strip(), notes="Added from nutrition information.")
+                st.success("Nutrition item saved.")
+                st.rerun()
+            else:
+                st.warning(msg)
+
+
+def _find_existing_grocery_template() -> tuple[bool, str, str]:
+    drive = drive_service()
+    if drive is None:
+        return False, "", ""
+    try:
+        result = drive.files().list(
+            q="appProperties has { key='pathmark_grocery_template' and value='true' } and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+            spaces="drive",
+            fields="files(id,name,webViewLink,modifiedTime)",
+            orderBy="modifiedTime desc",
+            pageSize=1,
+        ).execute()
+        files = result.get("files", [])
+        if files:
+            fid = files[0].get("id", "")
+            return True, fid, files[0].get("webViewLink", f"https://docs.google.com/spreadsheets/d/{fid}")
+    except Exception:
+        pass
+    return False, "", ""
+
+
+def _ensure_grocery_template_file() -> tuple[bool, str, str, str]:
+    found, template_id, template_url = _find_existing_grocery_template()
+    if found:
+        return True, template_id, template_url, "Using your existing Pathmark Grocery Template."
+    service = sheets_service()
+    drive = drive_service()
+    if service is None:
+        return False, "", "", "Google Sheets access is not available for this session."
+    try:
+        spreadsheet = service.spreadsheets().create(
+            body={"properties": {"title": GROCERY_TEMPLATE_TITLE}, "sheets": [{"properties": {"title": "README"}}]},
+            fields="spreadsheetId,spreadsheetUrl",
+        ).execute()
+        template_id = spreadsheet.get("spreadsheetId", "")
+        template_url = spreadsheet.get("spreadsheetUrl", f"https://docs.google.com/spreadsheets/d/{template_id}")
+        if drive is not None and template_id:
+            try:
+                drive.files().update(fileId=template_id, body={"appProperties": {"pathmark_grocery_template": "true"}}, fields="id").execute()
+            except Exception:
+                pass
+        return True, template_id, template_url, "Created a separate Pathmark Grocery Template sheet."
+    except Exception as exc:
+        return False, "", "", f"Could not create the Pathmark Grocery Template: {exc}"
+
+
+def _values_from_records(df: pd.DataFrame, headers: list[str]) -> list[list[str]]:
+    values = [headers]
+    if not df.empty:
+        for _, row in df.iterrows():
+            values.append([str(row.get(col, "") or "") for col in headers])
+    return values
+
+
+def create_grocery_template(sheet_id: str) -> tuple[bool, str, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session.", ""
+    ok_file, template_id, template_url, file_msg = _ensure_grocery_template_file()
+    if not ok_file:
+        return False, file_msg, ""
+    try:
+        ensure_grocery_default_rows(sheet_id)
+        readme = [["Pathmark Grocery Template"], ["Purpose", "Edit nutrition, inventory and recipes here, then import back into Pathmark."], ["Import modes", "Clean import replaces existing grocery rows. Merge import updates by item/recipe where possible and adds new rows."]]
+        service.spreadsheets().values().update(spreadsheetId=template_id, range="README!A1:B3", valueInputOption="RAW", body={"values": readme}).execute()
+        table_specs = {
+            "Nutrition": ["item", "category_name", "portion_quantity", "portion_unit", "kcal_per_portion", "total_carbohydrate", "total_fat", "protein", "saturated_fat", "sodium", "dietary_fibre", "sugars", "notes", "status"],
+            "Inventory": ["item", "category_name", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes", "status"],
+            "Recipes": ["recipe_name", "category_name", "servings", "source_url", "notes", "status"],
+            "Recipe Ingredients": ["recipe_name", "quantity", "unit", "ingredient", "category_name", "notes", "status"],
+        }
+        source_map = {"Nutrition": "grocery_nutrition", "Inventory": "grocery_inventory", "Recipes": "recipes", "Recipe Ingredients": "recipe_ingredients"}
+        for title, headers in table_specs.items():
+            _ensure_template_sheet(service, template_id, title, headers)
+            df = active_online_df(read_online_table(sheet_id, source_map[title]))
+            values = _values_from_records(df, headers)
+            end_col = sheet_col_letter(len(headers))
+            service.spreadsheets().values().update(spreadsheetId=template_id, range=f"'{title}'!A1:{end_col}{len(values)}", valueInputOption="RAW", body={"values": values}).execute()
+        st.session_state["grocery_template_id"] = template_id
+        st.session_state["grocery_template_url"] = template_url
+        return True, file_msg + " Populated it with your current grocery data.", template_url
+    except Exception as exc:
+        return False, f"Could not populate the Pathmark Grocery Template: {exc}", ""
+
+
+def _read_template_tab(template_id: str, title: str, columns: list[str]) -> list[dict[str, Any]]:
+    service = sheets_service()
+    if service is None:
+        return []
+    values = service.spreadsheets().values().get(spreadsheetId=template_id, range=f"'{title}'!A1:{sheet_col_letter(len(columns))}").execute().get("values", [])
+    if not values:
+        return []
+    headers = [str(h or "").strip() for h in values[0]]
+    records = []
+    for row in values[1:]:
+        padded = list(row) + [""] * (len(headers) - len(row))
+        record = {headers[i]: str(padded[i] or "").strip() for i in range(len(headers)) if headers[i]}
+        if any(record.values()):
+            records.append(record)
+    return records
+
+
+def import_grocery_template(sheet_id: str, mode: str = "merge") -> tuple[bool, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session."
+    template_id = extract_google_sheet_id(str(st.session_state.get("grocery_template_id", "") or ""))
+    if not template_id:
+        found, found_id, _url = _find_existing_grocery_template()
+        template_id = found_id if found else ""
+    if not template_id:
+        return False, "Create the Pathmark Grocery Template first, then edit it and import it back."
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        backup_ok, backup_url, backup_msg = create_pathmark_sync_backup(sheet_id)
+        if not backup_ok:
+            return False, backup_msg
+        nutrition_rows = _read_template_tab(template_id, "Nutrition", ONLINE_TABLES["grocery_nutrition"])
+        inventory_rows = _read_template_tab(template_id, "Inventory", ONLINE_TABLES["grocery_inventory"])
+        recipe_rows = _read_template_tab(template_id, "Recipes", ONLINE_TABLES["recipes"])
+        ingredient_rows = _read_template_tab(template_id, "Recipe Ingredients", ONLINE_TABLES["recipe_ingredients"])
+        if mode == "clean":
+            for table in ["grocery_nutrition", "grocery_inventory", "recipes", "recipe_ingredients"]:
+                columns = ONLINE_TABLES.get(table, [])
+                service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{table}!A2:{sheet_col_letter(len(columns))}").execute()
+            clear_online_cache(sheet_id)
+        existing_n = active_online_df(read_online_table(sheet_id, "grocery_nutrition"))
+        existing_i = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
+        existing_r = active_online_df(read_online_table(sheet_id, "recipes"))
+        append = {"grocery_nutrition": [], "grocery_inventory": [], "recipes": [], "recipe_ingredients": []}
+        updated = 0
+        def upsert(table: str, id_col: str, key_col: str, record: dict[str, Any], existing: pd.DataFrame) -> None:
+            nonlocal updated
+            key = _normalise_food_key(record.get(key_col, "")) if key_col in {"item", "ingredient"} else str(record.get(key_col, "") or "").strip().lower()
+            if not key:
+                return
+            match = pd.DataFrame()
+            if not existing.empty and key_col in existing.columns:
+                if key_col == "item":
+                    match = existing[existing[key_col].fillna("").apply(_normalise_food_key).eq(key)]
+                else:
+                    match = existing[existing[key_col].fillna("").astype(str).str.strip().str.lower().eq(key)]
+            if mode != "clean" and not match.empty:
+                rid = str(match.iloc[0].get(id_col, "") or "")
+                ok, _ = update_online_record(sheet_id, table, rid, {k: v for k, v in record.items() if k != id_col})
+                updated += 1 if ok else 0
+            else:
+                append[table].append(record)
+        for row in nutrition_rows:
+            row = {**row, "nutrition_id": f"nutrition-{uuid.uuid4().hex[:12]}", "status": row.get("status") or "active", "source": "Pathmark Grocery Template import"}
+            upsert("grocery_nutrition", "nutrition_id", "item", row, existing_n)
+        for row in inventory_rows:
+            row = {**row, "inventory_id": f"inventory-{uuid.uuid4().hex[:12]}", "status": row.get("status") or "active", "source": "Pathmark Grocery Template import"}
+            upsert("grocery_inventory", "inventory_id", "item", row, existing_i)
+        recipe_name_to_id = {}
+        for row in recipe_rows:
+            recipe_key = str(row.get("recipe_name", "") or "").strip().lower()
+            if not recipe_key:
+                continue
+            if mode != "clean" and not existing_r.empty:
+                match = existing_r[existing_r.get("recipe_name", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.lower().eq(recipe_key)]
+            else:
+                match = pd.DataFrame()
+            if not match.empty:
+                rid = str(match.iloc[0].get("recipe_id", "") or "")
+                recipe_name_to_id[recipe_key] = rid
+                ok, _ = update_online_record(sheet_id, "recipes", rid, {**row, "status": row.get("status") or "active", "source": "Pathmark Grocery Template import"})
+                updated += 1 if ok else 0
+            else:
+                rid = f"recipe-{uuid.uuid4().hex[:12]}"
+                recipe_name_to_id[recipe_key] = rid
+                append["recipes"].append({**row, "recipe_id": rid, "status": row.get("status") or "active", "source": "Pathmark Grocery Template import"})
+        current_recipes = active_online_df(read_online_table(sheet_id, "recipes"))
+        for row in ingredient_rows:
+            recipe_name = str(row.get("recipe_name", "") or "").strip()
+            rid = recipe_name_to_id.get(recipe_name.lower(), "")
+            if not rid and not current_recipes.empty:
+                match = current_recipes[current_recipes["recipe_name"].fillna("").astype(str).str.strip().str.lower().eq(recipe_name.lower())]
+                if not match.empty:
+                    rid = str(match.iloc[0].get("recipe_id", "") or "")
+            ingredient = str(row.get("ingredient", "") or "").strip()
+            inv_id = _add_inventory_item_if_needed(sheet_id, ingredient, row.get("category_name", "Produce"), unit=row.get("unit", ""), notes="Added from recipe import.") if ingredient else ""
+            append["recipe_ingredients"].append({
+                "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
+                "recipe_id": rid,
+                "recipe_name": recipe_name,
+                "inventory_id": inv_id,
+                "ingredient": ingredient,
+                "quantity": str(row.get("quantity", "") or ""),
+                "unit": str(row.get("unit", "") or ""),
+                "category_name": str(row.get("category_name", "") or ""),
+                "notes": str(row.get("notes", "") or ""),
+                "status": str(row.get("status", "") or "active"),
+                "source": "Pathmark Grocery Template import",
+            })
+        ok, msg = append_many_online_records(sheet_id, append)
+        clear_online_cache(sheet_id)
+        total_new = sum(len(v) for v in append.values())
+        return ok, f"{backup_msg}\nImported grocery template: updated {updated} row(s) and added {total_new} row(s)."
+    except Exception as exc:
+        return False, f"Could not import the Pathmark Grocery Template: {exc}"
+
+
+
+STARTER_PACK_TABLES = {
+    "nutrition": "grocery_nutrition",
+    "inventory": "grocery_inventory",
+    "recipes": "recipes",
+    "recipe ingredients": "recipe_ingredients",
+    "recipe_ingredients": "recipe_ingredients",
+}
+STARTER_PACK_SECTION_LABELS = {
+    "nutrition": "Nutrition",
+    "inventory": "Inventory / produce",
+    "recipes": "Recipes",
+    "recipe ingredients": "Recipe ingredients",
+}
+
+
+def starter_pack_secret_config() -> dict[str, Any]:
+    return _secret_section("starter_packs") or _secret_section("pathmark_starter_packs") or {}
+
+
+def starter_pack_code_is_valid(slug: str, code: str) -> bool:
+    """Validate a lightweight starter-pack access code.
+
+    This is controlled distribution, not DRM. Imported starter-pack data becomes
+    an editable copy in the user's own Pathmark Sync sheet.
+    """
+    text = str(code or "").strip()
+    if not text:
+        return False
+    cfg = starter_pack_secret_config()
+    slug_key = re.sub(r"[^a-z0-9]+", "_", slug.lower()).strip("_")
+    plain_values = [
+        str(cfg.get(f"{slug_key}_code", "") or ""),
+        str(cfg.get(f"{slug_key}_password", "") or ""),
+        str(cfg.get("starter_library_code", "") or ""),
+        str(cfg.get("access_code", "") or ""),
+    ]
+    for plain in plain_values:
+        if plain and secrets.compare_digest(text, plain):
+            return True
+    supplied_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    hash_values = [
+        str(cfg.get(f"{slug_key}_code_hash", "") or ""),
+        str(cfg.get(f"{slug_key}_password_hash", "") or ""),
+        str(cfg.get("starter_library_code_hash", "") or ""),
+        str(cfg.get("access_code_hash", "") or ""),
+    ]
+    for hashed in hash_values:
+        if hashed and secrets.compare_digest(supplied_hash, hashed.strip().lower()):
+            return True
+    return False
+
+
+def _supabase_quote(value: str) -> str:
+    return urllib.parse.quote(str(value or ""), safe="")
+
+
+def list_starter_packs_from_supabase() -> list[dict[str, Any]]:
+    if not supabase_available():
+        return []
+    query = "?select=slug,name,description,status,price_note,updated_at&status=eq.active&order=name.asc"
+    ok, payload = supabase_request("GET", "pathmark_starter_packs", query=query)
+    if ok and isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    return []
+
+
+def read_starter_pack_rows_from_supabase(slug: str, sections: list[str] | None = None) -> tuple[bool, list[dict[str, Any]], str]:
+    if not supabase_available():
+        return False, [], "Supabase is not configured for starter packs yet."
+    params = [
+        "select=id,pack_slug,section,target_table,row_data,status,sort_order",
+        f"pack_slug=eq.{_supabase_quote(slug)}",
+        "status=eq.active",
+        "order=sort_order.asc",
+    ]
+    if sections:
+        clean = sorted({_normalise_food_key(section).replace(".", "_") for section in sections if str(section).strip()})
+        if clean:
+            params.append("section=in.(" + ",".join(_supabase_quote(x) for x in clean) + ")")
+    ok, payload = supabase_request("GET", "pathmark_starter_pack_rows", query="?" + "&".join(params))
+    if not ok:
+        return False, [], safe_user_message(payload)
+    if not isinstance(payload, list):
+        return False, [], "Starter pack rows were not returned in the expected format."
+    return True, [row for row in payload if isinstance(row, dict)], ""
+
+
+def clear_online_tables(sheet_id: str, tables: list[str]) -> tuple[bool, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session."
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        for table in tables:
+            columns = ONLINE_TABLES.get(table)
+            if not columns:
+                continue
+            service.spreadsheets().values().clear(
+                spreadsheetId=sheet_id,
+                range=f"{table}!A2:{sheet_col_letter(len(columns))}10000",
+                body={},
+            ).execute()
+        clear_online_cache(sheet_id)
+        return True, "Cleared selected grocery tables."
+    except Exception as exc:
+        return False, f"Could not clear selected grocery tables: {exc}"
+
+
+def _coerce_supabase_row_data(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _starter_pack_row_to_record(row: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    target = str(row.get("target_table", "") or "").strip()
+    section = str(row.get("section", "") or "").strip().lower().replace("_", " ")
+    table = target if target in ONLINE_TABLES else STARTER_PACK_TABLES.get(section, "")
+    if table not in {"grocery_nutrition", "grocery_inventory", "recipes", "recipe_ingredients"}:
+        return None
+    data = _coerce_supabase_row_data(row.get("row_data"))
+    if not data:
+        return None
+    columns = ONLINE_TABLES.get(table, [])
+    record = {col: str(data.get(col, "") or "") for col in columns}
+    id_col = ONLINE_ID_COLUMNS.get(table)
+    if id_col and not record.get(id_col):
+        prefix = {
+            "grocery_nutrition": "nutrition",
+            "grocery_inventory": "inventory",
+            "recipes": "recipe",
+            "recipe_ingredients": "recipe-ingredient",
+        }.get(table, "starter")
+        record[id_col] = f"{prefix}-{uuid.uuid4().hex[:12]}"
+    if not record.get("status"):
+        record["status"] = "active"
+    record["source"] = f"Starter pack: {row.get('pack_slug', 'starter library')}"
+    return table, record
+
+
+def import_starter_pack_to_sync(sheet_id: str, slug: str, sections: list[str], mode: str) -> tuple[bool, str]:
+    ok_rows, rows, msg = read_starter_pack_rows_from_supabase(slug, sections)
+    if not ok_rows:
+        return False, msg
+    records_by_table: dict[str, list[dict[str, Any]]] = {"grocery_nutrition": [], "grocery_inventory": [], "recipes": [], "recipe_ingredients": []}
+    for row in rows:
+        converted = _starter_pack_row_to_record(row)
+        if not converted:
+            continue
+        table, record = converted
+        records_by_table.setdefault(table, []).append(record)
+    records_by_table = {table: records for table, records in records_by_table.items() if records}
+    if not records_by_table:
+        return False, "No starter-pack rows matched the selected sections."
+    backup_msg = ""
+    ok_backup, backup_msg, _backup_url = create_pathmark_sync_backup(sheet_id)
+    if mode == "clean":
+        ok_clear, clear_msg = clear_online_tables(sheet_id, list(records_by_table.keys()))
+        if not ok_clear:
+            return False, clear_msg
+    ok_append, append_msg = append_many_online_records(sheet_id, records_by_table)
+    if not ok_append:
+        return False, append_msg
+    total = sum(len(v) for v in records_by_table.values())
+    bits = [f"Imported {total} starter-pack row(s) into your Pathmark Sync sheet."]
+    if ok_backup:
+        bits.append("A backup was created first.")
+    elif backup_msg:
+        bits.append("Backup could not be created first: " + safe_user_message(backup_msg))
+    return True, " ".join(bits)
+
+
+def render_grocery_starter_packs_tab(sheet_id: str) -> None:
+    st.subheader("Starter Packs")
+    st.write("Import optional grocery libraries into your own Pathmark Sync sheet. Purchased or supporter packs are copied into your sheet and can then be edited or deleted.")
+    st.info("The full curated starter library is not bundled in the public GitHub repository. Use an access code from the creator, for example through Patreon or a direct purchase, to import a pack when Supabase starter packs are configured.")
+    packs = list_starter_packs_from_supabase()
+    fallback_pack = {
+        "slug": "nz-seasonal-produce",
+        "name": "NZ Seasonal Produce",
+        "description": "Curated New Zealand produce seasonality, availability and substitution data.",
+        "price_note": "Access code required",
+    }
+    if not packs:
+        packs = [fallback_pack]
+    pack_labels = [str(p.get("name") or p.get("slug") or "Starter pack") for p in packs]
+    selected_label = st.selectbox("Starter pack", pack_labels, key="starter_pack_select")
+    pack = packs[pack_labels.index(selected_label)] if selected_label in pack_labels else packs[0]
+    slug = str(pack.get("slug") or "nz-seasonal-produce")
+    st.markdown(f"**{pack.get('name', slug)}**")
+    st.caption(str(pack.get("description", "") or ""))
+    if pack.get("price_note"):
+        st.caption(str(pack.get("price_note")))
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        access_code = st.text_input("Access code", type="password", key="starter_pack_access_code")
+    with c2:
+        import_mode = st.radio("Import mode", ["Merge/update", "Clean import"], index=0, horizontal=False, key="starter_pack_mode")
+    section_choices = ["nutrition", "inventory", "recipes", "recipe ingredients"]
+    selected_sections = st.multiselect(
+        "Sections to import",
+        section_choices,
+        default=["inventory", "nutrition"],
+        format_func=lambda x: STARTER_PACK_SECTION_LABELS.get(x, x.title()),
+        key="starter_pack_sections",
+    )
+    with st.expander("What happens when I import a pack?", expanded=False):
+        st.markdown("""
+        - Pathmark checks the access code before importing.
+        - Starter-pack rows are copied from Supabase into your own Pathmark Sync sheet.
+        - Merge/update adds the pack alongside existing data.
+        - Clean import clears the selected grocery tables first.
+        - Pathmark attempts to create a backup before importing.
+        - Imported data is no longer locked; it becomes your editable copy.
+        """)
+    can_import = bool(access_code and selected_sections)
+    if st.button("Import starter pack", use_container_width=True, disabled=not can_import):
+        if not starter_pack_code_is_valid(slug, access_code):
+            st.warning("That access code was not recognised. Check the code or contact the creator for access.")
+        else:
+            ok, msg = import_starter_pack_to_sync(sheet_id, slug, selected_sections, "clean" if import_mode.startswith("Clean") else "merge")
+            if ok:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
+
+def render_grocery_template_tab(sheet_id: str) -> None:
+    st.subheader("Templates and bulk import")
+    st.write("Create a separate Google Sheet for editing nutrition, inventory and recipes in bulk, then import it back into Pathmark.")
+    st.caption("Clean import replaces existing grocery nutrition, inventory and recipe rows. Merge import updates matching nutrition/inventory/recipes and adds new rows. Pathmark creates a backup before importing.")
+    if st.button("Create / refresh Pathmark Grocery Template", use_container_width=True):
+        ok, msg, url = create_grocery_template(sheet_id)
+        if ok:
+            st.success(msg)
+            st.session_state["grocery_template_url"] = url
+        else:
+            st.warning(safe_user_message(msg))
+    template_id = str(st.session_state.get("grocery_template_id", "") or "")
+    template_url = str(st.session_state.get("grocery_template_url", "") or "")
+    if not template_id:
+        found, found_id, found_url = _find_existing_grocery_template()
+        if found:
+            template_id = found_id
+            template_url = found_url
+            st.session_state["grocery_template_id"] = found_id
+            st.session_state["grocery_template_url"] = found_url
+    if template_id:
+        st.link_button("Open Pathmark Grocery Template in Google Sheets", template_url or f"https://docs.google.com/spreadsheets/d/{template_id}/edit", use_container_width=True)
+    mode = st.radio("Import mode", ["Merge/update existing grocery data", "Clean import: replace current grocery data"], horizontal=False)
+    confirm = st.checkbox("I understand Pathmark will create a backup before importing.")
+    if st.button("Import from Pathmark Grocery Template", use_container_width=True, disabled=not confirm):
+        ok, msg = import_grocery_template(sheet_id, "clean" if mode.startswith("Clean") else "merge")
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.warning(safe_user_message(msg))
+
+
+def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple[bool, str]:
+    areas = active_online_df(read_online_table(sheet_id, "areas"))
+    area_options = [str(x).strip() for x in areas.get("area_name", pd.Series(dtype=str)).tolist() if str(x).strip()] or ["Body And Stability", "Expression And Culture", "Home And Garden", "Making And Craft"]
+    with st.form(f"export_recipe_project_{recipe_row.get('recipe_id', '')}"):
+        area = st.selectbox("Area", area_options, key=f"recipe_export_area_{recipe_row.get('recipe_id', '')}")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            cook_date = st.date_input("Cooking date", value=date.today(), key=f"recipe_export_date_{recipe_row.get('recipe_id', '')}")
+        with c2:
+            start_t = st.time_input("Start time", value=time(17, 30), key=f"recipe_export_start_{recipe_row.get('recipe_id', '')}")
+        with c3:
+            minutes = st.number_input("Duration minutes", min_value=15, max_value=480, value=60, step=15, key=f"recipe_export_duration_{recipe_row.get('recipe_id', '')}")
+        submitted = st.form_submit_button("Create project activity for this recipe", use_container_width=True)
+    if not submitted:
+        return False, ""
+    area_row = areas[areas.get("area_name", pd.Series(dtype=str)).fillna("").eq(area)] if not areas.empty else pd.DataFrame()
+    area_id = str(area_row.iloc[0].get("area_id", "") or "") if not area_row.empty else ""
+    title = f"Cook {recipe_row.get('recipe_name', 'recipe')}"
+    goal_id = f"goal-{uuid.uuid4().hex[:12]}"
+    action_id = f"action-{uuid.uuid4().hex[:12]}"
+    start_dt = datetime.combine(cook_date, start_t)
+    end_dt = start_dt + timedelta(minutes=int(minutes or 60))
+    records = {
+        "goals": [{
+            "goal_id": goal_id,
+            "area_id": area_id,
+            "area_name": area,
+            "title": title,
+            "description": "Recipe exported from Shopping List beta.",
+            "specific_area": area,
+            "status": "active",
+            "target_date": str(cook_date),
+            "purpose": "Cook a planned recipe.",
+            "desired_outcome": title,
+            "closure_criteria": "Recipe cooked.",
+            "notes": str(recipe_row.get("notes", "") or ""),
+            "source": "Shopping List beta recipe export",
+        }],
+        "actions": [{
+            "action_id": action_id,
+            "goal_id": goal_id,
+            "routine_id": "",
+            "area_id": area_id,
+            "area_name": area,
+            "title": title,
+            "description": "Cooking activity created from recipe.",
+            "status": "active",
+            "priority": "Normal",
+            "specific_area": area,
+            "due_date": str(cook_date),
+            "scheduled_date": str(cook_date),
+            "estimated_minutes": str(int(minutes or 60)),
+            "calendar_block": "Yes",
+            "include_tasklist": "Yes",
+            "calendar_start_time": start_dt.strftime("%H:%M"),
+            "calendar_end_time": end_dt.strftime("%H:%M"),
+            "calendar_end_date": str(end_dt.date()),
+            "notes": f"Recipe: {recipe_row.get('recipe_name', '')}",
+            "source": "Shopping List beta recipe export",
+        }],
+    }
+    ok, msg = append_many_online_records(sheet_id, records)
+    if ok:
+        update_online_record(sheet_id, "recipes", str(recipe_row.get("recipe_id", "")), {"exported_goal_id": goal_id, "exported_action_id": action_id})
+    return ok, msg
+
+def render_grocery_categories_tab(sheet_id: str) -> None:
+    st.subheader("Grocery categories")
+    st.caption("These work like Areas for shopping lists. Items can be grouped under supermarket-style sections.")
+    categories = active_online_df(read_online_table(sheet_id, "grocery_categories"))
+    if not categories.empty:
+        display_cols = [c for c in ["sort_order", "category_name", "description", "colour", "status"] if c in categories.columns]
+        st.dataframe(categories[display_cols], use_container_width=True, hide_index=True)
+    with st.form("add_grocery_category_form"):
+        st.markdown("#### Add category")
+        c1, c2, c3 = st.columns([2, 3, 1])
+        with c1:
+            name = st.text_input("Category name")
+        with c2:
+            description = st.text_input("Description", value="Grocery shopping-list category.")
+        with c3:
+            colour = st.color_picker("Colour", "#334E9E")
+        submitted = st.form_submit_button("Add grocery category", use_container_width=True)
+    if submitted:
+        if not name.strip():
+            st.warning("Enter a category name.")
+        else:
+            record = {
+                "category_id": f"grocery-category-{uuid.uuid4().hex[:12]}",
+                "category_name": name.strip(),
+                "description": description.strip(),
+                "colour": colour,
+                "sort_order": str(len(categories) + 1 if not categories.empty else 1),
+                "status": "active",
+                "source": "Shopping List beta",
+            }
+            ok, msg = append_online_record(sheet_id, "grocery_categories", record)
+            if ok:
+                st.success("Category added.")
+                st.rerun()
+            else:
+                st.warning(msg)
+
+
+def render_grocery_inventory_tab(sheet_id: str) -> None:
+    st.subheader("Grocery inventory")
+    st.caption("Track what you have, expiry dates, storage, substitutions, seasonality and availability.")
+    categories = grocery_category_options(sheet_id)
+    inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
+    search = st.text_input("Search inventory", placeholder="e.g., mustard, tomato, rice")
+    category_filter = st.selectbox("Category filter", ["All categories"] + categories, key="grocery_inventory_category_filter")
+    view = inventory.copy()
+    if not view.empty and search.strip():
+        mask = view.apply(lambda row: search.strip().lower() in " ".join(str(v).lower() for v in row.values), axis=1)
+        view = view[mask]
+    if not view.empty and category_filter != "All categories":
+        view = view[view["category_name"].fillna("").eq(category_filter)]
+    display_cols = [c for c in ["category_name", "item", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes"] if c in view.columns]
+    st.dataframe(view[display_cols] if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=360)
+    with st.form("add_grocery_inventory_form"):
+        st.markdown("#### Add or update inventory item")
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            item = st.text_input("Ingredient / item")
+            category = st.selectbox("Category", categories, key="add_inventory_category")
+            storage = st.selectbox("Storage", ["", "Pantry", "Fridge", "Freezer", "Fresh", "Other"])
+        with c2:
+            quantity = st.text_input("Quantity", placeholder="e.g., 1")
+            unit = st.text_input("Unit", placeholder="e.g., kg, tin, bunch")
+            expiry_date = st.date_input("Expiry date", value=None)
+        with c3:
+            is_frozen = st.checkbox("Frozen")
+            requires_substitute = st.checkbox("Requires substitute")
+            substitute = st.text_input("Suggested substitute")
+        c4, c5, c6, c7, c8 = st.columns(5)
+        with c4:
+            homegrown = st.checkbox("Must be homegrown")
+        with c5:
+            unavailable = st.checkbox("Unavailable")
+        with c6:
+            imported = st.checkbox("Imported")
+        with c7:
+            canned = st.checkbox("Canned")
+        with c8:
+            limited = st.checkbox("Limited in season")
+        months = st.multiselect("Months in season", GROCERY_MONTHS, default=[])
+        notes = st.text_area("Notes")
+        submitted = st.form_submit_button("Save inventory item", use_container_width=True)
+    if submitted:
+        if not item.strip():
+            st.warning("Enter an item name.")
+        else:
+            existing = _find_grocery_inventory_record(sheet_id, item)
+            record = {
+                "category_name": category,
+                "item": item.strip(),
+                "quantity": quantity.strip(),
+                "unit": unit.strip(),
+                "expiry_date": str(expiry_date or ""),
+                "storage": storage,
+                "is_frozen": _grocery_bool_text(is_frozen),
+                "requires_substitute": _grocery_bool_text(requires_substitute),
+                "suggested_substitute": substitute.strip(),
+                "must_be_homegrown": _grocery_bool_text(homegrown),
+                "unavailable": _grocery_bool_text(unavailable),
+                "imported": _grocery_bool_text(imported),
+                "canned": _grocery_bool_text(canned),
+                "in_season": _grocery_bool_text(bool(months) and not unavailable),
+                "limited_in_season": _grocery_bool_text(limited),
+                "months": ", ".join(months),
+                "notes": notes.strip(),
+                "status": "active",
+                "source": "Shopping List beta",
+            }
+            if existing:
+                ok, msg = update_online_record(sheet_id, "grocery_inventory", str(existing.get("inventory_id", "")), record)
+            else:
+                record["inventory_id"] = f"inventory-{uuid.uuid4().hex[:12]}"
+                ok, msg = append_online_record(sheet_id, "grocery_inventory", record)
+            if ok:
+                st.success("Inventory item saved.")
+                st.rerun()
+            else:
+                st.warning(msg)
+
+
+def render_recipes_tab(sheet_id: str) -> None:
+    st.subheader("Recipes")
+    st.caption("Create recipes from inventory ingredients, calculate estimated kcal, and optionally export a cooking activity into Pathmark Projects.")
+    categories = grocery_category_options(sheet_id)
+    recipes = active_online_df(read_online_table(sheet_id, "recipes"))
+    ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    if recipes.empty:
+        st.info("No recipes yet. Add your first recipe below.")
+    else:
+        show_cols = [c for c in ["recipe_name", "category_name", "servings", "source_url", "notes"] if c in recipes.columns]
+        st.dataframe(recipes[show_cols], use_container_width=True, hide_index=True)
+    with st.form("add_recipe_form"):
+        st.markdown("#### Add recipe")
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            recipe_name = st.text_input("Recipe name")
+        with c2:
+            recipe_category = st.selectbox("Recipe category", categories, key="recipe_category")
+        with c3:
+            servings = st.number_input("Servings", min_value=1.0, max_value=100.0, value=4.0, step=1.0)
+        source_url = st.text_input("Source URL")
+        recipe_notes = st.text_area("Recipe notes")
+        submitted = st.form_submit_button("Save recipe", use_container_width=True)
+    if submitted:
+        if not recipe_name.strip():
+            st.warning("Enter a recipe name.")
+        else:
+            record = {
+                "recipe_id": f"recipe-{uuid.uuid4().hex[:12]}",
+                "recipe_name": recipe_name.strip(),
+                "category_name": recipe_category,
+                "servings": str(servings),
+                "source_url": source_url.strip(),
+                "notes": recipe_notes.strip(),
+                "status": "active",
+                "source": "Shopping List beta",
+            }
+            ok, msg = append_online_record(sheet_id, "recipes", record)
+            if ok:
+                st.success("Recipe saved.")
+                st.rerun()
+            else:
+                st.warning(msg)
+    recipes = active_online_df(read_online_table(sheet_id, "recipes"))
+    ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    if recipes.empty:
+        return
+    recipe_names = [str(x).strip() for x in recipes["recipe_name"].tolist() if str(x).strip()]
+    selected_recipe = st.selectbox("Select recipe", recipe_names, key="recipe_ingredient_selected_recipe")
+    recipe_row = recipes[recipes["recipe_name"].fillna("").eq(selected_recipe)].iloc[0].to_dict()
+    recipe_id = str(recipe_row.get("recipe_id", "") or "")
+    servings_val = _amount_from_text(recipe_row.get("servings", "")) or 1.0
+    this_ingredients = ingredients[ingredients["recipe_id"].fillna("").eq(recipe_id)] if not ingredients.empty else pd.DataFrame()
+    st.markdown("#### Recipe ingredients and calories")
+    detail_df, total_kcal, missing = recipe_nutrition_summary(sheet_id, recipe_id, servings_val)
+    if detail_df.empty:
+        st.info("This recipe has no ingredients yet.")
+    else:
+        st.dataframe(detail_df, use_container_width=True, hide_index=True)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Estimated kcal / recipe", f"{total_kcal:.0f}")
+        c2.metric("Estimated kcal / serving", f"{(total_kcal / max(servings_val, 1)):.0f}")
+        c3.metric("Servings", f"{servings_val:g}")
+        if missing:
+            with st.expander("Ingredients missing kcal data or unit conversion", expanded=True):
+                for item in missing:
+                    st.write(f"- {item}")
+    inv_options = grocery_inventory_options(sheet_id)
+    with st.form("add_recipe_ingredient_form"):
+        st.markdown("#### Add ingredient")
+        c1, c2, c3 = st.columns([1, 1, 3])
+        with c1:
+            quantity = st.text_input("Quantity", placeholder="1")
+        with c2:
+            unit = st.text_input("Unit", placeholder="Tbsp")
+        with c3:
+            selection_options = ["+ Add new ingredient"] + inv_options
+            selected_ingredient = st.selectbox("Ingredient", selection_options, key="recipe_ingredient_choice")
+            new_ingredient = ""
+            if selected_ingredient == "+ Add new ingredient":
+                new_ingredient = st.text_input("New ingredient")
+        ing_category = st.selectbox("Ingredient category", categories, key="recipe_ingredient_category")
+        ing_notes = st.text_input("Notes")
+        save_ing = st.form_submit_button("Add ingredient to recipe", use_container_width=True)
+    if save_ing:
+        ingredient_name = new_ingredient.strip() if selected_ingredient == "+ Add new ingredient" else selected_ingredient
+        if not ingredient_name:
+            st.warning("Choose or enter an ingredient.")
+        else:
+            inv_id = _add_inventory_item_if_needed(sheet_id, ingredient_name, ing_category, unit=unit, notes="Added from recipe.")
+            nrow = _find_nutrition_record(sheet_id, ingredient_name)
+            kcal_estimate, nutrition_status = _estimate_ingredient_kcal({"quantity": quantity, "unit": unit}, nrow)
+            record = {
+                "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
+                "recipe_id": recipe_id,
+                "recipe_name": selected_recipe,
+                "inventory_id": inv_id,
+                "ingredient": ingredient_name,
+                "quantity": quantity.strip(),
+                "unit": unit.strip(),
+                "category_name": ing_category,
+                "kcal_estimate": f"{kcal_estimate:.1f}" if kcal_estimate is not None else "",
+                "nutrition_status": nutrition_status,
+                "notes": ing_notes.strip(),
+                "status": "active",
+                "source": "Shopping List beta",
+            }
+            ok, msg = append_online_record(sheet_id, "recipe_ingredients", record)
+            if ok:
+                st.success("Ingredient added.")
+                st.rerun()
+            else:
+                st.warning(msg)
+    with st.expander("Export this recipe to Pathmark Projects", expanded=False):
+        st.write("Create a one-off project activity for cooking this recipe. The activity can then sync to Google Tasks and Calendar like other project steps.")
+        ok, msg = export_recipe_to_project(sheet_id, recipe_row)
+        if msg:
+            if ok:
+                st.success("Recipe exported to Pathmark Projects.")
+            else:
+                st.warning(safe_user_message(msg))
+
+
+def render_shopping_lists_tab(sheet_id: str) -> None:
+    st.subheader("Shopping lists")
+    st.caption("Create shopping lists using quantity, unit and ingredient, grouped by grocery category.")
+    categories = grocery_category_options(sheet_id)
+    lists = active_online_df(read_online_table(sheet_id, "shopping_lists"))
+    items = active_online_df(read_online_table(sheet_id, "shopping_items"))
+    with st.form("create_shopping_list_form"):
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            list_name = st.text_input("List name", value=f"Shopping list — {date.today().strftime('%d/%m/%Y')}")
+        with c2:
+            planned_date = st.date_input("Planned date", value=date.today())
+        notes = st.text_input("Notes")
+        create_list = st.form_submit_button("Create shopping list", use_container_width=True)
+    if create_list:
+        if not list_name.strip():
+            st.warning("Enter a list name.")
+        else:
+            record = {
+                "shopping_list_id": f"shopping-list-{uuid.uuid4().hex[:12]}",
+                "list_name": list_name.strip(),
+                "planned_date": str(planned_date),
+                "status": "active",
+                "notes": notes.strip(),
+                "source": "Shopping List beta",
+            }
+            ok, msg = append_online_record(sheet_id, "shopping_lists", record)
+            if ok:
+                st.success("Shopping list created.")
+                st.rerun()
+            else:
+                st.warning(msg)
+    if lists.empty:
+        st.info("Create a shopping list to begin adding items.")
+        return
+    list_names = [str(x).strip() for x in lists["list_name"].tolist() if str(x).strip()]
+    selected_list = st.selectbox("Active shopping list", list_names, key="active_shopping_list")
+    list_row = lists[lists["list_name"].fillna("").eq(selected_list)].iloc[0].to_dict()
+    list_id = str(list_row.get("shopping_list_id", ""))
+    this_items = _shopping_items_for_list(sheet_id, list_id)
+    if not this_items.empty:
+        grouped_cols = [c for c in ["checked", "category_name", "quantity", "unit", "ingredient", "recipe_name", "notes"] if c in this_items.columns]
+        st.dataframe(this_items.sort_values(["category_name", "ingredient"])[grouped_cols], use_container_width=True, hide_index=True)
+    else:
+        st.info("No items in this list yet.")
+    inv_options = grocery_inventory_options(sheet_id)
+    with st.form("add_shopping_item_form"):
+        st.markdown("#### Add item")
+        c1, c2, c3 = st.columns([1, 1, 3])
+        with c1:
+            quantity = st.text_input("Quantity", placeholder="1")
+        with c2:
+            unit = st.text_input("Unit", placeholder="Tbsp")
+        with c3:
+            selection_options = ["+ Add new ingredient"] + inv_options
+            ingredient_choice = st.selectbox("Ingredient", selection_options, key="shopping_item_ingredient_choice")
+            new_item = ""
+            if ingredient_choice == "+ Add new ingredient":
+                new_item = st.text_input("New ingredient")
+        category = st.selectbox("Category", categories, key="shopping_item_category")
+        notes = st.text_input("Notes")
+        add_to_inventory = st.checkbox("Add new ingredient to inventory", value=True)
+        save_item = st.form_submit_button("Add item to shopping list", use_container_width=True)
+    if save_item:
+        ingredient = new_item.strip() if ingredient_choice == "+ Add new ingredient" else ingredient_choice
+        if not ingredient:
+            st.warning("Choose or enter an ingredient.")
+        else:
+            inv_id = ""
+            if add_to_inventory or ingredient_choice != "+ Add new ingredient":
+                inv_id = _add_inventory_item_if_needed(sheet_id, ingredient, category, unit=unit, notes="Added from shopping list.")
+            record = {
+                "shopping_item_id": f"shopping-item-{uuid.uuid4().hex[:12]}",
+                "shopping_list_id": list_id,
+                "shopping_list_name": selected_list,
+                "category_name": category,
+                "quantity": quantity.strip(),
+                "unit": unit.strip(),
+                "ingredient": ingredient,
+                "inventory_id": inv_id,
+                "recipe_id": "",
+                "recipe_name": "",
+                "checked": "",
+                "notes": notes.strip(),
+                "status": "active",
+                "source": "Shopping List beta",
+            }
+            ok, msg = append_online_record(sheet_id, "shopping_items", record)
+            if ok:
+                st.success("Item added.")
+                st.rerun()
+            else:
+                st.warning(msg)
+    recipes = active_online_df(read_online_table(sheet_id, "recipes"))
+    recipe_ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    if not recipes.empty:
+        with st.expander("Add recipe ingredients to this shopping list", expanded=False):
+            recipe_names = [str(x).strip() for x in recipes["recipe_name"].tolist() if str(x).strip()]
+            recipe_name = st.selectbox("Recipe", recipe_names, key="shopping_recipe_add_select")
+            if st.button("Add recipe to shopping list", use_container_width=True):
+                recipe_row = recipes[recipes["recipe_name"].fillna("").eq(recipe_name)].iloc[0].to_dict()
+                recipe_id = str(recipe_row.get("recipe_id", ""))
+                rows = recipe_ingredients[recipe_ingredients["recipe_id"].fillna("").eq(recipe_id)] if not recipe_ingredients.empty else pd.DataFrame()
+                records = []
+                for _, row in rows.iterrows():
+                    records.append({
+                        "shopping_item_id": f"shopping-item-{uuid.uuid4().hex[:12]}",
+                        "shopping_list_id": list_id,
+                        "shopping_list_name": selected_list,
+                        "category_name": str(row.get("category_name", "") or "Produce"),
+                        "quantity": str(row.get("quantity", "") or ""),
+                        "unit": str(row.get("unit", "") or ""),
+                        "ingredient": str(row.get("ingredient", "") or ""),
+                        "inventory_id": str(row.get("inventory_id", "") or ""),
+                        "recipe_id": recipe_id,
+                        "recipe_name": recipe_name,
+                        "checked": "",
+                        "notes": str(row.get("notes", "") or ""),
+                        "status": "active",
+                        "source": "Shopping List beta recipe add",
+                    })
+                if not records:
+                    st.warning("This recipe has no ingredients yet.")
+                else:
+                    ok, msg = append_many_online_records(sheet_id, {"shopping_items": records})
+                    if ok:
+                        st.success(f"Added {len(records)} recipe item(s) to the shopping list.")
+                        st.rerun()
+                    else:
+                        st.warning(msg)
+
+
+def render_shopping_list_manager(sheet_id: str) -> None:
+    ensure_grocery_default_rows(sheet_id)
+    st.header("Shopping List beta")
+    st.write("Plan groceries by category, keep an inventory with expiry and seasonality, and build recipes from ingredients.")
+    tabs = st.tabs(["Shopping Lists", "Inventory", "Nutrition", "Recipes", "Starter Packs", "Templates", "Categories"])
+    with tabs[0]:
+        render_shopping_lists_tab(sheet_id)
+    with tabs[1]:
+        render_grocery_inventory_tab(sheet_id)
+    with tabs[2]:
+        render_grocery_nutrition_tab(sheet_id)
+    with tabs[3]:
+        render_recipes_tab(sheet_id)
+    with tabs[4]:
+        render_grocery_starter_packs_tab(sheet_id)
+    with tabs[5]:
+        render_grocery_template_tab(sheet_id)
+    with tabs[6]:
+        render_grocery_categories_tab(sheet_id)
+
+
+def shopping_list_beta_tab() -> None:
+    handle_google_oauth_redirect()
+    st.header("Shopping List beta")
+    auth_ready = web_oauth_available()
+    credentials = google_credentials_from_session()
+    should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
+    if should_prepare_sheet and (st.session_state.pop("auto_create_sync_sheet_after_connect", False) or not st.session_state.get("sync_sheet_ready_attempted")):
+        st.session_state["sync_sheet_ready_attempted"] = True
+        ok, sheet_id_found, message = ensure_pathmark_sync_sheet_ready()
+        if not ok:
+            st.warning(safe_user_message(message))
+
+    sheet_id = st.session_state.get("sync_sheet_id", "")
+    render_connection_summary(credentials, sheet_id, auth_ready)
+
+    if not credentials and auth_ready:
+        render_google_permissions_onboarding(compact=True)
+        return
+    if credentials and not sheet_id:
+        render_missing_sync_sheet_recovery("shopping")
+        return
+    if not (credentials and sheet_id):
+        st.info("Pathmark is still preparing your sync sheet. Refresh online data or reconnect from Settings if this does not resolve.")
+        return
+
+    apply_online_theme(sheet_id)
+    service = sheets_service()
+    if service is not None:
+        try:
+            with st.spinner("Loading your Shopping List from Google Sheets..."):
+                ensure_pathmark_online_schema(service, sheet_id)
+                load_online_tables(sheet_id)
+        except Exception:
+            st.warning("Pathmark could not prepare your Shopping List just now. Please refresh online data or reconnect Google access, then try again.")
+    render_safe_section("Shopping List", render_shopping_list_manager, sheet_id)
+
 
 def spending_plan_beta_tab() -> None:
     handle_google_oauth_redirect()
@@ -9949,7 +11462,7 @@ def render_app() -> None:
     # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
     post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
     if post_login_landing:
-        tabs = ["Pathmark Online beta", "Home", "Theme", "About & Privacy", "Spending Plan beta"]
+        tabs = ["Pathmark Online beta", "Home", "Theme", "About & Privacy", "Spending Plan beta", "Shopping List beta"]
     else:
         tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
@@ -9968,6 +11481,8 @@ def render_app() -> None:
                 on_the_go_tab()
             elif tab_name == "Spending Plan beta":
                 spending_plan_beta_tab()
+            elif tab_name == "Shopping List beta":
+                shopping_list_beta_tab()
             elif tab_name == "Developer":
                 developer_tab()
 
