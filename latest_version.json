@@ -1,19 +1,20 @@
 {
-  "version": "0.6.69",
+  "version": "0.6.70",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_68.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_68.zip",
-  "release": "v0.6.68 Google Calendar write-back and repair diagnostics",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
+  "filename": "Pathmark_Local_App_Windows_v0_6_70.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_70.zip",
+  "release": "v0.6.70 Google sync status language and login flow polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_70.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_70.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_70.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_70.zip",
+  "label": "Google sync status language and login flow polish",
+  "release_notes": "Restores the top-right Google login pattern and routes users through a polished Terms & Privacy consent step before Google permissions. Builds on Google Tasks and Calendar pull status fixes.",
   "notes": [
-    "Google Tasks/Calendar pull status write-back fix",
-    "Calendar timezone comparison refinement",
-    "Polished Google permissions consent page"
-  ],
-  "label": "Google Calendar write-back and repair diagnostics",
-  "release_notes": "Improves Google Calendar and Google Tasks sync diagnostics, write-back reliability, repair matching, and first-time Google consent wording.",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_69.zip"
+    "Restored top-right login button",
+    "Removed Google permissions as a permanent public tab",
+    "Added Terms & Privacy step before Google permissions",
+    "Kept Google sync pull status fixes from v0.6.69"
+  ]
 }

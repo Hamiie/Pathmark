@@ -1275,49 +1275,54 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
                 st.rerun()
         elif configured:
             st.write("")
-            st.caption("Use the Google permissions tab to connect.")
+            if st.button("Log in with Google", use_container_width=True):
+                st.session_state["show_login_terms"] = True
+                st.rerun()
         else:
             st.button("Log in not configured", use_container_width=True, disabled=True)
 
 
 def render_google_permissions_onboarding(compact: bool = False) -> None:
-    """First-time Google consent screen shown before launching OAuth."""
-    if not compact:
-        st.markdown("## Welcome to Pathmark Online")
-    st.write("Pathmark uses Google so your planning records stay in files owned by you.")
+    """Terms and privacy step shown before launching Google OAuth."""
+    st.markdown("## Welcome to Pathmark Online")
+    st.write("Before continuing, please review and accept the Pathmark Online terms and privacy summary.")
+
     st.markdown(
         """
         <div class="pathmark-panel pathmark-consent-panel">
-          <h3>Before you continue</h3>
-          <p>Please review how Pathmark uses Google access.</p>
-          <ul>
-            <li>Create and update your <strong>Pathmark Sync</strong> sheet.</li>
-            <li>Create finance templates and backup sheets in your Google Drive.</li>
-            <li>Create checklist items in Google Tasks when you use <strong>Tasks Sync</strong>.</li>
-            <li>Create calendar events when you use <strong>Calendar Sync</strong>.</li>
-          </ul>
-          <p>Pathmark will not sell your data, store your private planning or finance content in Supabase, or create Google Tasks/Calendar items unless you choose to sync them.</p>
+          <h3>Terms & Privacy summary</h3>
+          <p>Pathmark uses Google so your planning records can stay in files owned by you.</p>
+          <p>By continuing, you understand that Pathmark may use Google access to create and update your Pathmark Sync sheet, backups, finance template, Google Tasks items, and Google Calendar events when you choose to use those features.</p>
+          <p>Pathmark does not sell your data, does not store your private planning or finance content in Supabase, and does not create Google Tasks or Calendar events unless you choose to sync them.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
     with st.expander("What Pathmark stores", expanded=False):
         st.write("Your planning and Spending Plan records are stored in Google Sheets owned by you. Supabase stores access/profile metadata only; it is not used as the store for your private planning or finance content.")
-    with st.expander("What Google permissions are used for", expanded=False):
+    with st.expander("Google access used by Pathmark", expanded=False):
         st.write("Google Drive/Sheets access is used for Pathmark Sync, finance templates, and backups. Google Tasks access is used for Tasks Sync. Google Calendar access is used for Calendar Sync. Sync actions remain user-controlled.")
-    with st.expander("What Pathmark will not do", expanded=False):
-        st.write("Pathmark will not sell your data, create Google Tasks or Calendar events until you press a sync button, or deliberately scan unrelated calendars for general content.")
+    with st.expander("Tasks and Calendar sync", expanded=False):
+        st.write("Pathmark only creates or updates Google Tasks and Google Calendar events when you press the relevant sync actions. Pathmark remains the planning source of truth and flags changes for review rather than silently overwriting your plan.")
     with st.expander("How to revoke access", expanded=False):
         st.write("You can revoke Pathmark's Google access later from your Google Account. If you disconnect access, Pathmark Online will not be able to update your Pathmark Sync sheet, Google Tasks, or Google Calendar until you reconnect.")
-    st.checkbox("I understand and want to continue", key="google_permissions_ack")
+
+    st.checkbox("I have read and understand this summary.", key="google_permissions_ack")
     auth_url = login_auth_url()
-    if auth_url:
-        if st.session_state.get("google_permissions_ack"):
-            same_tab_oauth_button("Continue to Google", auth_url)
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if st.button("Back", use_container_width=True):
+            st.session_state.pop("show_login_terms", None)
+            st.session_state.pop("google_permissions_ack", None)
+            st.rerun()
+    with c2:
+        if auth_url and st.session_state.get("google_permissions_ack"):
+            same_tab_oauth_button("Continue to Google permissions", auth_url)
+        elif auth_url:
+            st.button("Continue to Google permissions", use_container_width=True, disabled=True)
         else:
-            st.button("Continue to Google", use_container_width=True, disabled=True)
-    else:
-        st.button("Google permissions unavailable", use_container_width=True, disabled=True)
+            st.button("Google login unavailable", use_container_width=True, disabled=True)
 
 def role_can_use_on_the_go(role: str, status: str) -> bool:
     return status == "active" and feature_enabled("on_the_go_beta", role, default_enabled=True, default_minimum_role="beta_tester")
@@ -9165,6 +9170,8 @@ def render_app() -> None:
     user = current_user()
     role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
     if user.get("email"):
+        st.session_state.pop("show_login_terms", None)
+        st.session_state.pop("google_permissions_ack", None)
         inject_theme_css(theme_for_user(user.get("email", "")))
     else:
         inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
@@ -9174,9 +9181,11 @@ def render_app() -> None:
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
 
+    if not user.get("email") and st.session_state.get("show_login_terms") and login_configured():
+        render_google_permissions_onboarding(compact=False)
+        return
+
     tabs = ["Home", "Theme", "About & Privacy"]
-    if not user.get("email") and login_configured():
-        tabs.append("Google permissions")
     if role_can_use_on_the_go(role, status):
         tabs.append("Pathmark Online beta")
         tabs.append("Spending Plan beta")
@@ -9190,10 +9199,6 @@ def render_app() -> None:
     with created_tabs[2]:
         about_privacy_tab()
     idx = 3
-    if not user.get("email") and login_configured():
-        with created_tabs[idx]:
-            render_google_permissions_onboarding(compact=False)
-        idx += 1
     if role_can_use_on_the_go(role, status):
         with created_tabs[idx]:
             on_the_go_tab()
