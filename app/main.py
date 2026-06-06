@@ -422,7 +422,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.49 theme model
+Pathmark v0.6.50 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
@@ -469,7 +469,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
 .card h3 {{ margin-top: 0; margin-bottom: .55rem; }}
 .card p {{ margin-bottom: 0; color: var(--muted); }}
-.card, .pillar-card, .pathmark-card, .workspace-card, .download-panel { border-top: 1px solid var(--line); }
+.card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{ border-top: 1px solid var(--line); }}
 .meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
 .meta-card {{ border-radius: 1.25rem; padding: 1rem 1.15rem; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}

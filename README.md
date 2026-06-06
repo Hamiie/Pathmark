@@ -1,15 +1,15 @@
 # Pathmark release hub
 
-Current release: **v0.6.49 Sleek accent contrast refinement**
+Current release: **v0.6.50 CSS brace hotfix**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_49_sleek_accent_contrast_refinement.zip`
-- `Pathmark_Local_App_Windows_v0_6_49.zip`
+- `pathmark_release_hub_v0_6_50_css_brace_hotfix.zip`
+- `Pathmark_Local_App_Windows_v0_6_50.zip`
 
-## What changed in v0.6.49
+## What changed in v0.6.50
 
 - Improved dark-mode contrast for Pathmark-owned cards, muted text and borders.
 - Removed decorative gradients and emoji-style seasonal markers for a cleaner, sleeker interface.

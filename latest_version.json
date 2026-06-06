@@ -1,20 +1,18 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.49",
+  "version": "0.6.50",
   "release_date": "2026-06-06",
   "notes": [
-    "Refines Pathmark accent themes to keep the visual design simple and sleek.",
-    "Removes decorative gradients and emoji-style seasonal markers from the Theme interface.",
-    "Improves contrast for muted text, Pathmark cards, borders and highlights in Streamlit dark mode.",
-    "Keeps Streamlit responsible for Light, Dark and System while Pathmark applies restrained accent styling only."
+    "Fixes the NameError caused by an unescaped CSS rule in the Pathmark accent contrast stylesheet.",
+    "Keeps the v0.6.49 sleek accent and dark-mode contrast refinements."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_49.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_50.zip",
   "mac_package": "",
-  "release": "v0.6.49 Sleek accent contrast refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip",
-  "release_name": "Sleek accent contrast refinement",
-  "release_notes": "Improves dark-mode contrast and simplifies accent themes by removing gradients and emoji-style seasonal decoration.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip",
-  "label": "Sleek accent contrast refinement",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip"
+  "release": "v0.6.50 CSS brace hotfix",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip",
+  "release_name": "CSS brace hotfix",
+  "release_notes": "Fixes a NameError caused by an unescaped CSS brace in the Pathmark stylesheet.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip",
+  "label": "CSS brace hotfix",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip"
 }

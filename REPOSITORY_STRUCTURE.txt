@@ -1,4 +1,4 @@
-Pathmark release hub v0.6.49
+Pathmark release hub v0.6.50
 
 .gitignore
 README.md
@@ -10,7 +10,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_49.zip
+  Pathmark_Local_App_Windows_v0_6_50.zip
 .streamlit/
   config.toml
 supabase/
