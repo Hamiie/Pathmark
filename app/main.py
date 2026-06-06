@@ -3038,7 +3038,9 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
     explicit_activity_linked_ids: set[str] = set()
     if not extra_prompts.empty:
         for _, prompt in extra_prompts.iterrows():
-            if str(prompt.get("status", "")).lower() in {"archived", "done", "completed"}:
+            prompt_status = str(prompt.get("status", "")).lower()
+            prompt_has_google_link = bool(str(prompt.get("google_task_id", "") or "").strip())
+            if prompt_status == "archived" or (prompt_status in {"done", "completed"} and not prompt_has_google_link):
                 continue
             if str(prompt.get("task_kind", "")).strip().lower() == "activity":
                 linked_id = str(prompt.get("linked_record_id", "") or "").strip()
@@ -3049,7 +3051,9 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
         for _, action in actions.iterrows():
             if not truthy_flag(action.get("reminder")):
                 continue
-            if str(action.get("status", "")).lower() in {"done", "paused"}:
+            action_status = str(action.get("status", "")).lower()
+            action_has_google_link = bool(str(action.get("google_task_id", "") or "").strip())
+            if action_status == "paused" or (action_status == "done" and not action_has_google_link):
                 continue
             aid = str(action.get("action_id", "") or uuid.uuid4().hex)
             if aid in explicit_activity_linked_ids:
@@ -3096,7 +3100,9 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
 
     if not extra_prompts.empty:
         for _, prompt in extra_prompts.iterrows():
-            if str(prompt.get("status", "")).lower() in {"archived", "done", "completed"}:
+            prompt_status = str(prompt.get("status", "")).lower()
+            prompt_has_google_link = bool(str(prompt.get("google_task_id", "") or "").strip())
+            if prompt_status == "archived" or (prompt_status in {"done", "completed"} and not prompt_has_google_link):
                 continue
             pid = str(prompt.get("prompt_id", "") or uuid.uuid4().hex)
             title = str(prompt.get("prompt_text", "") or prompt.get("title", "") or "Pathmark checklist item").strip()
@@ -5290,6 +5296,31 @@ def _clear_and_write_sheet_values(service: Any, sheet_id: str, title: str, value
     ).execute()
 
 
+def cleanup_old_pathmark_backups(source_sheet_id: str = "", keep_latest: int = 5) -> tuple[bool, str]:
+    """Move older Pathmark backup sheets to Drive trash, keeping the latest N."""
+    ok, backups, msg = list_pathmark_backup_sheets(source_sheet_id)
+    if not ok:
+        return False, msg
+    keep_latest = max(1, int(keep_latest or 5))
+    if len(backups) <= keep_latest:
+        return True, f"No cleanup needed. {len(backups)} backup sheet(s) found; keeping latest {keep_latest}."
+    drive = drive_service()
+    if drive is None:
+        return False, "Google Drive access is not available for backup cleanup."
+    old = backups[keep_latest:]
+    removed = 0
+    errors = 0
+    for b in old:
+        try:
+            drive.files().update(fileId=b.get("id", ""), body={"trashed": True}).execute()
+            removed += 1
+        except Exception:
+            errors += 1
+    if errors:
+        return False, f"Moved {removed} old backup sheet(s) to Google Drive Trash; {errors} could not be moved."
+    return True, f"Moved {removed} old backup sheet(s) to Google Drive Trash. Kept the latest {keep_latest}."
+
+
 def restore_missing_pathmark_sync_from_backup(backup_sheet_id: str) -> tuple[bool, str, str]:
     """Create a new Pathmark Sync sheet and restore data from a selected backup.
 
@@ -5812,13 +5843,21 @@ def _parse_calendar_block_datetime(value: Any) -> datetime | None:
     raw = str(value or "").strip()
     if not raw:
         return None
+    # Google Calendar often returns RFC3339 strings with an offset or Z. Parse
+    # those before trying fixed-width local formats, otherwise a UTC value such
+    # as 2026-06-06T21:00:00Z can be misread as a local 21:00 event.
+    try:
+        if "T" in raw and (raw.endswith("Z") or re.search(r"[+-]\d\d:?\d\d$", raw)):
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        pass
     for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
         try:
-            return datetime.strptime(raw[:16] if "T" in raw else raw[:16], fmt)
+            return datetime.strptime(raw[:19] if fmt.endswith(":%S") else raw[:16], fmt)
         except Exception:
             pass
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except Exception:
         return None
 
@@ -6290,7 +6329,7 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
     if invalid_count:
         st.warning(f"{invalid_count} calendar item(s) need review before they can sync. Open the validation table below for details.")
 
-    backup_before_calendar_sync = st.checkbox("Create a safety backup before Calendar sync", value=True, key="backup_before_calendar_sync", help="Recommended. This backs up Pathmark Sync before sync metadata is written back to the sheet.")
+    backup_before_calendar_sync = st.checkbox("Create a safety backup before Calendar sync", value=False, key="backup_before_calendar_sync", help="Recommended. This backs up Pathmark Sync before sync metadata is written back to the sheet.")
     c1, c2 = st.columns(2)
     if c1.button("Push Pathmark calendar time to Google Calendar", use_container_width=True, disabled=blocks.empty or not scopes_ready):
         if backup_before_calendar_sync:
@@ -6335,10 +6374,20 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             repeat_line = html.escape(repeat) if repeat else "Does not repeat"
             linked_id = str(row.get("linked_record_id", "") or "")
             action = action_lookup.get(linked_id, {})
-            sync_line = str(action.get("calendar_sync_status", "") or "Not synced")
+            raw_sync = str(action.get("calendar_sync_status", "") or "")
             event_id = str(action.get("google_calendar_event_id", "") or "")
             if event_id:
+                if "moved" in raw_sync or "changed" in raw_sync:
+                    sync_line = "Changed in Google Calendar"
+                elif "missing" in raw_sync:
+                    sync_line = "Missing from Google Calendar"
+                elif "review" in raw_sync:
+                    sync_line = "Needs review"
+                else:
+                    sync_line = "Synced"
                 sync_line += " · Linked to Google Calendar"
+            else:
+                sync_line = "Not synced"
             joiner = " · " if area_line and repeat_line else ""
             st.markdown(
                 f"""
@@ -6650,12 +6699,10 @@ def pull_google_task_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
             status = str(item.get("status", "") or "needsAction")
             if status == "completed":
                 completed += 1
-                # Project steps can safely be marked done. Routine activities stay active
-                # because they may repeat; their Google completion remains available for reporting.
-                if table == "actions" and str(row.get("source_record_type", "")) == "project_step":
-                    updates["status"] = "Done"
-                elif table == "task_prompts":
-                    updates["status"] = "completed"
+            # Keep the original Pathmark planning/checklist row visible. Google
+            # completion is stored in google_task_status/completed_at; do not
+            # mark the source row Done/completed here because those statuses can
+            # hide it from Pathmark sync views.
             update_online_record(sheet_id, table, rid, updates)
         except Exception:
             missing += 1
@@ -6675,6 +6722,24 @@ def google_tasks_sync_summary(sheet_id: str) -> dict[str, int]:
     completed = prompts.get("google_task_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().eq("completed")
     missing = prompts.get("sync_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().eq("missing_in_google_tasks")
     return {"total": int(len(prompts)), "linked": int(linked.sum()), "completed": int(completed.sum()), "missing": int(missing.sum())}
+
+
+def _task_sync_user_label(row: pd.Series) -> str:
+    """Plain-language status for Google Tasks cards."""
+    task_id = str(row.get("google_task_id", "") or "").strip()
+    google_status = str(row.get("google_task_status", "") or "").strip().lower()
+    sync_status = str(row.get("sync_status", "") or "").strip().lower()
+    if not task_id:
+        return "Not sent to Google Tasks"
+    if "missing" in sync_status:
+        return "Missing from Google Tasks"
+    if "review" in sync_status:
+        return "Needs review"
+    if google_status == "completed":
+        return "Completed in Google Tasks"
+    if google_status in {"needsaction", "needs_action", "pending", ""}:
+        return "Pending in Google Tasks"
+    return google_status.replace("_", " ").title()
 
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
@@ -6701,7 +6766,7 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    backup_before_tasks_sync = st.checkbox("Create a safety backup before Tasks sync", value=True, key="backup_before_tasks_sync", help="Recommended. This backs up Pathmark Sync before sync metadata or completion status is written back to the sheet.")
+    backup_before_tasks_sync = st.checkbox("Create a safety backup before Tasks sync", value=False, key="backup_before_tasks_sync", help="Recommended. This backs up Pathmark Sync before sync metadata or completion status is written back to the sheet.")
     c1, c2 = st.columns(2)
     if c1.button("Push Pathmark checklist items to Google Tasks", use_container_width=True, disabled=prompts.empty or not scopes_ready):
         if backup_before_tasks_sync:
@@ -6743,16 +6808,9 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
             due = human_calendar_datetime(str(row.get("due_date", "") or ""))
             area = html.escape(str(row.get("area_name", "") or ""))
             task_list = html.escape(str(row.get("task_list", "Pathmark") or "Pathmark"))
-            google_status = str(row.get("google_task_status", "") or row.get("status", "") or "Not synced")
-            sync_status = str(row.get("sync_status", "") or "")
-            if not str(row.get("google_task_id", "") or "").strip() and not sync_status:
-                sync_status = "Staged"
-            elif str(row.get("google_task_id", "") or "").strip() and sync_status in {"", "synced", "pushed_to_google_tasks"}:
-                sync_status = "Synced"
+            user_status = _task_sync_user_label(row)
             synced = str(row.get("google_task_synced_at", "") or "")
-            status_line = f"Google status: {google_status}"
-            if sync_status:
-                status_line += f" · Sync: {sync_status}"
+            status_line = user_status
             if synced:
                 status_line += f" · Last checked: {synced}"
             st.markdown(
@@ -6889,6 +6947,16 @@ def render_online_settings(sheet_id: str) -> None:
             st.info("No Pathmark backup sheets were found yet.")
         else:
             st.warning(safe_user_message(backup_msg))
+
+        st.markdown("#### Backup cleanup")
+        st.caption("Normal Google Tasks and Calendar sync no longer creates safety backups by default. Use this if earlier testing created too many backup sheets.")
+        keep_n = st.number_input("Keep latest backups", min_value=1, max_value=50, value=5, step=1, key="backup_keep_latest")
+        if st.button("Move older Pathmark backups to Google Drive Trash", use_container_width=True, disabled=not bool(sheet_id)):
+            ok, msg = cleanup_old_pathmark_backups(sheet_id, int(keep_n))
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(safe_user_message(msg))
 
     with st.expander("Restore Pathmark Sync to default", expanded=False):
         st.warning("This resets the active Pathmark Sync sheet back to Pathmark's default tab structure. Pathmark creates a separate backup first, but active projects, routines, areas, tasklist rows, Spending Plan rows and sync metadata will be cleared from the live sheet.")
