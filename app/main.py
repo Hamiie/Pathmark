@@ -393,22 +393,32 @@ def streamlit_appearance_mode() -> str:
 
 
 def pathmark_theme_tokens_css(mode: str = "") -> str:
-    """Return CSS variables for Pathmark custom styling.
+    """Return paired surface/text tokens for Pathmark custom styling.
 
-    Pathmark does not try to own Streamlit's Light/Dark/System appearance.
-    Custom card surfaces and their text are derived as a pair from Streamlit's
-    current background/text variables so contrast follows the actual surface
-    rather than assuming either black or white. This prevents both charcoal-on-
-    black and white-on-white failures when the built-in Streamlit menu changes
-    appearance without a full app rerun.
+    Text is never chosen by appearance mode alone. Pathmark-owned components use
+    paired surface, heading, body, muted, and border tokens so contrast is
+    preserved against the actual card surface. A matching CSS media fallback is
+    also injected below for browsers that update Streamlit's dark mode without
+    exposing the resolved mode through st.context during the same rerun.
     """
+    if mode == "dark":
+        return """
+          --bg: #0E1117;
+          --ink: #F8FAFC;
+          --surface: #171B22;
+          --surface-2: #202632;
+          --line: #46505F;
+          --muted: #D1D5DB;
+          --shadow: color-mix(in srgb, #000000 42%, transparent);
+          --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+        """
     return """
-          --bg: var(--background-color, #F7F6F2);
-          --ink: var(--text-color, #1F2221);
-          --surface: color-mix(in srgb, var(--background-color, #F7F6F2) 94%, var(--text-color, #1F2221) 6%);
-          --surface-2: color-mix(in srgb, var(--background-color, #F7F6F2) 88%, var(--text-color, #1F2221) 12%);
-          --line: color-mix(in srgb, var(--text-color, #1F2221) 34%, var(--background-color, #F7F6F2));
-          --muted: color-mix(in srgb, var(--text-color, #1F2221) 76%, var(--background-color, #F7F6F2) 24%);
+          --bg: #F7F6F2;
+          --ink: #1F2221;
+          --surface: #FFFFFF;
+          --surface-2: #F0F1EF;
+          --line: #BFC5C9;
+          --muted: #4E5963;
           --shadow: color-mix(in srgb, #000000 18%, transparent);
           --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
         """
@@ -418,7 +428,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.54 theme model
+Pathmark v0.6.55 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a restrained accent
@@ -430,6 +440,18 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
 {pathmark_theme_tokens_css(streamlit_appearance_mode())}
+}}
+@media (prefers-color-scheme: dark) {{
+  :root {{
+    --bg: #0E1117;
+    --ink: #F8FAFC;
+    --surface: #171B22;
+    --surface-2: #202632;
+    --line: #46505F;
+    --muted: #D1D5DB;
+    --shadow: color-mix(in srgb, #000000 42%, transparent);
+    --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  }}
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
@@ -565,7 +587,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 }}
 
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{
-  color: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #FFFFFF)) !important;
+  color: var(--muted) !important;
 }}
 @media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
 
@@ -4310,7 +4332,7 @@ def load_spending_starter_categories(sheet_id: str) -> tuple[bool, str]:
             "quarterly_amount": "0",
             "yearly_amount": "0",
             "annual_amount": "0",
-            "notes": "Starter category. Edit the amount or archive if it does not fit.",
+            "notes": "Starter category. Edit the amount, set it to 0, or delete it if it does not fit.",
             "status": "active",
             "source": "Pathmark Spending Plan starter categories",
         })
@@ -4428,15 +4450,16 @@ def render_spending_assessment(sheet_id: str) -> None:
     overcommitted = summary["surplus_weekly"] < -0.005
     shortfall_weekly = abs(summary["surplus_weekly"]) if overcommitted else 0.0
     safe_to_spend_weekly = 0.0 if overcommitted else summary["everyday_weekly"]
-    result_label = "OVERCOMMITTED" if overcommitted else "AVAILABLE"
-    result_title = "Shortfall / week" if overcommitted else "What is safe to spend"
+    balanced = abs(summary["surplus_weekly"]) <= 0.005
+    result_label = "OVERCOMMITTED" if overcommitted else ("BALANCED" if balanced else "AVAILABLE")
+    result_title = "Shortfall / week" if overcommitted else ("Money flow balanced" if balanced else "Money available to allocate")
     result_body = (
         "Your planned outflows are higher than your income. Treat safe-to-spend as $0.00 until the plan is adjusted."
         if overcommitted
-        else "The weekly everyday-spend amount you have deliberately set."
+        else ("Income is fully allocated across spending, bills, irregular costs, debt and savings." if balanced else "Money left after planned spending. Direct this toward emergency, savings, debt, or planned costs.")
     )
-    result_amount = shortfall_weekly if overcommitted else safe_to_spend_weekly
-    result_foot = "weekly shortfall" if overcommitted else "safe weekly spend"
+    result_amount = shortfall_weekly if overcommitted else max(summary["surplus_weekly"], 0.0)
+    result_foot = "weekly shortfall" if overcommitted else ("nothing left to allocate" if balanced else "available to allocate")
     result_class = "pillar-card warning" if overcommitted else "pillar-card"
 
     st.markdown(f"""
@@ -4867,6 +4890,307 @@ def render_spending_account_form(sheet_id: str) -> None:
                 st.warning(safe_user_message(msg))
 
 
+
+def _frequency_from_amount_row(row: pd.Series, include_quarterly: bool = False) -> tuple[float, str]:
+    frequency_columns = [
+        ("weekly_amount", "Weekly"),
+        ("fortnightly_amount", "Fortnightly"),
+        ("monthly_amount", "Monthly"),
+    ]
+    if include_quarterly:
+        frequency_columns.append(("quarterly_amount", "Quarterly"))
+    frequency_columns.append(("yearly_amount", "Yearly"))
+    for col, label in frequency_columns:
+        amount = money_value(row.get(col, ""))
+        if abs(amount) > 0.005:
+            return amount, label
+    annual = money_value(row.get("annual_amount", ""))
+    if abs(annual) > 0.005:
+        return annual, "Yearly"
+    return 0.0, "Weekly"
+
+
+def _template_sheet_title(kind: str) -> str:
+    return "Spending Plan Template - Income" if kind == "income" else "Spending Plan Template - Outflows"
+
+
+def _backup_sheet_title(table: str) -> str:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"Backup {table} {stamp}"[:95]
+
+
+def _sheet_metadata_by_title(service: Any, sheet_id: str) -> dict[str, dict[str, Any]]:
+    metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+    out = {}
+    for sheet in metadata.get("sheets", []):
+        props = sheet.get("properties", {})
+        title = str(props.get("title", "") or "")
+        if title:
+            out[title] = props
+    return out
+
+
+def _ensure_template_sheet(service: Any, sheet_id: str, title: str, headers: list[str]) -> None:
+    titles = _sheet_metadata_by_title(service, sheet_id)
+    if title not in titles:
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
+        ).execute()
+    end_col = sheet_col_letter(len(headers))
+    service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{title}!A:{end_col}").execute()
+    service.spreadsheets().values().update(
+        spreadsheetId=sheet_id,
+        range=f"{title}!A1:{end_col}1",
+        valueInputOption="RAW",
+        body={"values": [headers]},
+    ).execute()
+
+
+def _create_spending_backup_tabs(service: Any, sheet_id: str) -> tuple[bool, str]:
+    backed_up = []
+    try:
+        for table in ["spending_income", "spending_expenses"]:
+            columns = ONLINE_TABLES.get(table, [])
+            if not columns:
+                continue
+            source_values = service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"{table}!A1:{sheet_col_letter(len(columns))}",
+            ).execute().get("values", [])
+            if not source_values:
+                source_values = [columns]
+            title = _backup_sheet_title(table)
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
+            ).execute()
+            end_col = sheet_col_letter(max(len(source_values[0]), 1))
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=f"{title}!A1:{end_col}{len(source_values)}",
+                valueInputOption="RAW",
+                body={"values": source_values},
+            ).execute()
+            backed_up.append(title)
+        return True, "Created backup tabs: " + "; ".join(backed_up)
+    except Exception as exc:
+        return False, f"Could not create backup tabs: {exc}"
+
+
+def create_spending_plan_template(sheet_id: str) -> tuple[bool, str, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session.", ""
+    sheet_id = extract_google_sheet_id(sheet_id)
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        income = active_online_df(read_online_table(sheet_id, "spending_income"))
+        expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
+        income_headers = ["Income source", "Amount", "Frequency", "Notes", "Active"]
+        outflow_headers = ["Item", "Kind", "Bucket", "Amount", "Frequency", "Notes", "Active"]
+        income_values = [income_headers]
+        if income.empty:
+            income_values.append(["Main income", "", "Weekly", "", "Yes"])
+        else:
+            for _, row in income.iterrows():
+                amount, freq = _frequency_from_amount_row(row, include_quarterly=False)
+                income_values.append([
+                    str(row.get("category", "") or "Income"),
+                    money_text(amount) if amount else "",
+                    freq,
+                    str(row.get("notes", "") or ""),
+                    "Yes" if str(row.get("status", "") or "active").lower() != "inactive" else "No",
+                ])
+        outflow_values = [outflow_headers]
+        if expenses.empty:
+            for kind, group, item, _amount, freq in SPENDING_STARTER_CATEGORIES[:8]:
+                outflow_values.append([item, spending_bucket_label(kind), group, "", freq, "", "Yes"])
+        else:
+            for _, row in expenses.iterrows():
+                amount, freq = _frequency_from_amount_row(row, include_quarterly=True)
+                outflow_values.append([
+                    str(row.get("item", "") or "Spending item"),
+                    spending_bucket_label(row.get("expense_kind", "")),
+                    str(row.get("group_name", "") or spending_bucket_label(row.get("expense_kind", ""))),
+                    money_text(amount) if amount else "",
+                    freq,
+                    str(row.get("notes", "") or ""),
+                    "Yes" if str(row.get("status", "") or "active").lower() != "inactive" else "No",
+                ])
+        income_title = _template_sheet_title("income")
+        outflows_title = _template_sheet_title("outflows")
+        _ensure_template_sheet(service, sheet_id, income_title, income_headers)
+        _ensure_template_sheet(service, sheet_id, outflows_title, outflow_headers)
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=f"{income_title}!A1:{sheet_col_letter(len(income_headers))}{len(income_values)}",
+            valueInputOption="USER_ENTERED",
+            body={"values": income_values},
+        ).execute()
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=f"{outflows_title}!A1:{sheet_col_letter(len(outflow_headers))}{len(outflow_values)}",
+            valueInputOption="USER_ENTERED",
+            body={"values": outflow_values},
+        ).execute()
+        clear_online_cache(sheet_id)
+        return True, "Created a populated Spending Plan template in your Pathmark Sync sheet.", f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+    except Exception as exc:
+        return False, f"Could not create the Spending Plan template: {exc}", ""
+
+
+def _active_from_template(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    return "inactive" if text in {"no", "n", "false", "0", "inactive", "archive", "archived"} else "active"
+
+
+def _records_from_spending_template(sheet_id: str) -> tuple[bool, str, dict[str, list[dict[str, Any]]]]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session.", {}
+    try:
+        income_title = _template_sheet_title("income")
+        outflows_title = _template_sheet_title("outflows")
+        income_values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{income_title}!A1:E").execute().get("values", [])
+        outflow_values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{outflows_title}!A1:G").execute().get("values", [])
+        records = {"spending_income": [], "spending_expenses": []}
+        for row in income_values[1:]:
+            row = list(row) + [""] * (5 - len(row))
+            source, amount_raw, freq, notes, active = row[:5]
+            source = str(source or "").strip()
+            amount = money_value(amount_raw)
+            if not source and amount <= 0:
+                continue
+            vals = amount_columns_for_frequency(amount, str(freq or "Weekly"), include_quarterly=False)
+            records["spending_income"].append({
+                "income_id": f"income-{uuid.uuid4().hex[:10]}",
+                "category": source or "Income",
+                **vals,
+                "annual_amount": str(annualise_amount(amount, str(freq or "Weekly"))),
+                "notes": str(notes or ""),
+                "status": _active_from_template(active),
+                "source": "Spending Plan template import",
+            })
+        for row in outflow_values[1:]:
+            row = list(row) + [""] * (7 - len(row))
+            item, kind_label, bucket, amount_raw, freq, notes, active = row[:7]
+            item = str(item or "").strip()
+            amount = money_value(amount_raw)
+            if not item and amount <= 0:
+                continue
+            kind = normalise_spending_kind(kind_label)
+            vals = amount_columns_for_frequency(amount, str(freq or spending_default_frequency(kind)), include_quarterly=True)
+            records["spending_expenses"].append({
+                "expense_id": f"expense-{uuid.uuid4().hex[:10]}",
+                "expense_kind": kind,
+                "group_name": str(bucket or spending_bucket_label(kind)).strip() or spending_bucket_label(kind),
+                "item": item or "Spending item",
+                **vals,
+                "annual_amount": str(annualise_amount(amount, str(freq or spending_default_frequency(kind)))),
+                "notes": str(notes or ""),
+                "status": _active_from_template(active),
+                "source": "Spending Plan template import",
+            })
+        return True, "Read the Spending Plan template.", records
+    except Exception as exc:
+        return False, f"Could not read the Spending Plan template. Create it first, then try again. Details: {exc}", {}
+
+
+def _clear_spending_table_rows(service: Any, sheet_id: str, table: str) -> None:
+    columns = ONLINE_TABLES.get(table, [])
+    if columns:
+        service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{table}!A2:{sheet_col_letter(len(columns))}").execute()
+
+
+def import_spending_plan_template(sheet_id: str, mode: str = "merge") -> tuple[bool, str]:
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session."
+    sheet_id = extract_google_sheet_id(sheet_id)
+    ok, msg, records = _records_from_spending_template(sheet_id)
+    if not ok:
+        return False, msg
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        ok_backup, backup_msg = _create_spending_backup_tabs(service, sheet_id)
+        if not ok_backup:
+            return False, backup_msg
+        if mode == "clean":
+            _clear_spending_table_rows(service, sheet_id, "spending_income")
+            _clear_spending_table_rows(service, sheet_id, "spending_expenses")
+            clear_online_cache(sheet_id)
+            ok_append, append_msg = append_many_online_records(sheet_id, records)
+            return ok_append, (backup_msg + "\n" + append_msg if ok_append else append_msg)
+        # Merge mode: update matching named rows where possible, append the rest.
+        existing_income = active_online_df(read_online_table(sheet_id, "spending_income"))
+        existing_expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
+        append_records = {"spending_income": [], "spending_expenses": []}
+        updated = 0
+        for record in records.get("spending_income", []):
+            key = str(record.get("category", "") or "").strip().lower()
+            match = existing_income[existing_income.get("category", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.lower().eq(key)] if not existing_income.empty else pd.DataFrame()
+            if not match.empty:
+                rid = str(match.iloc[0].get("income_id", "") or "")
+                update = {k: v for k, v in record.items() if k != "income_id"}
+                ok_update, _ = update_online_record(sheet_id, "spending_income", rid, update)
+                updated += 1 if ok_update else 0
+            else:
+                append_records["spending_income"].append(record)
+        for record in records.get("spending_expenses", []):
+            key_kind = normalise_spending_kind(record.get("expense_kind", ""))
+            key_group = str(record.get("group_name", "") or "").strip().lower()
+            key_item = str(record.get("item", "") or "").strip().lower()
+            if not existing_expenses.empty:
+                match = existing_expenses[
+                    existing_expenses.get("expense_kind", pd.Series(dtype=str)).apply(normalise_spending_kind).eq(key_kind)
+                    & existing_expenses.get("group_name", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.lower().eq(key_group)
+                    & existing_expenses.get("item", pd.Series(dtype=str)).fillna("").astype(str).str.strip().str.lower().eq(key_item)
+                ]
+            else:
+                match = pd.DataFrame()
+            if not match.empty:
+                rid = str(match.iloc[0].get("expense_id", "") or "")
+                update = {k: v for k, v in record.items() if k != "expense_id"}
+                ok_update, _ = update_online_record(sheet_id, "spending_expenses", rid, update)
+                updated += 1 if ok_update else 0
+            else:
+                append_records["spending_expenses"].append(record)
+        ok_append, append_msg = append_many_online_records(sheet_id, append_records)
+        clear_online_cache(sheet_id)
+        total_new = len(append_records["spending_income"]) + len(append_records["spending_expenses"])
+        return ok_append, f"{backup_msg}\nImported template: updated {updated} existing row(s) and added {total_new} new row(s)."
+    except Exception as exc:
+        return False, f"Could not import the Spending Plan template: {exc}"
+
+
+def render_spending_template_tools(sheet_id: str) -> None:
+    st.markdown("#### Template import")
+    st.write(
+        "Create a user-friendly Google Sheets template from your current Spending Plan, edit income and outflows in the sheet, then import it back into Pathmark."
+    )
+    st.caption("Imports create backup tabs first. Clean import replaces current income and outflow rows; merge import updates matching rows and adds new ones.")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if st.button("Create / refresh template", use_container_width=True):
+            ok, msg, url = create_spending_plan_template(sheet_id)
+            if ok:
+                st.success(msg)
+                st.link_button("Open template in Google Sheets", url, use_container_width=True)
+            else:
+                st.warning(safe_user_message(msg))
+    with c2:
+        st.link_button("Open Pathmark Sync sheet", f"https://docs.google.com/spreadsheets/d/{extract_google_sheet_id(sheet_id)}", use_container_width=True)
+    mode = st.radio("Import mode", ["Merge/update existing data", "Clean import: replace current income and outflows"], horizontal=False)
+    confirm = st.checkbox("I understand Pathmark will create backup tabs before importing.")
+    if st.button("Import from Spending Plan template", use_container_width=True, disabled=not confirm):
+        import_mode = "clean" if mode.startswith("Clean") else "merge"
+        ok, msg = import_spending_plan_template(sheet_id, import_mode)
+        if ok:
+            spending_save_and_refresh(msg)
+        else:
+            st.warning(safe_user_message(msg))
+
 def render_spending_records(sheet_id: str) -> None:
     st.markdown("#### Spending Plan records")
     st.caption("These are the live rows in your Pathmark Sync sheet. Use this tab for checking what has been saved.")
@@ -4889,7 +5213,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         st.success(st.session_state.pop("spending_notice"))
 
     st.caption("Set up income and outflows once, then use Assessment for a calm money-flow summary.")
-    section_options = ["Assessment", "Income", "Spending", "APs", "Records"]
+    section_options = ["Assessment", "Income", "Spending", "APs", "Template", "Records"]
 
     def _render_spending_summary_strip() -> None:
         summary = spending_summary(sheet_id)
@@ -4900,7 +5224,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
           <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
           <div class="metric-tile"><div class="metric-label">Outflows / week</div><div class="metric-value">{html.escape(money_text(summary['expense_weekly']))}</div></div>
           <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(safe_spend))}</div></div>
-          <div class="metric-tile {'warning' if surplus < -0.005 else ''}"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(surplus))}</div></div>
+          <div class="metric-tile {'warning' if surplus < -0.005 else ''}"><div class="metric-label">{'Shortfall / week' if surplus < -0.005 else 'Available to allocate / week'}</div><div class="metric-value">{html.escape(money_text(abs(surplus) if surplus < -0.005 else surplus))}</div></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -4917,6 +5241,9 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         _render_spending_summary_strip()
         render_spending_account_form(sheet_id)
     with tabs[4]:
+        _render_spending_summary_strip()
+        render_spending_template_tools(sheet_id)
+    with tabs[5]:
         _render_spending_summary_strip()
         render_spending_records(sheet_id)
 
@@ -6909,17 +7236,14 @@ def theme_tab() -> None:
     if reset_clicked:
         theme_name = "Seasonal"
         st.session_state["hosted_theme_preference"] = "Seasonal"
-        messages = []
-        ok_any = True
+        persisted = False
         if sheet_id:
-            ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", "Seasonal")
-            ok_any = ok_any and ok_sheet
-            messages.append(message_sheet)
-        if user.get("email"):
-            ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), "Seasonal", actor_email=user.get("email", ""))
-            ok_any = ok_any and ok_profile
-            messages.append(message_profile)
-        st.success("Theme reset to Seasonal." if ok_any else safe_user_message("Theme reset for this session, but could not be fully persisted."))
+            ok_sheet, _message_sheet = save_online_setting(sheet_id, "theme", "Seasonal")
+            persisted = persisted or ok_sheet
+        if user.get("email") and supabase_available():
+            ok_profile, _message_profile = update_supabase_user_theme(user.get("email", ""), "Seasonal", actor_email=user.get("email", ""))
+            persisted = persisted or ok_profile
+        st.success("Theme reset to Seasonal." if persisted or not sheet_id else "Theme reset for this session.")
         st.rerun()
 
     if save_clicked:
@@ -6927,25 +7251,28 @@ def theme_tab() -> None:
         st.session_state["hosted_theme_preference"] = theme_name
         if theme_name == "Custom":
             st.session_state["hosted_custom_accent"] = picked_custom
-        messages = []
-        ok_any = True
+        persisted = False
+        failures = []
         if sheet_id:
             ok_sheet, message_sheet = save_online_setting(sheet_id, "theme", theme_name)
-            ok_any = ok_any and ok_sheet
-            messages.append(message_sheet)
+            persisted = persisted or ok_sheet
+            if not ok_sheet:
+                failures.append(message_sheet)
             if theme_name == "Custom":
                 ok_custom, message_custom = save_online_setting(sheet_id, "custom_accent", picked_custom)
-                ok_any = ok_any and ok_custom
-                messages.append(message_custom)
-        if user.get("email"):
+                persisted = persisted or ok_custom
+                if not ok_custom:
+                    failures.append(message_custom)
+        if user.get("email") and supabase_available():
             ok_profile, message_profile = update_supabase_user_theme(user.get("email", ""), theme_name, actor_email=user.get("email", ""))
-            ok_any = ok_any and ok_profile
-            messages.append(message_profile)
-        if ok_any:
-            st.success("Theme saved.")
+            persisted = persisted or ok_profile
+            if not ok_profile:
+                failures.append(message_profile)
+        if persisted or not sheet_id:
+            st.success("Theme saved." if persisted else "Theme saved for this session.")
             st.rerun()
         else:
-            st.warning(safe_user_message(" ".join([m for m in messages if m]) or "The theme was saved for this session, but could not be fully persisted."))
+            st.warning(safe_user_message(" ".join([m for m in failures if m]) or "The theme was saved for this session, but could not be persisted."))
 
 def about_privacy_tab() -> None:
     st.header("About & Privacy")

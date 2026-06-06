@@ -1,20 +1,22 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.54",
+  "version": "0.6.55",
   "release_date": "2026-06-06",
   "notes": [
-    "Updates the Dashboard Resources tile so it shows money available to allocate, a balanced state, or a shortfall rather than defaulting to safe weekly spend.",
-    "Shows unallocated money as an amount to direct toward emergency, savings, debt, or planned irregular costs.",
-    "Treats overcommitted Spending Plans as a shortfall state on the Dashboard and summary strip.",
-    "Changes Spending Plan navigation from button-style segmented controls to Streamlit tab-style navigation matching Pathmark Online beta."
+    "Changes Spending Plan Assessment so the Available card shows money available to allocate, balanced flow, or shortfall rather than safe weekly spend.",
+    "Adds Spending Plan template tools that create populated user-friendly Google Sheet tabs for income and outflows, then import them back with merge or clean import options.",
+    "Creates Spending Plan backup tabs before importing template data.",
+    "Updates starter spending notes to say edit, set to 0, or delete instead of archive.",
+    "Refines theme persistence so Supabase profile saving is optional when the theme can be saved to the user-owned Pathmark Sync sheet.",
+    "Tightens contrast tokens so Pathmark-owned muted text uses paired surface/text contrast rules in dark mode."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_54.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_55.zip",
   "mac_package": "",
-  "release": "v0.6.54 Spending Plan money-flow dashboard and tab navigation",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_54.zip",
-  "release_name": "Spending Plan money-flow dashboard and tab navigation",
-  "release_notes": "Updates the Dashboard Resources tile to show allocatable surplus, balanced flow, or shortfall, and changes Spending Plan navigation to tab-style sections consistent with Pathmark Online beta.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_54.zip",
-  "label": "Spending Plan money-flow dashboard and tab navigation",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_54.zip"
+  "release": "v0.6.55 Spending Plan template import and contrast refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_55.zip",
+  "release_name": "Spending Plan template import and contrast refinement",
+  "release_notes": "Adds populated Spending Plan template creation/import with backups, improves Available money-flow wording, and refines contrast/theme persistence.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_55.zip",
+  "label": "Spending Plan template import and contrast refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_55.zip"
 }
