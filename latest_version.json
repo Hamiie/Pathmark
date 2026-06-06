@@ -1,21 +1,19 @@
 {
-  "version": "0.6.72",
+  "version": "0.6.73",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_72.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_72.zip",
-  "release": "v0.6.72 Routine and project completion views",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_72.zip",
-  "label": "Routine and project completion views",
-  "release_notes": "Adds weekly routine completion to Dashboard and Routines, project completion summaries to Projects, Google Tasks status chips for steps/activities, and a setting for week start day.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_73.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_73.zip",
+  "release": "v0.6.73 CSS brace and Streamlit HTML deprecation hotfix",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_73.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_73.zip",
+  "label": "CSS brace and Streamlit HTML deprecation hotfix",
+  "release_notes": "Fixes a CSS f-string brace error in the completion view styles and removes the deprecated st.components.v1.html metadata injection hook.",
   "notes": [
-    "Dashboard Stability tile shows routine completion for the current week",
-    "Routines tab shows weekly completion progress for the selected routine",
-    "Projects tab shows project checklist completion progress",
-    "Project steps and routine activities show Google Tasks status chips",
-    "Settings includes Week starts on with Monday as default"
+    "Fixes NameError: name 'margin' is not defined from unescaped CSS braces",
+    "Removes st.components.v1.html usage to avoid the Streamlit deprecation warning",
+    "Preserves the v0.6.72 routine/project completion view functionality"
   ]
 }

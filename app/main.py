@@ -23,7 +23,6 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 try:
     from PIL import Image
@@ -262,105 +261,15 @@ def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
 
 
 def inject_pwa_metadata() -> None:
-    """Force Pathmark tab/icon/PWA metadata on Streamlit Cloud pages.
+    """Best-effort PWA metadata hook.
 
-    Streamlit Cloud publishes its own favicon and PWA metadata early in the
-    page lifecycle. Mobile browsers can cache that aggressively, so Pathmark
-    reinforces its own app name, icons and manifest after the page has loaded.
-    Google/Android install prompts may still need the user to clear the old
-    site cache if the browser previously cached Streamlit's manifest.
+    Streamlit 2026 removes the old embedded HTML component. Earlier Pathmark
+    builds used that component to inject extra favicon/manifest JavaScript,
+    but the hosted Streamlit page already receives the core Pathmark title and
+    favicon through ``st.set_page_config`` and the static assets remain in the
+    repository. To avoid deployment warnings/errors, this hook is now a no-op.
     """
-    icon32_data = _static_icon_data_uri("pathmark-icon-32.png")
-    icon192_data = _static_icon_data_uri("pathmark-icon-192.png")
-    icon512_data = _static_icon_data_uri("pathmark-icon-512.png")
-    apple_data = _static_icon_data_uri("apple-touch-icon.png")
-    manifest_payload = {
-        "id": "/?source=pathmark-pwa",
-        "name": "Pathmark",
-        "short_name": "Pathmark",
-        "description": "Protect routines, move projects forward, manage spending flow and export calendar/task data with Pathmark.",
-        "start_url": "/?source=pathmark-pwa",
-        "scope": "/",
-        "display": "standalone",
-        "display_override": ["window-controls-overlay", "standalone", "browser"],
-        "background_color": "#F7F6F2",
-        "theme_color": "#334E68",
-        "orientation": "portrait-primary",
-        "icons": [
-            {"src": "/app/static/pathmark-icon-192.png?v=0_6_43", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/app/static/pathmark-icon-512.png?v=0_6_43", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
-        ],
-        "categories": ["productivity", "finance", "lifestyle"],
-    }
-    manifest_data_uri = "data:application/manifest+json;base64," + base64.b64encode(json.dumps(manifest_payload).encode("utf-8")).decode("ascii")
-    components.html(
-        f"""
-        <script>
-        (function () {{
-          const doc = window.parent.document;
-          const version = '0_6_43';
-          const icon32Data = {json.dumps(icon32_data)};
-          const icon192Data = {json.dumps(icon192_data)};
-          const icon512Data = {json.dumps(icon512_data)};
-          const appleData = {json.dumps(apple_data)};
-          const manifestData = {json.dumps(manifest_data_uri)};
-          function setMeta(name, content) {{
-            let el = doc.querySelector('meta[name="' + name + '"]');
-            if (!el) {{ el = doc.createElement('meta'); el.setAttribute('name', name); doc.head.appendChild(el); }}
-            el.setAttribute('content', content);
-          }}
-          function setProperty(prop, content) {{
-            let el = doc.querySelector('meta[property="' + prop + '"]');
-            if (!el) {{ el = doc.createElement('meta'); el.setAttribute('property', prop); doc.head.appendChild(el); }}
-            el.setAttribute('content', content);
-          }}
-          function appendLink(rel, href, extraAttrs) {{
-            if (!href) return;
-            const el = doc.createElement('link');
-            el.setAttribute('rel', rel);
-            el.setAttribute('href', href);
-            if (extraAttrs) {{ Object.keys(extraAttrs).forEach(function (key) {{ el.setAttribute(key, extraAttrs[key]); }}); }}
-            doc.head.appendChild(el);
-          }}
-          function applyPathmarkHead() {{
-            doc.title = 'Pathmark';
-            setMeta('application-name', 'Pathmark');
-            setMeta('apple-mobile-web-app-title', 'Pathmark');
-            setMeta('apple-mobile-web-app-capable', 'yes');
-            setMeta('mobile-web-app-capable', 'yes');
-            setMeta('msapplication-TileColor', '#334E68');
-            setMeta('msapplication-TileImage', '/app/static/pathmark-icon-192.png?v=' + version);
-            setMeta('theme-color', '#334E68');
-            setProperty('og:site_name', 'Pathmark');
-            setProperty('og:title', 'Pathmark');
-            setProperty('og:image', '/app/static/pathmark-icon-512.png?v=' + version);
-            doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"], link[rel="manifest"]').forEach(function (el) {{ el.remove(); }});
-            appendLink('manifest', manifestData);
-            appendLink('manifest', '/app/static/manifest.json?v=' + version);
-            appendLink('icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
-            appendLink('shortcut icon', icon32Data, {{'type': 'image/png', 'sizes': '32x32'}});
-            appendLink('icon', icon192Data, {{'type': 'image/png', 'sizes': '192x192'}});
-            appendLink('icon', icon512Data, {{'type': 'image/png', 'sizes': '512x512'}});
-            appendLink('apple-touch-icon', appleData, {{'sizes': '180x180'}});
-            appendLink('icon', '/app/static/pathmark-icon-32.png?v=' + version, {{'type': 'image/png', 'sizes': '32x32'}});
-            appendLink('icon', '/app/static/pathmark-icon-192.png?v=' + version, {{'type': 'image/png', 'sizes': '192x192'}});
-            appendLink('icon', '/app/static/pathmark-icon-512.png?v=' + version, {{'type': 'image/png', 'sizes': '512x512'}});
-            appendLink('apple-touch-icon', '/app/static/apple-touch-icon.png?v=' + version, {{'sizes': '180x180'}});
-            appendLink('shortcut icon', '/app/static/favicon.ico?v=' + version, {{'type': 'image/x-icon'}});
-          }}
-          applyPathmarkHead();
-          let attempts = 0;
-          const timer = setInterval(function () {{
-            applyPathmarkHead();
-            attempts += 1;
-            if (attempts >= 14) clearInterval(timer);
-          }}, 700);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
+    return
 
 inject_pwa_metadata()
 
@@ -615,16 +524,16 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 }}
 .pillar-card::before, .card::before, .pathmark-card::before, .workspace-card::before {{ content: none !important; }}
 
-.progress-summary { margin:.65rem 0 1rem; }
-.progress-head { display:flex; justify-content:space-between; gap:.8rem; align-items:baseline; margin-bottom:.35rem; color:var(--muted); font-size:.92rem; font-weight:720; }
-.progress-track { height:9px; border-radius:999px; background:color-mix(in srgb, var(--muted) 18%, transparent); overflow:hidden; border:1px solid var(--line); }
-.progress-fill { height:100%; background:var(--accent); border-radius:999px; min-width:0; }
-.status-chip { display:inline-flex; align-items:center; border-radius:999px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); padding:.22rem .58rem; font-size:.82rem; font-weight:760; margin:.15rem .25rem .15rem 0; }
-.status-chip.done { background:color-mix(in srgb, #16A34A 18%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #16A34A 45%, var(--line)); }
-.status-chip.pending { background:color-mix(in srgb, var(--accent) 13%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
-.status-chip.review { background:color-mix(in srgb, #B45309 15%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #B45309 45%, var(--line)); }
-.status-chip.muted { background:var(--surface-2); color:var(--muted); }
-.item-status-row { margin-top:.55rem; display:flex; flex-wrap:wrap; gap:.2rem; }
+.progress-summary {{ margin:.65rem 0 1rem; }}
+.progress-head {{ display:flex; justify-content:space-between; gap:.8rem; align-items:baseline; margin-bottom:.35rem; color:var(--muted); font-size:.92rem; font-weight:720; }}
+.progress-track {{ height:9px; border-radius:999px; background:color-mix(in srgb, var(--muted) 18%, transparent); overflow:hidden; border:1px solid var(--line); }}
+.progress-fill {{ height:100%; background:var(--accent); border-radius:999px; min-width:0; }}
+.status-chip {{ display:inline-flex; align-items:center; border-radius:999px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); padding:.22rem .58rem; font-size:.82rem; font-weight:760; margin:.15rem .25rem .15rem 0; }}
+.status-chip.done {{ background:color-mix(in srgb, #16A34A 18%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #16A34A 45%, var(--line)); }}
+.status-chip.pending {{ background:color-mix(in srgb, var(--accent) 13%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }}
+.status-chip.review {{ background:color-mix(in srgb, #B45309 15%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #B45309 45%, var(--line)); }}
+.status-chip.muted {{ background:var(--surface-2); color:var(--muted); }}
+.item-status-row {{ margin-top:.55rem; display:flex; flex-wrap:wrap; gap:.2rem; }}
 
 /* Appearance contrast is paired through Streamlit CSS variables above.
    Avoid separate dark-mode text rules; they can place light text on a light

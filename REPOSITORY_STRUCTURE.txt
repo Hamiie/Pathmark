@@ -14,7 +14,7 @@ app/static/pathmark-icon-32.png
 app/static/pathmark-icon-48.png
 app/static/pathmark-icon-512.png
 app/static/pathmark-icon-64.png
-downloads/Pathmark_Local_App_Windows_v0_6_66.zip
+downloads/Pathmark_Local_App_Windows_v0_6_73.zip
 latest_version.json
 requirements.txt
 static/apple-touch-icon.png
