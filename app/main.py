@@ -25,6 +25,11 @@ import pandas as pd
 import streamlit as st
 
 try:
+    import yaml
+except Exception:
+    yaml = None
+
+try:
     from PIL import Image
 except Exception:
     Image = None
@@ -35,6 +40,7 @@ VERSION_FILE = ROOT / "latest_version.json"
 ICON_PATH = ROOT / "app" / "assets" / "pathmark.png"
 ROOT_STATIC = ROOT / "static"
 FAVICON_PATH = ROOT_STATIC / "favicon.ico"
+THEME_CONFIG_PATH = ROOT / "app" / "config" / "themes.yaml"
 SYNC_COLUMNS = [
     "sync_id", "status", "record_type", "action", "title", "area_name", "specific_area",
     "details", "calendar_start", "calendar_end", "recurrence", "created_at", "updated_at",
@@ -146,6 +152,45 @@ ONLINE_THEMES = {
     "Winter dark": {"alias_for": "Seasonal"},
     "Spring dark": {"alias_for": "Seasonal"},
 }
+
+
+def load_theme_presets_from_config() -> None:
+    """Load built-in accent themes from app/config/themes.yaml when available."""
+    global ONLINE_THEME_OPTIONS, SEASONAL_ACCENTS, ONLINE_THEMES
+    if yaml is None or not THEME_CONFIG_PATH.exists():
+        return
+    try:
+        data = yaml.safe_load(THEME_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+        options = [str(item).strip() for item in data.get("options", []) if str(item).strip()]
+        seasonal = data.get("seasonal_accents", {}) if isinstance(data.get("seasonal_accents", {}), dict) else {}
+        themes = data.get("themes", {}) if isinstance(data.get("themes", {}), dict) else {}
+        aliases = data.get("aliases", {}) if isinstance(data.get("aliases", {}), dict) else {}
+        if options and themes:
+            cleaned_themes: dict[str, dict[str, Any]] = {}
+            for name, info in themes.items():
+                if isinstance(info, dict):
+                    cleaned = {str(k): v for k, v in info.items()}
+                    cleaned.setdefault("seasonal_icon", "")
+                    cleaned_themes[str(name)] = cleaned
+            for old_name, target in aliases.items():
+                cleaned_themes[str(old_name)] = {"alias_for": str(target)}
+            cleaned_seasonal: dict[str, dict[str, str]] = {}
+            for season, info in seasonal.items():
+                if isinstance(info, dict):
+                    cleaned_seasonal[str(season)] = {
+                        "accent": str(info.get("accent", "#334E9E")),
+                        "accent_2": str(info.get("accent_2", info.get("accent", "#6BA2B8"))),
+                        "seasonal_icon": str(info.get("seasonal_icon", "")),
+                    }
+            if cleaned_seasonal:
+                SEASONAL_ACCENTS = cleaned_seasonal
+            ONLINE_THEME_OPTIONS = options
+            ONLINE_THEMES = cleaned_themes
+    except Exception:
+        return
+
+
+load_theme_presets_from_config()
 
 
 def current_southern_hemisphere_season(today: date | None = None) -> str:
@@ -540,6 +585,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
    card if the menu changes before a full rerun. */
 
 
+.pathmark-terms-box { max-height: 420px; overflow-y: auto; padding: 1rem 1.1rem; border: 1px solid var(--pm-border); border-radius: 16px; background: var(--pm-card-bg); color: var(--pm-card-text); }
+.pathmark-terms-box h3, .pathmark-terms-box h4 { color: var(--pm-card-text); margin-top: .7rem; margin-bottom: .35rem; }
+.pathmark-terms-box p { color: var(--pm-card-muted); margin: 0 0 .65rem 0; line-height: 1.45; }
+.theme-config-preview { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -831,6 +881,7 @@ def handle_login_redirect() -> bool:
             "email_verified": email_verified,
         }
         st.session_state.pop("pathmark_login_state", None)
+        st.session_state["post_login_show_dashboard"] = True
         st.query_params.clear()
         st.success("Signed in with Google.")
         st.rerun()
@@ -1203,32 +1254,41 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
 
 
 def render_google_permissions_onboarding(compact: bool = False) -> None:
-    """Terms and privacy step shown before launching Google OAuth."""
-    st.markdown("## Welcome to Pathmark Online")
-    st.write("Before continuing, please review and accept the Pathmark Online terms and privacy summary.")
-
-    st.markdown(
-        """
-        <div class="pathmark-panel pathmark-consent-panel">
-          <h3>Terms & Privacy summary</h3>
-          <p>Pathmark uses Google so your planning records can stay in files owned by you.</p>
-          <p>By continuing, you understand that Pathmark may use Google access to create and update your Pathmark Sync sheet, backups, finance template, Google Tasks items, and Google Calendar events in calendars named after your Areas when you choose to use those features.</p>
-          <p>Pathmark does not sell your data, does not store your private planning or finance content in Supabase, and does not create Google Tasks or Calendar events unless you choose to sync them.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.expander("What Pathmark stores", expanded=False):
-        st.write("Your planning and Spending Plan records are stored in Google Sheets owned by you. Supabase stores access/profile metadata only; it is not used as the store for your private planning or finance content.")
-    with st.expander("Google access used by Pathmark", expanded=False):
-        st.write("Google Drive/Sheets access is used for Pathmark Sync, finance templates, and backups. Google Tasks access is used for Tasks Sync. Google Calendar access is used for Calendar Sync, including creating or reusing calendars named after your Areas. Sync actions remain user-controlled.")
-    with st.expander("Tasks and Calendar sync", expanded=False):
-        st.write("Pathmark only creates or updates Google Tasks and Google Calendar events when you press the relevant sync actions. Pathmark remains the planning source of truth and flags changes for review rather than silently overwriting your plan.")
-    with st.expander("How to revoke access", expanded=False):
-        st.write("You can revoke Pathmark's Google access later from your Google Account. If you disconnect access, Pathmark Online will not be able to update your Pathmark Sync sheet, Google Tasks, or Google Calendar until you reconnect.")
-
-    st.checkbox("I have read and understand this summary.", key="google_permissions_ack")
+    """Terms and privacy acceptance step shown before launching Google OAuth."""
+    st.markdown("## Pathmark Online Terms & Privacy")
+    st.caption("Please review and accept this notice before continuing to Google permissions.")
+    terms_html = """
+    <div class="pathmark-terms-box">
+      <h3>Pathmark Online Terms & Privacy Notice</h3>
+      <p><strong>Last updated:</strong> June 2026</p>
+      <h4>1. What Pathmark is</h4>
+      <p>Pathmark is a planning, wellbeing, project, calendar, task and spending-plan tool. It helps you organise routines, projects, tasklists, calendar time and money-flow planning.</p>
+      <h4>2. Use of Google services</h4>
+      <p>Pathmark Online uses Google sign-in and Google APIs so your active planning records can stay in files and services owned by your Google account. Google may show a permissions screen after you continue.</p>
+      <h4>3. Pathmark Sync and Google Sheets</h4>
+      <p>Pathmark creates or updates a Google Sheet called Pathmark Sync. This sheet stores your Pathmark Online records, including areas, projects, routines, tasklist rows, settings, sync metadata and Spending Plan rows.</p>
+      <h4>4. Google Tasks Sync</h4>
+      <p>When you use Google Tasks Sync, Pathmark can create checklist items in Google Tasks and read their status so Pathmark can show whether a task is not sent, pending, completed, missing or needs review. Pathmark does not create tasks unless you choose a sync action.</p>
+      <h4>5. Google Calendar Sync</h4>
+      <p>When you use Google Calendar Sync, Pathmark can create or reuse calendars named after your Pathmark Areas and create or update project and routine calendar events within those calendars. Pathmark stores linked calendar IDs and event IDs in Pathmark Sync. Pathmark does not create calendar events unless you choose a sync action.</p>
+      <h4>6. Spending Plan disclaimer</h4>
+      <p>The Spending Plan is a budgeting and planning tool only. It is not financial, legal, tax, mortgage, insurance, KiwiSaver, investment or debt advice. If you are in financial hardship, consider seeking support from an appropriate budgeting or financial-support service.</p>
+      <h4>7. Backups and restore</h4>
+      <p>Pathmark can create backup Google Sheets and can restore or reset Pathmark Sync when you ask it to. Some actions may create a safety backup first. Resetting Pathmark Sync does not automatically delete Google Tasks or Google Calendar events.</p>
+      <h4>8. What Supabase stores</h4>
+      <p>Supabase is used for access/profile metadata only, such as email, role, status, feature flags, theme preference and audit records. Supabase is not used to store your private planning, task, calendar or spending-plan content.</p>
+      <h4>9. What Pathmark does not do</h4>
+      <p>Pathmark does not sell your data, does not store your Google password, does not store OAuth tokens in Supabase, does not use your planning or finance content for advertising, and does not intentionally scan unrelated Google Drive, Tasks or Calendar content.</p>
+      <h4>10. User responsibility</h4>
+      <p>You are responsible for the accuracy of information you enter, the Google files you share, and any changes you make through import, restore, reset, sync or delete actions. Review warnings before running bulk or destructive actions.</p>
+      <h4>11. Revoking access</h4>
+      <p>You can revoke Pathmark's Google access from your Google Account. If you revoke access, Pathmark Online will not be able to update Pathmark Sync, Google Tasks or Google Calendar until you reconnect.</p>
+      <h4>12. Changes to Pathmark</h4>
+      <p>Pathmark is under active development. Features, wording and data structures may change as the beta is refined. Backups are recommended before major imports, resets or sync changes.</p>
+    </div>
+    """
+    st.markdown(terms_html, unsafe_allow_html=True)
+    st.checkbox("I have read and accept the Pathmark Online Terms & Privacy notice.", key="google_permissions_ack")
     auth_url = login_auth_url()
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -3824,7 +3884,7 @@ def render_goal_manager(sheet_id: str) -> None:
             project_items = project_task_items(sheet_id, selected_id)
             project_done, project_total = completion_counts(project_items)
             if project_total:
-                render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project checklist items complete")
+                render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project steps / checklist items complete")
             else:
                 st.caption("No Google Tasks checklist items are linked to this project yet.")
             tabs = st.tabs(["Project details", "Project steps", "Archive"])
@@ -6566,6 +6626,46 @@ def _updates_from_google_task(item: dict[str, Any], list_id: str, *, sync_status
     }
 
 
+def update_task_sync_metadata(sheet_id: str, row: pd.Series, updates: dict[str, Any]) -> tuple[bool, str]:
+    """Write Google Tasks sync metadata and keep action/task_prompt mirrors aligned.
+
+    Some Pathmark items can be represented by an action row and by the explicit
+    task_prompts row that was created for Google Tasks. Pulling status from
+    Google must update both views so the Google Tasks Sync tab, Projects tab,
+    Routines tab and Dashboard all show the same completion state.
+    """
+    table, rid = _task_update_target(row)
+    ok, message = update_online_record(sheet_id, table, rid, updates)
+    linked_record_id = str(row.get("linked_record_id", "") or "").strip()
+    linked_record_type = str(row.get("linked_record_type", "") or row.get("source_record_type", "") or "").strip().lower()
+    source_id = str(row.get("source_id", "") or row.get("id", "") or "").strip()
+
+    # If the sync row is an explicit activity checklist item, update the parent
+    # action row as well. Helper checklist items intentionally remain separate.
+    if table == "task_prompts" and linked_record_id and "helper" not in linked_record_type:
+        task_kind = str(row.get("task_kind", "") or "").strip().lower()
+        if task_kind in {"activity", ""} or "project_step" in linked_record_type or "routine_activity" in linked_record_type:
+            update_online_record(sheet_id, "actions", linked_record_id, updates)
+
+    # If the sync row is derived from an action, update any explicit activity
+    # prompt linked to that action so detailed task views stay consistent.
+    if table == "actions" and source_id:
+        prompts = read_online_table(sheet_id, "task_prompts")
+        if not prompts.empty:
+            for _, prompt in prompts.iterrows():
+                pid = str(prompt.get("prompt_id", "") or "").strip()
+                if not pid:
+                    continue
+                if str(prompt.get("linked_record_id", "") or "").strip() != source_id:
+                    continue
+                prompt_kind = str(prompt.get("task_kind", "") or "").strip().lower()
+                prompt_type = str(prompt.get("linked_record_type", "") or "").strip().lower()
+                if prompt_kind == "helper" or "helper" in prompt_type:
+                    continue
+                update_online_record(sheet_id, "task_prompts", pid, updates)
+    return ok, message
+
+
 def push_pathmark_tasks_to_google(sheet_id: str, prompts: pd.DataFrame) -> tuple[bool, str]:
     service = tasks_service()
     if service is None:
@@ -6595,7 +6695,7 @@ def push_pathmark_tasks_to_google(sheet_id: str, prompts: pd.DataFrame) -> tuple
                 created += 1
             table, rid = _task_update_target(row)
             updates = _updates_from_google_task(item, task_list_id, sync_status="synced")
-            ok_update, update_msg = update_online_record(sheet_id, table, rid, updates)
+            ok_update, update_msg = update_task_sync_metadata(sheet_id, row, updates)
             if not ok_update:
                 failed += 1
                 st.session_state["google_tasks_last_issue"] = f"Created in Google Tasks but could not save the task ID back to Pathmark: {safe_user_message(update_msg)}"
@@ -6678,7 +6778,7 @@ def repair_google_task_links_by_title_due(sheet_id: str, prompts: pd.DataFrame |
                 reason = "No Google Task with the same title was found in the Pathmark task list"
             if match is not None:
                 table, rid = _task_update_target(row)
-                ok_update, update_msg = update_online_record(sheet_id, table, rid, _updates_from_google_task(match, task_list_id, sync_status="repaired_google_task_link"))
+                ok_update, update_msg = update_task_sync_metadata(sheet_id, row, _updates_from_google_task(match, task_list_id, sync_status="repaired_google_task_link"))
                 if ok_update:
                     repaired += 1
                     diagnostics.append({"Pathmark item": str(row.get("title", "") or ""), "Pathmark due": due_key, "Google candidate": str(match.get("title", "") or ""), "Google due": _google_task_due_key(match), "Result": "Repaired", "Reason": f"Matched by {match_type}"})
@@ -6726,11 +6826,12 @@ def pull_google_task_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
             # completion is stored in google_task_status/completed_at; do not
             # mark the source row Done/completed here because those statuses can
             # hide it from Pathmark sync views.
-            update_online_record(sheet_id, table, rid, updates)
+            update_task_sync_metadata(sheet_id, row, updates)
         except Exception:
             missing += 1
-            update_online_record(sheet_id, table, rid, {"google_task_synced_at": utc_now_text(), "sync_status": "missing_in_google_tasks"})
+            update_task_sync_metadata(sheet_id, row, {"google_task_synced_at": utc_now_text(), "sync_status": "missing_in_google_tasks"})
     clear_online_cache(sheet_id)
+    load_online_tables(sheet_id, force=True)
     msg = f"Checked {checked} linked Google Task(s). {completed} completed item(s) were reflected in Pathmark."
     if missing:
         msg += f" {missing} linked item(s) could not be found in Google Tasks and were marked for review."
@@ -6914,6 +7015,18 @@ def routine_weekly_completion_summary(sheet_id: str) -> tuple[int, int, str]:
     weekly = prompts[prompts.apply(_routine_week_row, axis=1)].copy()
     done, total = completion_counts(weekly)
     return done, total, week_start
+
+
+def project_overall_completion_summary(sheet_id: str) -> tuple[int, int]:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return 0, 0
+    def _project_row(row: pd.Series) -> bool:
+        source_type = str(row.get("source_record_type", "") or row.get("linked_record_type", "") or "").lower()
+        parent_type = str(row.get("linked_parent_type", "") or "").lower()
+        return "project" in source_type or "project" in parent_type or "goal" in parent_type
+    project_items = prompts[prompts.apply(_project_row, axis=1)].copy()
+    return completion_counts(project_items)
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Sync")
@@ -8660,13 +8773,11 @@ def render_online_overview(sheet_id: str) -> None:
         routine_progress_label = f"{routine_done_week} of {routine_total_week} routine activities complete this week"
     else:
         routine_progress_label = "No routine activities planned this week" if routine_count else "routine activities set up"
-    project_count = len(project_actions) if not project_actions.empty else 0
-    project_completed = 0
-    if not project_actions.empty:
-        project_status = project_actions.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
-        project_google = project_actions.get("google_task_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
-        project_completed = int((project_status.isin(["done", "completed"]) | project_google.eq("completed")).sum())
-    project_progress_label = f"{project_completed} of {project_count} project steps complete" if project_count else "project steps set up"
+    project_action_count = len(project_actions) if not project_actions.empty else 0
+    project_completed, project_count = project_overall_completion_summary(sheet_id)
+    project_progress_label = f"{project_completed} of {project_count} project steps complete" if project_count else "No project steps linked to Google Tasks yet" if project_action_count else "project steps set up"
+    routine_progress_html = progress_bar_html(routine_done_week, routine_total_week, routine_progress_label) if routine_total_week else ""
+    project_progress_html = progress_bar_html(project_completed, project_count, project_progress_label) if project_count else ""
     surplus = float(money.get("surplus_weekly", 0.0) or 0.0)
     money_overcommitted = surplus < -0.005
     money_balanced = abs(surplus) <= 0.005
@@ -8695,13 +8806,15 @@ def render_online_overview(sheet_id: str) -> None:
         <p>Protect the repeating supports that keep you steady before life gets busy.</p>
         <div class="pillar-stat">{routine_done_week if routine_total_week else routine_count}</div>
         <div class="pillar-foot">{html.escape(routine_progress_label)}</div>
+        {routine_progress_html}
       </div>
       <div class="pillar-card">
         <div class="kicker">Progress</div>
         <h3>Meaningful projects</h3>
         <p>Turn projects with a definition of done into scheduled project steps.</p>
-        <div class="pillar-stat">{project_count}</div>
+        <div class="pillar-stat">{project_completed if project_count else project_action_count}</div>
         <div class="pillar-foot">{html.escape(project_progress_label)}</div>
+        {project_progress_html}
       </div>
       <div class="{money_flow_class}">
         <div class="kicker">Resources</div>
@@ -9291,6 +9404,97 @@ def spending_plan_beta_tab() -> None:
 
     render_safe_section("Spending Plan", render_spending_plan_manager, sheet_id)
 
+
+def _hex_to_rgb(hex_colour: str) -> tuple[int, int, int] | None:
+    text = str(hex_colour or "").strip()
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", text):
+        return None
+    return int(text[1:3], 16), int(text[3:5], 16), int(text[5:7], 16)
+
+
+def _relative_luminance(rgb: tuple[int, int, int]) -> float:
+    vals = []
+    for channel in rgb:
+        c = channel / 255.0
+        vals.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2]
+
+
+def contrast_ratio_hex(foreground: str, background: str) -> float | None:
+    fg = _hex_to_rgb(foreground)
+    bg = _hex_to_rgb(background)
+    if fg is None or bg is None:
+        return None
+    l1 = _relative_luminance(fg)
+    l2 = _relative_luminance(bg)
+    lighter, darker = max(l1, l2), min(l1, l2)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def current_theme_config_dict() -> dict[str, Any]:
+    aliases = {name: info.get("alias_for") for name, info in ONLINE_THEMES.items() if isinstance(info, dict) and info.get("alias_for")}
+    themes = {name: {k: v for k, v in info.items() if k not in {"alias_for", "seasonal_icon"} or v} for name, info in ONLINE_THEMES.items() if name in ONLINE_THEME_OPTIONS and isinstance(info, dict) and not info.get("alias_for")}
+    return {"options": list(ONLINE_THEME_OPTIONS), "seasonal_accents": SEASONAL_ACCENTS, "themes": themes, "aliases": aliases}
+
+
+def theme_config_to_yaml(config: dict[str, Any]) -> str:
+    if yaml is not None:
+        return yaml.safe_dump(config, sort_keys=False, allow_unicode=True)
+    return json.dumps(config, indent=2)
+
+
+def render_developer_theme_editor() -> None:
+    st.subheader("Theme editor")
+    st.caption("Edit Pathmark accent presets, preview contrast, then download an updated app/config/themes.yaml to commit to GitHub.")
+    config = current_theme_config_dict()
+    theme_rows = []
+    for name in ONLINE_THEME_OPTIONS:
+        info = ONLINE_THEMES.get(name, {})
+        if not isinstance(info, dict) or info.get("alias_for"):
+            continue
+        theme_rows.append({"name": name, "accent": str(info.get("accent", "#334E9E")), "accent_2": str(info.get("accent_2", info.get("accent", "#334E9E"))), "auto": bool(info.get("auto", False)), "custom": bool(info.get("custom", False))})
+    edited_themes = st.data_editor(pd.DataFrame(theme_rows), hide_index=True, use_container_width=True, num_rows="dynamic", column_config={"name": st.column_config.TextColumn("Theme name", required=True), "accent": st.column_config.TextColumn("Accent hex", required=True), "accent_2": st.column_config.TextColumn("Second accent hex", required=True), "auto": st.column_config.CheckboxColumn("Seasonal/auto"), "custom": st.column_config.CheckboxColumn("Custom option")}, key="developer_theme_editor_table")
+    season_rows = []
+    for season in ["Spring", "Summer", "Autumn", "Winter"]:
+        info = SEASONAL_ACCENTS.get(season, {})
+        season_rows.append({"season": season, "accent": str(info.get("accent", "#334E9E")), "accent_2": str(info.get("accent_2", "#6BA2B8"))})
+    edited_seasons = st.data_editor(pd.DataFrame(season_rows), hide_index=True, use_container_width=True, column_config={"season": st.column_config.TextColumn("Season", disabled=True), "accent": st.column_config.TextColumn("Accent hex", required=True), "accent_2": st.column_config.TextColumn("Second accent hex", required=True)}, key="developer_seasonal_theme_editor_table")
+    preview_options = [str(row.get("name", "")).strip() for row in edited_themes.to_dict("records") if str(row.get("name", "")).strip()]
+    preview_name = st.selectbox("Preview theme", preview_options or ONLINE_THEME_OPTIONS, key="developer_theme_preview_choice")
+    preview_row = next((row for row in edited_themes.to_dict("records") if str(row.get("name", "")).strip() == preview_name), None)
+    if preview_row:
+        accent = str(preview_row.get("accent", "#334E9E"))
+        accent_2 = str(preview_row.get("accent_2", accent))
+        light_ratio = contrast_ratio_hex(accent, "#FFFFFF") or 0
+        dark_ratio = contrast_ratio_hex(accent, "#111827") or 0
+        preview_html = '<div class="grid-3"><div class="card"><h3>Accent</h3><p><strong>{}</strong><br>{} / {}</p></div><div class="card"><h3>On light surface</h3><p>Contrast vs white: <strong>{:.2f}:1</strong></p></div><div class="card"><h3>On dark surface</h3><p>Contrast vs dark: <strong>{:.2f}:1</strong></p></div></div>'.format(html.escape(preview_name), html.escape(accent), html.escape(accent_2), light_ratio, dark_ratio)
+        st.markdown(preview_html, unsafe_allow_html=True)
+        if light_ratio < 3:
+            st.warning("This accent is low contrast on a white surface. It may need a darker light-mode variant.")
+        if dark_ratio < 3:
+            st.warning("This accent is low contrast on a dark surface. It may need a lighter dark-mode variant.")
+    new_options = preview_options
+    new_themes: dict[str, dict[str, Any]] = {}
+    for row in edited_themes.to_dict("records"):
+        name = str(row.get("name", "")).strip(); accent = str(row.get("accent", "")).strip(); accent_2 = str(row.get("accent_2", "")).strip() or accent
+        if not name or not re.fullmatch(r"#[0-9A-Fa-f]{6}", accent) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", accent_2):
+            continue
+        info: dict[str, Any] = {"accent": accent, "accent_2": accent_2}
+        if bool(row.get("auto", False)): info["auto"] = True
+        if bool(row.get("custom", False)): info["custom"] = True
+        new_themes[name] = info
+    new_seasons: dict[str, dict[str, str]] = {}
+    for row in edited_seasons.to_dict("records"):
+        season = str(row.get("season", "")).strip(); accent = str(row.get("accent", "")).strip(); accent_2 = str(row.get("accent_2", "")).strip() or accent
+        if season and re.fullmatch(r"#[0-9A-Fa-f]{6}", accent) and re.fullmatch(r"#[0-9A-Fa-f]{6}", accent_2):
+            new_seasons[season] = {"accent": accent, "accent_2": accent_2}
+    new_config = {"options": new_options, "seasonal_accents": new_seasons, "themes": new_themes, "aliases": config.get("aliases", {})}
+    yaml_text = theme_config_to_yaml(new_config)
+    st.download_button("Download updated themes.yaml", data=yaml_text.encode("utf-8"), file_name="themes.yaml", mime="text/yaml", use_container_width=True)
+    with st.expander("Preview generated theme config", expanded=False):
+        st.markdown(f'<div class="theme-config-preview">{html.escape(yaml_text)}</div>', unsafe_allow_html=True)
+    st.info("To apply changes to the deployed app, replace app/config/themes.yaml in the GitHub repository with the downloaded file and redeploy. Direct GitHub write-back can be added later with a secure GitHub token.")
+
 def developer_tab() -> None:
     st.header("Developer settings")
     st.write("Manage hosted access roles for beta features. Unknown signed-in users default to standard access.")
@@ -9301,6 +9505,9 @@ def developer_tab() -> None:
     - **developer**: beta access plus this developer panel.
     """)
     actor = current_user().get("email", "")
+    with st.expander("Theme editor", expanded=False):
+        render_developer_theme_editor()
+
     if supabase_available():
         st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark projects, routines, checklist items, Workspace files, or on-the-go planning entries.")
     else:
@@ -9438,6 +9645,10 @@ def render_app() -> None:
     render_account_bar(role, user)
     if status == "disabled":
         st.error("This account has been disabled for the hosted Pathmark page.")
+        return
+
+    if user.get("email") and st.session_state.pop("post_login_show_dashboard", False) and role_can_use_on_the_go(role, status):
+        on_the_go_tab()
         return
 
     if not user.get("email") and st.session_state.get("show_login_terms") and login_configured():

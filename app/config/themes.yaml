@@ -1,0 +1,112 @@
+# Pathmark built-in accent themes.
+# Streamlit controls Light / Dark / System. These themes only control Pathmark accent colours.
+# Edit this file through Developer tools > Theme editor, then commit the updated file to GitHub.
+options:
+  - Seasonal
+  - Cyan
+  - Sky
+  - Blue
+  - Indigo
+  - Violet
+  - Plum
+  - Rose
+  - Terracotta
+  - Clay
+  - Amber
+  - Olive
+  - Sage
+  - Teal
+  - Steel
+  - Graphite
+  - Pearl
+  - Custom
+seasonal_accents:
+  Summer:
+    accent: "#B66A00"
+    accent_2: "#1B8EA8"
+  Autumn:
+    accent: "#A33A16"
+    accent_2: "#7A4E2A"
+  Winter:
+    accent: "#334E9E"
+    accent_2: "#6BA2B8"
+  Spring:
+    accent: "#2F7D50"
+    accent_2: "#1B8EA8"
+themes:
+  Seasonal:
+    accent: "#334E9E"
+    accent_2: "#6BA2B8"
+    auto: true
+  Cyan:
+    accent: "#1B8EA8"
+    accent_2: "#334E9E"
+  Sky:
+    accent: "#0284C7"
+    accent_2: "#38BDF8"
+  Blue:
+    accent: "#334E9E"
+    accent_2: "#6BA2B8"
+  Indigo:
+    accent: "#4F46E5"
+    accent_2: "#334E9E"
+  Violet:
+    accent: "#7C3AED"
+    accent_2: "#8B5CF6"
+  Plum:
+    accent: "#8B4E9F"
+    accent_2: "#B05A7A"
+  Rose:
+    accent: "#BE4B6A"
+    accent_2: "#B05A7A"
+  Terracotta:
+    accent: "#A33A16"
+    accent_2: "#C2410C"
+  Clay:
+    accent: "#8A5A44"
+    accent_2: "#A33A16"
+  Amber:
+    accent: "#B66A00"
+    accent_2: "#D97706"
+  Olive:
+    accent: "#4D7C0F"
+    accent_2: "#0B8043"
+  Sage:
+    accent: "#5D7F61"
+    accent_2: "#2F7D50"
+  Teal:
+    accent: "#0F766E"
+    accent_2: "#1B8EA8"
+  Steel:
+    accent: "#4F7F95"
+    accent_2: "#334E9E"
+  Graphite:
+    accent: "#475569"
+    accent_2: "#7FA9B8"
+  Pearl:
+    accent: "#7FA9B8"
+    accent_2: "#4F7F95"
+  Custom:
+    accent: "#334E9E"
+    accent_2: "#6BA2B8"
+    custom: true
+aliases:
+  Default: Seasonal
+  Pathmark: Seasonal
+  Primary Navy: Blue
+  Primary Cyan: Cyan
+  Secondary Steel: Steel
+  Tertiary Mist: Cyan
+  Tertiary Pearl: Pearl
+  Navy: Blue
+  Mist: Cyan
+  Summer: Seasonal
+  Autumn: Seasonal
+  Winter: Seasonal
+  Spring: Seasonal
+  Warm: Terracotta
+  Dark: Graphite
+  Summer dark: Seasonal
+  Autumn dark: Seasonal
+  Winter dark: Seasonal
+  Spring dark: Seasonal
