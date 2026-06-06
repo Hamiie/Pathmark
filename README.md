@@ -1,20 +1,20 @@
 # Pathmark release hub
 
-Current release: **v0.6.48 Accent theme system clarification**
+Current release: **v0.6.49 Sleek accent contrast refinement**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_48_accent_theme_system_clarification.zip`
-- `Pathmark_Local_App_Windows_v0_6_48.zip`
+- `pathmark_release_hub_v0_6_49_sleek_accent_contrast_refinement.zip`
+- `Pathmark_Local_App_Windows_v0_6_49.zip`
 
-## What changed in v0.6.48
+## What changed in v0.6.49
 
-- Clarified that **Seasonal** is one automatic theme rather than four separate seasonal choices.
-- Seasonal uses Southern Hemisphere timing to resolve to the current season.
-- Added stable accent themes based on Pathmark primary, secondary and tertiary colour families.
-- Kept Streamlit responsible for Light, Dark and System, with Pathmark controlling accents only.
+- Improved dark-mode contrast for Pathmark-owned cards, muted text and borders.
+- Removed decorative gradients and emoji-style seasonal markers for a cleaner, sleeker interface.
+- Kept **Seasonal** as one automatic theme alongside stable accent themes based on Pathmark colour families.
+- Kept Streamlit responsible for Light, Dark and System, with Pathmark controlling restrained accent details only.
 
 ## Repository layout
 

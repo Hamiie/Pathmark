@@ -88,24 +88,24 @@ ONLINE_APPEARANCE_OPTIONS = ["System", "Light", "Dark"]
 SEASONAL_ACCENTS = {
     # Southern Hemisphere seasons, suitable for New Zealand as Pathmark's initial hosted audience.
     # Seasonal is one theme: the accent automatically follows the current season.
-    "Summer": {"accent": "#F59E0B", "accent_2": "#41C4DC", "seasonal_icon": "☀️"},
-    "Autumn": {"accent": "#A33A16", "accent_2": "#6B4E2E", "seasonal_icon": "🍂"},
-    "Winter": {"accent": "#1E2171", "accent_2": "#6BA2B8", "seasonal_icon": "❄️"},
-    "Spring": {"accent": "#0B8043", "accent_2": "#41C4DC", "seasonal_icon": "🌸"},
+    "Summer": {"accent": "#B66A00", "accent_2": "#1B8EA8", "seasonal_icon": ""},
+    "Autumn": {"accent": "#A33A16", "accent_2": "#7A4E2A", "seasonal_icon": ""},
+    "Winter": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Spring": {"accent": "#2F7D50", "accent_2": "#1B8EA8", "seasonal_icon": ""},
 }
 ONLINE_THEMES = {
     # Pathmark themes are accent themes only. Streamlit owns Light, Dark and System.
     # Primary / secondary / tertiary options are based on the Pathmark/PSNZ palette family.
-    "Seasonal": {"accent": "#1E2171", "accent_2": "#41C4DC", "seasonal_icon": "☀️🍂❄️🌸", "auto": True},
-    "Primary Navy": {"accent": "#1E2171", "accent_2": "#41C4DC", "seasonal_icon": ""},
-    "Primary Cyan": {"accent": "#41C4DC", "accent_2": "#1E2171", "seasonal_icon": ""},
-    "Secondary Steel": {"accent": "#6BA2B8", "accent_2": "#1E2171", "seasonal_icon": ""},
-    "Tertiary Mist": {"accent": "#A0E2EE", "accent_2": "#41C4DC", "seasonal_icon": ""},
-    "Tertiary Pearl": {"accent": "#D9EEF3", "accent_2": "#6BA2B8", "seasonal_icon": ""},
-    "Graphite": {"accent": "#334155", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Seasonal": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": "", "auto": True},
+    "Primary Navy": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": ""},
+    "Primary Cyan": {"accent": "#1B8EA8", "accent_2": "#334E9E", "seasonal_icon": ""},
+    "Secondary Steel": {"accent": "#4F7F95", "accent_2": "#334E9E", "seasonal_icon": ""},
+    "Tertiary Mist": {"accent": "#4CAABD", "accent_2": "#1B8EA8", "seasonal_icon": ""},
+    "Tertiary Pearl": {"accent": "#7FA9B8", "accent_2": "#4F7F95", "seasonal_icon": ""},
+    "Graphite": {"accent": "#475569", "accent_2": "#7FA9B8", "seasonal_icon": ""},
     "Clay": {"accent": "#A33A16", "accent_2": "#C2410C", "seasonal_icon": ""},
     "Olive": {"accent": "#4D7C0F", "accent_2": "#0B8043", "seasonal_icon": ""},
-    "Plum": {"accent": "#7E22CE", "accent_2": "#BE185D", "seasonal_icon": ""},
+    "Plum": {"accent": "#8B4E9F", "accent_2": "#B05A7A", "seasonal_icon": ""},
     # Compatibility aliases for old saved preferences.
     "Default": {"alias_for": "Seasonal"},
     "Teal": {"alias_for": "Primary Cyan"},
@@ -422,7 +422,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.48 theme model
+Pathmark v0.6.49 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
@@ -434,12 +434,12 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
   --ink: var(--text-color, inherit);
-  --muted: color-mix(in srgb, var(--text-color, #1F2221) 84%, var(--background-color, #FFFFFF));
-  --surface: color-mix(in srgb, var(--secondary-background-color, transparent) 82%, var(--text-color, #1F2221) 5%);
-  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 72%, var(--text-color, #1F2221) 8%);
-  --line: color-mix(in srgb, var(--text-color, #1F2221) 40%, var(--background-color, transparent));
+  --muted: color-mix(in srgb, var(--text-color, #1F2221) 92%, var(--background-color, #FFFFFF));
+  --surface: color-mix(in srgb, var(--secondary-background-color, transparent) 92%, var(--text-color, #1F2221) 4%);
+  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 88%, var(--text-color, #1F2221) 6%);
+  --line: color-mix(in srgb, var(--text-color, #1F2221) 46%, var(--background-color, transparent));
   --shadow: color-mix(in srgb, #000000 14%, transparent);
-  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
@@ -464,12 +464,12 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {{
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 14px 34px var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--text-color, #1F2221) 5%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, #000000 10%, transparent);
 }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
 .card h3 {{ margin-top: 0; margin-bottom: .55rem; }}
 .card p {{ margin-bottom: 0; color: var(--muted); }}
-.card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{ border-top: 4px solid color-mix(in srgb, var(--accent) 70%, transparent); }}
+.card, .pillar-card, .pathmark-card, .workspace-card, .download-panel { border-top: 1px solid var(--line); }
 .meta-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .9rem 0 2.1rem; }}
 .meta-card {{ border-radius: 1.25rem; padding: 1rem 1.15rem; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
@@ -530,10 +530,10 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .pillar-card p {{ margin:0; color:var(--muted); font-size:.98rem; line-height:1.45; }}
 @media (prefers-color-scheme: dark) {{
   :root {{
-    --surface: color-mix(in srgb, var(--background-color, #0E1117) 76%, var(--text-color, #FAFAFA) 9%);
-    --surface-2: color-mix(in srgb, var(--background-color, #0E1117) 70%, var(--text-color, #FAFAFA) 12%);
-    --line: color-mix(in srgb, var(--text-color, #FAFAFA) 34%, var(--background-color, #0E1117));
-    --muted: color-mix(in srgb, var(--text-color, #FAFAFA) 82%, var(--background-color, #0E1117));
+    --surface: color-mix(in srgb, var(--background-color, #0E1117) 84%, var(--text-color, #FAFAFA) 10%);
+    --surface-2: color-mix(in srgb, var(--background-color, #0E1117) 78%, var(--text-color, #FAFAFA) 13%);
+    --line: color-mix(in srgb, var(--text-color, #FAFAFA) 42%, var(--background-color, #0E1117));
+    --muted: color-mix(in srgb, var(--text-color, #FAFAFA) 90%, var(--background-color, #0E1117));
   }}
 }}
 .pillar-metric {{ margin-top:auto; padding-top:.9rem; border-top:1px solid var(--line); }}
@@ -571,6 +571,22 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   color: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #FFFFFF)) !important;
 }}
 @media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
+
+/* Sleek contrast pass: avoid low-contrast decorative gradients and keep cards visible in dark mode. */
+.sublead, .small-muted, .pillar-card p, .card p, .process-card p, .dashboard-hero p,
+.metric-label, .pillar-foot, .helper-row-card p, .wizard-hero p, .attention-label {{
+  color: color-mix(in srgb, var(--text-color, #1F2221) 88%, var(--background-color, #FFFFFF)) !important;
+}}
+.card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box,
+.step-card, .process-card, .pathmark-card, .workspace-card, .issue-card, .pillar-card,
+.metric-tile, .attention-card, .money-summary-card, .helper-row-card, .repeat-summary {{
+  border-color: color-mix(in srgb, var(--text-color, #1F2221) 32%, transparent) !important;
+}}
+.pillar-card, .card, .pathmark-card, .workspace-card, .download-panel {{
+  border-top: 1px solid color-mix(in srgb, var(--text-color, #1F2221) 32%, transparent) !important;
+}}
+.pillar-card::before, .card::before, .pathmark-card::before, .workspace-card::before {{ content: none !important; }}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -2388,33 +2404,33 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
           --accent-2: {accent_2};
           --pathmark-accent: {accent};
           --pathmark-accent-2: {accent_2};
-          --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 78%, black);
-          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 20%, var(--surface));
-          --accent-soft-2: color-mix(in srgb, var(--pathmark-accent-2) 14%, var(--surface));
+          --pathmark-accent-ui: color-mix(in srgb, var(--pathmark-accent) 76%, var(--text-color, #1F2221) 24%);
+          --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 72%, black);
+          --accent-soft: color-mix(in srgb, var(--pathmark-accent-ui) 10%, var(--surface));
+          --accent-soft-2: color-mix(in srgb, var(--pathmark-accent-2) 8%, var(--surface));
         }}
-        .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
         .seasonal-theme-name::after {{ content: "{display_name}"; }}
         .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview, .next-action-card {{
-          background: linear-gradient(135deg, var(--accent-soft), var(--accent-soft-2));
+          background: var(--accent-soft);
         }}
         .guide-box {{
-          border-left: 5px solid var(--pathmark-accent);
+          border-left: 4px solid var(--pathmark-accent-ui);
           padding-left: 1.45rem;
         }}
-        .setup-progress-fill, .wizard-progress-fill {{ background: linear-gradient(90deg, var(--pathmark-accent), var(--pathmark-accent-2)); }}
+        .setup-progress-fill, .wizard-progress-fill {{ background: var(--pathmark-accent-ui); }}
         .kicker, [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
-          color: var(--pathmark-accent) !important;
+          color: var(--pathmark-accent-ui) !important;
         }}
         [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
-          border-bottom-color: var(--pathmark-accent) !important;
+          border-bottom-color: var(--pathmark-accent-ui) !important;
         }}
         .card, .pillar-card, .pathmark-card, .workspace-card, .download-panel {{
-          border-top-color: var(--pathmark-accent) !important;
+          border-top-color: color-mix(in srgb, var(--text-color, #1F2221) 32%, transparent) !important;
         }}
         .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a,
         a[data-testid="baseLinkButton-secondary"], a[data-testid="baseLinkButton-primary"], .pathmark-link-button {{
-          background: linear-gradient(135deg, var(--pathmark-accent), var(--pathmark-accent-2)) !important;
-          border-color: color-mix(in srgb, var(--pathmark-accent) 72%, black) !important;
+          background: var(--pathmark-accent-ui) !important;
+          border-color: color-mix(in srgb, var(--pathmark-accent-ui) 60%, black) !important;
           color: #FFFFFF !important;
         }}
         .stButton button *, .stDownloadButton button *, [data-testid="stLinkButton"] a *,
@@ -6793,9 +6809,9 @@ def download_tab() -> None:
 
 def theme_tab() -> None:
     st.header("Theme")
-    st.write("Choose a Pathmark accent theme. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
+    st.write("Choose a Pathmark accent theme. Streamlit still controls Light, Dark and System from its built-in menu.")
     st.markdown(
-        """<p class="small-muted">Seasonal is one automatic theme: it follows the current Southern Hemisphere season. The other options are stable accent themes based on Pathmark's primary, secondary and tertiary colour families. Streamlit still controls the app's light or dark base.</p>""",
+        """<p class="small-muted">Seasonal is one automatic option that follows the current Southern Hemisphere season. The other options are stable, simple accent themes. Accents are deliberately restrained: they affect tabs, buttons, badges and small highlights, not the whole page.</p>""",
         unsafe_allow_html=True,
     )
     user = current_user()
@@ -6814,7 +6830,7 @@ def theme_tab() -> None:
       <div class="card"><h3>Seasonal</h3><p>Seasonal is a single automatic option. It currently resolves to <strong>{html.escape(current_season)}</strong> for Southern Hemisphere timing, and will change as the year changes.</p></div>
       <div class="card"><h3>Stable colour themes</h3><p>Primary Navy, Primary Cyan, Secondary Steel, Tertiary Mist, Tertiary Pearl, Graphite, Clay, Olive and Plum stay the same all year.</p></div>
     </div>
-    <div class="seasonal-preview-card"><span class="seasonal-mark">Current Pathmark accent: <span class="seasonal-theme-name"></span></span></div>
+    <div class="seasonal-preview-card">Current Pathmark accent: <span class="seasonal-theme-name"></span></div>
     """, unsafe_allow_html=True)
     if st.button("Save Pathmark theme", use_container_width=True):
         theme_name = normalise_online_theme(theme_name)

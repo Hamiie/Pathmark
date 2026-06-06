@@ -1,20 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.48",
+  "version": "0.6.49",
   "release_date": "2026-06-06",
   "notes": [
-    "Clarifies Seasonal as one automatic Pathmark theme that follows the current Southern Hemisphere season.",
-    "Adds stable Pathmark themes based on primary, secondary and tertiary colour families.",
-    "Keeps Streamlit responsible for Light, Dark and System while Pathmark only applies accent styling.",
-    "Updates the Theme tab wording so users are not asked to pick individual seasons."
+    "Refines Pathmark accent themes to keep the visual design simple and sleek.",
+    "Removes decorative gradients and emoji-style seasonal markers from the Theme interface.",
+    "Improves contrast for muted text, Pathmark cards, borders and highlights in Streamlit dark mode.",
+    "Keeps Streamlit responsible for Light, Dark and System while Pathmark applies restrained accent styling only."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_48.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_49.zip",
   "mac_package": "",
-  "release": "v0.6.48 Accent theme system clarification",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip",
-  "release_name": "Accent theme system clarification",
-  "release_notes": "Seasonal is now one automatic theme, with stable primary, secondary and tertiary colour-family themes available alongside it.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip",
-  "label": "Accent theme system clarification",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_48.zip"
+  "release": "v0.6.49 Sleek accent contrast refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip",
+  "release_name": "Sleek accent contrast refinement",
+  "release_notes": "Improves dark-mode contrast and simplifies accent themes by removing gradients and emoji-style seasonal decoration.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip",
+  "label": "Sleek accent contrast refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_49.zip"
 }
