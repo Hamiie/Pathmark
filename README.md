@@ -1,26 +1,25 @@
 # Pathmark release hub
 
-Current release: **v0.6.45 Streamlit-native seasonal accent themes**
+Current release: **v0.6.46 Seasonal accent visibility and contrast repair**
 
 Pathmark is a Streamlit-based planning and export system that supports wellbeing routines, meaningful projects, and a Spending Plan for money-flow planning.
 
 ## Current packages
 
-- `pathmark_release_hub_v0_6_45_streamlit_native_seasonal_accent_themes.zip`
-- `Pathmark_Local_App_Windows_v0_6_45.zip`
+- `pathmark_release_hub_v0_6_46_seasonal_accent_visibility_contrast_repair.zip`
+- `Pathmark_Local_App_Windows_v0_6_46.zip`
 
-## v0.6.45 Streamlit-native seasonal accent themes
+## v0.6.46 Seasonal accent visibility and contrast repair
 
-This release simplifies the theme system so Streamlit owns the full Light, Dark and System appearance mode, while Pathmark seasonal themes only set accents and Pathmark-owned custom component styling.
+This release continues the Streamlit-native theme approach. Streamlit still owns Light, Dark and System appearance, while Pathmark seasonal themes control accents only.
 
 Changes:
 
-- Removes Pathmark JavaScript appearance watching and Light/Dark/System mirroring.
-- Removes Pathmark CSS that attempted to control global page background, global text colour, inputs, popovers and Streamlit settings menu colours.
-- Keeps **Theme** as a top-level tab for seasonal accent only: **Summer**, **Autumn**, **Winter** and **Spring**.
-- Lets Streamlit's built-in Settings menu control the page's actual light/dark appearance.
-- Keeps Pathmark custom cards, badges, progress bars and buttons styled with seasonal accent variables.
-- Simplifies `.streamlit/config.toml` so Pathmark no longer defines competing full light and dark theme palettes.
+- Improves contrast for muted text, captions, card borders and Pathmark-owned surfaces in dark mode.
+- Makes the seasonal accent preview apply immediately when Summer, Autumn, Winter or Spring is selected, even before saving.
+- Uses stronger seasonal accent colours so the selected season is visibly reflected in buttons, selected tabs, progress bars and accent panels.
+- Keeps Pathmark from overriding Streamlit's core page background, text, input and settings-menu styling.
+- Adds a small seasonal preview card to make it obvious when the selected seasonal accent has changed.
 
 ## Structure
 
@@ -35,7 +34,7 @@ app/
   assets/
   static/
 downloads/
-  Pathmark_Local_App_Windows_v0_6_45.zip
+  Pathmark_Local_App_Windows_v0_6_46.zip
 .streamlit/
   config.toml
 supabase/

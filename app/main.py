@@ -77,10 +77,10 @@ ONLINE_APPEARANCE_OPTIONS = ["System", "Light", "Dark"]
 ONLINE_THEMES = {
     # Seasonal choice controls Pathmark's accent, tint and icon. Light/dark mode
     # is deliberately left to Streamlit's own Settings menu: System, Light or Dark.
-    "Summer": {"accent": "#2F5D7C", "soft_light": "#FFF3C4", "soft_dark": "#403A1E", "seasonal_icon": "☀️ 🏖️"},
-    "Autumn": {"accent": "#8A5A34", "soft_light": "#F6E7D8", "soft_dark": "#3A2418", "seasonal_icon": "🍂"},
-    "Winter": {"accent": "#334E68", "soft_light": "#E7EEF4", "soft_dark": "#1D3142", "seasonal_icon": "❄️ ⛄"},
-    "Spring": {"accent": "#7A4E7A", "soft_light": "#F8EAF3", "soft_dark": "#3A2132", "seasonal_icon": "🌸"},
+    "Summer": {"accent": "#B45309", "soft_light": "#FFF3C4", "soft_dark": "#403A1E", "seasonal_icon": "☀️ 🏖️"},
+    "Autumn": {"accent": "#9A3412", "soft_light": "#F6E7D8", "soft_dark": "#3A2418", "seasonal_icon": "🍂"},
+    "Winter": {"accent": "#2563EB", "soft_light": "#E7EEF4", "soft_dark": "#1D3142", "seasonal_icon": "❄️ ⛄"},
+    "Spring": {"accent": "#BE185D", "soft_light": "#F8EAF3", "soft_dark": "#3A2132", "seasonal_icon": "🌸"},
     # Compatibility aliases for existing saved preferences. These are normalised
     # before display, so users no longer choose separate light/dark theme names.
     "Default": {"alias_for": "Winter"},
@@ -364,10 +364,10 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
     return """
           --bg: var(--background-color, #F7F6F2);
           --ink: var(--text-color, #1F2221);
-          --muted: color-mix(in srgb, var(--text-color, #1F2221) 64%, var(--background-color, #F7F6F2));
+          --muted: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #F7F6F2));
           --surface: var(--secondary-background-color, #FFFFFF);
           --surface-2: color-mix(in srgb, var(--secondary-background-color, #FFFFFF) 86%, var(--background-color, #F7F6F2));
-          --line: color-mix(in srgb, var(--text-color, #1F2221) 18%, var(--background-color, #F7F6F2));
+          --line: color-mix(in srgb, var(--text-color, #1F2221) 28%, var(--background-color, #F7F6F2));
           --shadow: color-mix(in srgb, #000000 18%, transparent);
           --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
         """
@@ -376,7 +376,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.45 theme model
+Pathmark v0.6.46 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
@@ -388,18 +388,28 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
   --ink: var(--text-color, inherit);
-  --muted: color-mix(in srgb, var(--text-color, #1F2221) 62%, var(--background-color, #FFFFFF));
+  --muted: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #FFFFFF));
   --surface: var(--secondary-background-color, transparent);
   --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 88%, var(--background-color, transparent));
-  --line: color-mix(in srgb, var(--text-color, #1F2221) 18%, transparent);
+  --line: color-mix(in srgb, var(--text-color, #1F2221) 28%, transparent);
   --shadow: color-mix(in srgb, #000000 14%, transparent);
-  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--secondary-background-color, transparent));
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--secondary-background-color, transparent));
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
 p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hero {{ padding: 2.6rem 0 1.2rem 0; }}
 .eyebrow {{ display: inline-flex; padding: .42rem .72rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 760; font-size: .92rem; margin-bottom: 1.1rem; }}
+.seasonal-preview-card {{
+  border: 1px solid var(--line);
+  border-left: 8px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 1rem;
+  padding: .9rem 1rem;
+  margin: .8rem 0 1.1rem;
+  color: var(--ink);
+  font-weight: 760;
+}}
 .hero h1 {{ font-size: clamp(3.7rem, 8.2vw, 7.2rem); line-height: .84; margin: 0 0 1rem 0; letter-spacing: -.085em; }}
 .lead {{ font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }}
 .sublead {{ color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }}
@@ -500,6 +510,10 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   .hero h1 {{ font-size: clamp(3rem, 17vw, 5.2rem); }}
   .lead {{ font-size: 1.15rem; }}
   .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 3.2rem; font-size: 1rem !important; }}
+}}
+
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{
+  color: color-mix(in srgb, var(--text-color, #1F2221) 78%, var(--background-color, #FFFFFF)) !important;
 }}
 @media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
 </style>
@@ -2311,7 +2325,7 @@ def inject_theme_css(theme_name: str, appearance_mode: str = "System") -> None:
           --accent-2: {accent};
           --pathmark-accent: {accent};
           --pathmark-accent-strong: color-mix(in srgb, var(--pathmark-accent) 78%, black);
-          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 14%, var(--secondary-background-color, transparent));
+          --accent-soft: color-mix(in srgb, var(--pathmark-accent) 20%, var(--secondary-background-color, transparent));
         }}
         .seasonal-mark::after {{ content: " {seasonal_icon}"; }}
         .eyebrow, .pathmark-note, .pathmark-hint, .setup-example, .area-colour-preview, .next-action-card {{
@@ -6708,7 +6722,7 @@ def download_tab() -> None:
 def theme_tab() -> None:
     st.header("Theme")
     st.write("Choose the seasonal character of Pathmark. Light, Dark and System remain controlled by Streamlit's built-in menu in the top right.")
-    st.caption("Pathmark now follows Streamlit's own theme variables directly, so switching Streamlit to Dark should make the app background and cards dark without a separate Pathmark appearance control.")
+    st.markdown('<p class="small-muted">Pathmark follows Streamlit\'s own light/dark background and text colours. Seasonal themes change only the accent colour, such as buttons, highlights, tab accents and Pathmark-owned cards.</p>', unsafe_allow_html=True)
     user = current_user()
     sheet_id = st.session_state.get("sync_sheet_id", "")
     if user.get("email"):
@@ -6716,11 +6730,14 @@ def theme_tab() -> None:
     else:
         current_theme = normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Winter")
     theme_name = st.selectbox("Seasonal theme", ONLINE_THEME_OPTIONS, index=ONLINE_THEME_OPTIONS.index(current_theme), key="top_level_seasonal_theme")
+    # Apply the selected accent immediately for preview on this rerun, even before saving.
+    inject_theme_css(theme_name)
     st.markdown("""
     <div class="grid-2">
       <div class="card"><h3>Seasonal theme</h3><p>Summer, Autumn, Winter and Spring set the Pathmark accent and seasonal character.</p></div>
       <div class="card"><h3>Appearance</h3><p>Use Streamlit's menu in the top right for System, Light or Dark. Pathmark reads Streamlit's CSS theme variables rather than maintaining a second appearance setting.</p></div>
     </div>
+    <div class="seasonal-preview-card"><span class="seasonal-mark">Current seasonal accent</span></div>
     """, unsafe_allow_html=True)
     if st.button("Save seasonal theme", use_container_width=True):
         theme_name = normalise_online_theme(theme_name)
