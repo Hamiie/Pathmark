@@ -43,9 +43,9 @@ ONLINE_TABLES = {
     "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "archived_at", "archived_reason", "restored_at"],
+    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status", "google_calendar_id", "google_calendar_event_id", "google_calendar_status", "google_calendar_updated_at", "google_calendar_synced_at", "google_calendar_recurrence", "calendar_sync_status", "archived_at", "archived_reason", "restored_at"],
     "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
-    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "due_date", "task_kind", "linked_record_id", "linked_record_type", "linked_parent_id", "linked_parent_type", "task_list", "notes", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
+    "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "due_date", "task_kind", "linked_record_id", "linked_record_type", "linked_parent_id", "linked_parent_type", "task_list", "notes", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status"],
     "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "google_tasks_export": ["Task ID", "Task List", "Title", "Notes", "Due Date", "Reference Time", "Status", "Repeat Pattern", "Related Google Calendar Item", "exported_at"],
     "wizard_drafts": ["draft_id", "wizard_type", "current_step_key", "answers_json", "activity_drafts_json", "status", "created_at", "updated_at", "saved_at", "source"],
@@ -213,7 +213,9 @@ DAY_ALIASES = {d.lower(): d for d in VALID_DAYS}
 DAY_ALIASES.update({d[:3].lower(): d for d in VALID_DAYS})
 
 GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-LOGIN_SCOPES = ["openid", "email", "profile"] + GOOGLE_SHEETS_SCOPES
+GOOGLE_TASKS_SCOPES = ["https://www.googleapis.com/auth/tasks"]
+GOOGLE_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar"]
+LOGIN_SCOPES = ["openid", "email", "profile"] + GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES
 SYNC_SHEET_TITLE = "Pathmark Sync"
 
 
@@ -395,30 +397,18 @@ def streamlit_appearance_mode() -> str:
 def pathmark_theme_tokens_css(mode: str = "") -> str:
     """Return paired surface/text tokens for Pathmark custom styling.
 
-    Text is never chosen by appearance mode alone. Pathmark-owned components use
-    paired surface, heading, body, muted, and border tokens so contrast is
-    preserved against the actual card surface. A matching CSS media fallback is
-    also injected below for browsers that update Streamlit's dark mode without
-    exposing the resolved mode through st.context during the same rerun.
+    Pathmark does not guess contrast from Light/Dark labels alone. Tokens are
+    paired against Streamlit's actual background and text variables, so if the
+    Streamlit Settings menu changes appearance, Pathmark-owned cards, muted
+    text, borders and accents resolve together against the surface they sit on.
     """
-    if mode == "dark":
-        return """
-          --bg: #0E1117;
-          --ink: #F8FAFC;
-          --surface: #171B22;
-          --surface-2: #202632;
-          --line: #46505F;
-          --muted: #D1D5DB;
-          --shadow: color-mix(in srgb, #000000 42%, transparent);
-          --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
-        """
     return """
-          --bg: #F7F6F2;
-          --ink: #1F2221;
-          --surface: #FFFFFF;
-          --surface-2: #F0F1EF;
-          --line: #BFC5C9;
-          --muted: #4E5963;
+          --bg: var(--background-color, #F7F6F2);
+          --ink: var(--text-color, #1F2221);
+          --surface: color-mix(in srgb, var(--background-color, #F7F6F2) 92%, var(--text-color, #1F2221) 8%);
+          --surface-2: color-mix(in srgb, var(--background-color, #F7F6F2) 86%, var(--text-color, #1F2221) 14%);
+          --line: color-mix(in srgb, var(--text-color, #1F2221) 32%, var(--background-color, #F7F6F2));
+          --muted: color-mix(in srgb, var(--text-color, #1F2221) 76%, var(--background-color, #F7F6F2));
           --shadow: color-mix(in srgb, #000000 18%, transparent);
           --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
         """
@@ -428,7 +418,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.55 theme model
+Pathmark v0.6.56 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a restrained accent
@@ -1392,7 +1382,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
             "configured": "no",
             "client_id_prefix": "",
             "redirect_uri": "",
-            "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
+            "scope": ", ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
             "login_scope": " ".join(LOGIN_SCOPES),
             "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
         }
@@ -1402,7 +1392,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
         "configured": "yes",
         "client_id_prefix": prefix,
         "redirect_uri": cfg.get("redirect_uri", ""),
-        "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
+        "scope": ", ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
         "login_scope": " ".join(LOGIN_SCOPES),
         "auth_uri": cfg.get("client_config", {}).get("web", {}).get("auth_uri", "https://accounts.google.com/o/oauth2/v2/auth"),
     }
@@ -1435,10 +1425,10 @@ def render_google_sheets_oauth_diagnostics() -> None:
         2. Add this exact authorised redirect URI: `https://pathmark.streamlit.app`
         3. **Google Auth Platform → Branding**: set the app name to **Pathmark** and upload the Pathmark logo so Google's account/consent screens use Pathmark branding.
         4. **Google Auth Platform → Audience**: if the app is in Testing, add your Google account as a test user.
-        5. **Google Auth Platform → Data Access**: include the requested scope `https://www.googleapis.com/auth/drive.file`.
+        5. **Google Auth Platform → Data Access**: include the requested scopes `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/tasks`, and `https://www.googleapis.com/auth/calendar`.
         6. **APIs & Services → Library**: enable both **Google Sheets API** and **Google Drive API** for the same project.
 
-        Pathmark now requests `drive.file` during Google login so signed-in users can enter the Web Companion with a Pathmark sync sheet already available. The scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
+        Pathmark now requests `drive.file` and optional Google Tasks access during Google login so signed-in users can enter the Web Companion with a Pathmark sync sheet already available. The scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
         """)
 
 
@@ -1613,7 +1603,7 @@ def google_auth_url() -> str | None:
             "client_id": cfg["client_id"],
             "redirect_uri": cfg["redirect_uri"],
             "response_type": "code",
-            "scope": " ".join(GOOGLE_SHEETS_SCOPES),
+            "scope": " ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
             "state": state,
             "access_type": "online",
             "include_granted_scopes": "true",
@@ -1647,6 +1637,57 @@ def drive_service():
     except Exception as exc:
         st.warning(f"Could not connect to Google Drive: {exc}")
         return None
+
+
+def google_session_scopes() -> set[str]:
+    raw = st.session_state.get("google_sheets_credentials")
+    try:
+        info = json.loads(raw) if raw else {}
+        return {str(scope).strip() for scope in (info.get("scopes") or []) if str(scope).strip()}
+    except Exception:
+        return set()
+
+
+def google_tasks_scope_ready() -> bool:
+    scopes = google_session_scopes()
+    return all(scope in scopes for scope in GOOGLE_TASKS_SCOPES)
+
+
+def tasks_service():
+    credentials = google_credentials_from_session()
+    if not credentials:
+        return None
+    if not google_tasks_scope_ready():
+        return None
+    try:
+        from googleapiclient.discovery import build  # type: ignore
+        return build("tasks", "v1", credentials=credentials, cache_discovery=False)
+    except Exception as exc:
+        st.warning(f"Could not connect to Google Tasks: {exc}")
+        return None
+
+
+def google_calendar_scope_ready() -> bool:
+    scopes = google_session_scopes()
+    return all(scope in scopes for scope in GOOGLE_CALENDAR_SCOPES)
+
+
+def calendar_service():
+    credentials = google_credentials_from_session()
+    if not credentials:
+        return None
+    if not google_calendar_scope_ready():
+        return None
+    try:
+        from googleapiclient.discovery import build  # type: ignore
+        return build("calendar", "v3", credentials=credentials, cache_discovery=False)
+    except Exception as exc:
+        st.warning(f"Could not connect to Google Calendar: {exc}")
+        return None
+
+
+def pathmark_tasks_auth_available() -> bool:
+    return web_oauth_available() and bool(google_auth_url())
 
 
 def find_existing_sync_sheet() -> tuple[bool, str, str]:
@@ -2977,7 +3018,17 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
                 "repeat_pattern": repeat,
                 "linked_calendar_summary": linked,
-                "status": "needsAction",
+                "status": str(action.get("google_task_status", "") or "needsAction"),
+                "source_table": "actions",
+                "source_id": aid,
+                "source_record_type": "routine_activity" if routine_id else "project_step",
+                "google_task_list_id": str(action.get("google_task_list_id", "") or ""),
+                "google_task_id": str(action.get("google_task_id", "") or ""),
+                "google_task_status": str(action.get("google_task_status", "") or ""),
+                "google_task_completed_at": str(action.get("google_task_completed_at", "") or ""),
+                "google_task_updated_at": str(action.get("google_task_updated_at", "") or ""),
+                "google_task_synced_at": str(action.get("google_task_synced_at", "") or ""),
+                "sync_status": str(action.get("sync_status", "") or ""),
             })
 
     if not extra_prompts.empty:
@@ -3016,7 +3067,17 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 "notes": "\n\n".join([p for p in note_parts if str(p).strip()]),
                 "repeat_pattern": "",
                 "linked_calendar_summary": linked,
-                "status": "needsAction",
+                "status": str(prompt.get("google_task_status", "") or prompt.get("status", "") or "needsAction"),
+                "source_table": "task_prompts",
+                "source_id": pid,
+                "source_record_type": str(prompt.get("linked_record_type", "") or prompt.get("task_kind", "") or "task_prompt"),
+                "google_task_list_id": str(prompt.get("google_task_list_id", "") or ""),
+                "google_task_id": str(prompt.get("google_task_id", "") or ""),
+                "google_task_status": str(prompt.get("google_task_status", "") or ""),
+                "google_task_completed_at": str(prompt.get("google_task_completed_at", "") or ""),
+                "google_task_updated_at": str(prompt.get("google_task_updated_at", "") or ""),
+                "google_task_synced_at": str(prompt.get("google_task_synced_at", "") or ""),
+                "sync_status": str(prompt.get("sync_status", "") or ""),
             })
     return pd.DataFrame(rows)
 
@@ -4910,8 +4971,11 @@ def _frequency_from_amount_row(row: pd.Series, include_quarterly: bool = False) 
     return 0.0, "Weekly"
 
 
+FINANCE_TEMPLATE_TITLE = "Pathmark Finance Template"
+
+
 def _template_sheet_title(kind: str) -> str:
-    return "Spending Plan Template - Income" if kind == "income" else "Spending Plan Template - Outflows"
+    return "Income" if kind == "income" else "Outflows"
 
 
 def _backup_sheet_title(table: str) -> str:
@@ -4938,10 +5002,10 @@ def _ensure_template_sheet(service: Any, sheet_id: str, title: str, headers: lis
             body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
         ).execute()
     end_col = sheet_col_letter(len(headers))
-    service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{title}!A:{end_col}").execute()
+    service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"'{title}'!A:{end_col}").execute()
     service.spreadsheets().values().update(
         spreadsheetId=sheet_id,
-        range=f"{title}!A1:{end_col}1",
+        range=f"'{title}'!A1:{end_col}1",
         valueInputOption="RAW",
         body={"values": [headers]},
     ).execute()
@@ -4968,14 +5032,89 @@ def _create_spending_backup_tabs(service: Any, sheet_id: str) -> tuple[bool, str
             end_col = sheet_col_letter(max(len(source_values[0]), 1))
             service.spreadsheets().values().update(
                 spreadsheetId=sheet_id,
-                range=f"{title}!A1:{end_col}{len(source_values)}",
+                range=f"'{title}'!A1:{end_col}{len(source_values)}",
                 valueInputOption="RAW",
                 body={"values": source_values},
             ).execute()
             backed_up.append(title)
-        return True, "Created backup tabs: " + "; ".join(backed_up)
+        return True, "Created backup tabs in Pathmark Sync: " + "; ".join(backed_up)
     except Exception as exc:
         return False, f"Could not create backup tabs: {exc}"
+
+
+def _finance_template_session_id() -> str:
+    return str(st.session_state.get("spending_finance_template_id", "") or "")
+
+
+def _find_existing_finance_template() -> tuple[bool, str, str]:
+    service = drive_service()
+    if service is None:
+        return False, "", ""
+    try:
+        title = FINANCE_TEMPLATE_TITLE.replace("'", "\\'")
+        queries = [
+            "appProperties has { key='pathmark_finance_template' and value='true' } and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+            f"name='{title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+        ]
+        found: list[dict[str, Any]] = []
+        for query in queries:
+            result = service.files().list(
+                q=query,
+                spaces="drive",
+                fields="files(id,name,modifiedTime,webViewLink,appProperties)",
+                orderBy="modifiedTime desc",
+                pageSize=10,
+            ).execute()
+            for file in result.get("files", []):
+                if file.get("id") and not any(existing.get("id") == file.get("id") for existing in found):
+                    found.append(file)
+        if not found:
+            return False, "", ""
+        file = sorted(found, key=lambda f: str(f.get("modifiedTime", "")), reverse=True)[0]
+        fid = str(file.get("id", "") or "")
+        url = str(file.get("webViewLink", "") or f"https://docs.google.com/spreadsheets/d/{fid}/edit")
+        if fid:
+            st.session_state["spending_finance_template_id"] = fid
+            return True, fid, url
+        return False, "", ""
+    except Exception:
+        return False, "", ""
+
+
+def _ensure_finance_template_file() -> tuple[bool, str, str, str]:
+    sheets = sheets_service()
+    if sheets is None:
+        return False, "", "", "Google Sheets access is not available for this session."
+    found, template_id, template_url = _find_existing_finance_template()
+    if found and template_id:
+        return True, template_id, template_url, "Using your existing Pathmark Finance Template."
+    try:
+        spreadsheet = sheets.spreadsheets().create(
+            body={
+                "properties": {"title": FINANCE_TEMPLATE_TITLE},
+                "sheets": [
+                    {"properties": {"title": _template_sheet_title("income")}},
+                    {"properties": {"title": _template_sheet_title("outflows")}},
+                ],
+            },
+            fields="spreadsheetId,spreadsheetUrl",
+        ).execute()
+        template_id = str(spreadsheet.get("spreadsheetId", "") or "")
+        template_url = str(spreadsheet.get("spreadsheetUrl", "") or f"https://docs.google.com/spreadsheets/d/{template_id}/edit")
+        try:
+            dservice = drive_service()
+            if dservice is not None and template_id:
+                dservice.files().update(
+                    fileId=template_id,
+                    body={"appProperties": {"pathmark_finance_template": "true", "pathmark_version": "0.6.56"}},
+                    fields="id,webViewLink",
+                ).execute()
+        except Exception:
+            pass
+        st.session_state["spending_finance_template_id"] = template_id
+        return True, template_id, template_url, "Created a separate Pathmark Finance Template sheet."
+    except Exception as exc:
+        return False, "", "", f"Could not create the Pathmark Finance Template: {exc}"
 
 
 def create_spending_plan_template(sheet_id: str) -> tuple[bool, str, str]:
@@ -4983,6 +5122,9 @@ def create_spending_plan_template(sheet_id: str) -> tuple[bool, str, str]:
     if service is None:
         return False, "Google Sheets access is not available for this session.", ""
     sheet_id = extract_google_sheet_id(sheet_id)
+    ok_file, template_id, template_url, file_msg = _ensure_finance_template_file()
+    if not ok_file:
+        return False, file_msg, ""
     try:
         ensure_pathmark_online_schema(service, sheet_id)
         income = active_online_df(read_online_table(sheet_id, "spending_income"))
@@ -5020,24 +5162,24 @@ def create_spending_plan_template(sheet_id: str) -> tuple[bool, str, str]:
                 ])
         income_title = _template_sheet_title("income")
         outflows_title = _template_sheet_title("outflows")
-        _ensure_template_sheet(service, sheet_id, income_title, income_headers)
-        _ensure_template_sheet(service, sheet_id, outflows_title, outflow_headers)
+        _ensure_template_sheet(service, template_id, income_title, income_headers)
+        _ensure_template_sheet(service, template_id, outflows_title, outflow_headers)
         service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range=f"{income_title}!A1:{sheet_col_letter(len(income_headers))}{len(income_values)}",
+            spreadsheetId=template_id,
+            range=f"'{income_title}'!A1:{sheet_col_letter(len(income_headers))}{len(income_values)}",
             valueInputOption="USER_ENTERED",
             body={"values": income_values},
         ).execute()
         service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range=f"{outflows_title}!A1:{sheet_col_letter(len(outflow_headers))}{len(outflow_values)}",
+            spreadsheetId=template_id,
+            range=f"'{outflows_title}'!A1:{sheet_col_letter(len(outflow_headers))}{len(outflow_values)}",
             valueInputOption="USER_ENTERED",
             body={"values": outflow_values},
         ).execute()
-        clear_online_cache(sheet_id)
-        return True, "Created a populated Spending Plan template in your Pathmark Sync sheet.", f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+        st.session_state["spending_finance_template_id"] = template_id
+        return True, f"{file_msg} Populated it with your current Spending Plan data.", template_url
     except Exception as exc:
-        return False, f"Could not create the Spending Plan template: {exc}", ""
+        return False, f"Could not populate the Pathmark Finance Template: {exc}", ""
 
 
 def _active_from_template(value: Any) -> str:
@@ -5045,15 +5187,18 @@ def _active_from_template(value: Any) -> str:
     return "inactive" if text in {"no", "n", "false", "0", "inactive", "archive", "archived"} else "active"
 
 
-def _records_from_spending_template(sheet_id: str) -> tuple[bool, str, dict[str, list[dict[str, Any]]]]:
+def _records_from_spending_template(template_sheet_id: str) -> tuple[bool, str, dict[str, list[dict[str, Any]]]]:
     service = sheets_service()
     if service is None:
         return False, "Google Sheets access is not available for this session.", {}
+    template_sheet_id = extract_google_sheet_id(template_sheet_id)
+    if not template_sheet_id:
+        return False, "Create the Pathmark Finance Template first, then edit it and import it back.", {}
     try:
         income_title = _template_sheet_title("income")
         outflows_title = _template_sheet_title("outflows")
-        income_values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{income_title}!A1:E").execute().get("values", [])
-        outflow_values = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=f"{outflows_title}!A1:G").execute().get("values", [])
+        income_values = service.spreadsheets().values().get(spreadsheetId=template_sheet_id, range=f"'{income_title}'!A1:E").execute().get("values", [])
+        outflow_values = service.spreadsheets().values().get(spreadsheetId=template_sheet_id, range=f"'{outflows_title}'!A1:G").execute().get("values", [])
         records = {"spending_income": [], "spending_expenses": []}
         for row in income_values[1:]:
             row = list(row) + [""] * (5 - len(row))
@@ -5070,7 +5215,7 @@ def _records_from_spending_template(sheet_id: str) -> tuple[bool, str, dict[str,
                 "annual_amount": str(annualise_amount(amount, str(freq or "Weekly"))),
                 "notes": str(notes or ""),
                 "status": _active_from_template(active),
-                "source": "Spending Plan template import",
+                "source": "Pathmark Finance Template import",
             })
         for row in outflow_values[1:]:
             row = list(row) + [""] * (7 - len(row))
@@ -5090,11 +5235,11 @@ def _records_from_spending_template(sheet_id: str) -> tuple[bool, str, dict[str,
                 "annual_amount": str(annualise_amount(amount, str(freq or spending_default_frequency(kind)))),
                 "notes": str(notes or ""),
                 "status": _active_from_template(active),
-                "source": "Spending Plan template import",
+                "source": "Pathmark Finance Template import",
             })
-        return True, "Read the Spending Plan template.", records
+        return True, "Read the Pathmark Finance Template.", records
     except Exception as exc:
-        return False, f"Could not read the Spending Plan template. Create it first, then try again. Details: {exc}", {}
+        return False, f"Could not read the Pathmark Finance Template. Create it first, then try again. Details: {exc}", {}
 
 
 def _clear_spending_table_rows(service: Any, sheet_id: str, table: str) -> None:
@@ -5103,12 +5248,16 @@ def _clear_spending_table_rows(service: Any, sheet_id: str, table: str) -> None:
         service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{table}!A2:{sheet_col_letter(len(columns))}").execute()
 
 
-def import_spending_plan_template(sheet_id: str, mode: str = "merge") -> tuple[bool, str]:
+def import_spending_plan_template(sheet_id: str, template_sheet_id: str, mode: str = "merge") -> tuple[bool, str]:
     service = sheets_service()
     if service is None:
         return False, "Google Sheets access is not available for this session."
     sheet_id = extract_google_sheet_id(sheet_id)
-    ok, msg, records = _records_from_spending_template(sheet_id)
+    template_sheet_id = extract_google_sheet_id(template_sheet_id or _finance_template_session_id())
+    if not template_sheet_id:
+        found, found_id, _url = _find_existing_finance_template()
+        template_sheet_id = found_id if found else ""
+    ok, msg, records = _records_from_spending_template(template_sheet_id)
     if not ok:
         return False, msg
     try:
@@ -5159,33 +5308,43 @@ def import_spending_plan_template(sheet_id: str, mode: str = "merge") -> tuple[b
         ok_append, append_msg = append_many_online_records(sheet_id, append_records)
         clear_online_cache(sheet_id)
         total_new = len(append_records["spending_income"]) + len(append_records["spending_expenses"])
-        return ok_append, f"{backup_msg}\nImported template: updated {updated} existing row(s) and added {total_new} new row(s)."
+        return ok_append, f"{backup_msg}\nImported from Pathmark Finance Template: updated {updated} existing row(s) and added {total_new} new row(s)."
     except Exception as exc:
-        return False, f"Could not import the Spending Plan template: {exc}"
+        return False, f"Could not import the Pathmark Finance Template: {exc}"
 
 
 def render_spending_template_tools(sheet_id: str) -> None:
     st.markdown("#### Template import")
     st.write(
-        "Create a user-friendly Google Sheets template from your current Spending Plan, edit income and outflows in the sheet, then import it back into Pathmark."
+        "Create a separate **Pathmark Finance Template** Google Sheet from your current Spending Plan, edit income and outflows in that sheet, then import it back into Pathmark."
     )
-    st.caption("Imports create backup tabs first. Clean import replaces current income and outflow rows; merge import updates matching rows and adds new ones.")
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        if st.button("Create / refresh template", use_container_width=True):
-            ok, msg, url = create_spending_plan_template(sheet_id)
-            if ok:
-                st.success(msg)
-                st.link_button("Open template in Google Sheets", url, use_container_width=True)
-            else:
-                st.warning(safe_user_message(msg))
-    with c2:
-        st.link_button("Open Pathmark Sync sheet", f"https://docs.google.com/spreadsheets/d/{extract_google_sheet_id(sheet_id)}", use_container_width=True)
+    st.caption("Imports create backup tabs in your Pathmark Sync sheet first. Clean import replaces current income and outflow rows; merge import updates matching rows and adds new ones.")
+    if st.button("Create / refresh Pathmark Finance Template", use_container_width=True):
+        ok, msg, url = create_spending_plan_template(sheet_id)
+        if ok:
+            st.session_state["spending_finance_template_url"] = url
+            st.success(msg)
+        else:
+            st.warning(safe_user_message(msg))
+
+    template_id = _finance_template_session_id()
+    template_url = str(st.session_state.get("spending_finance_template_url", "") or "")
+    if not template_id:
+        found, found_id, found_url = _find_existing_finance_template()
+        if found:
+            template_id = found_id
+            template_url = found_url
+            st.session_state["spending_finance_template_url"] = found_url
+    if template_id:
+        st.link_button("Open Pathmark Finance Template in Google Sheets", template_url or f"https://docs.google.com/spreadsheets/d/{template_id}/edit", use_container_width=True)
+    else:
+        st.info("Create the template first. Pathmark will populate it with the income and outflow rows you have already entered.")
+
     mode = st.radio("Import mode", ["Merge/update existing data", "Clean import: replace current income and outflows"], horizontal=False)
-    confirm = st.checkbox("I understand Pathmark will create backup tabs before importing.")
-    if st.button("Import from Spending Plan template", use_container_width=True, disabled=not confirm):
+    confirm = st.checkbox("I understand Pathmark will create backup tabs in Pathmark Sync before importing.")
+    if st.button("Import from Pathmark Finance Template", use_container_width=True, disabled=not confirm):
         import_mode = "clean" if mode.startswith("Clean") else "merge"
-        ok, msg = import_spending_plan_template(sheet_id, import_mode)
+        ok, msg = import_spending_plan_template(sheet_id, template_id, import_mode)
         if ok:
             spending_save_and_refresh(msg)
         else:
@@ -5218,13 +5377,14 @@ def render_spending_plan_manager(sheet_id: str) -> None:
     def _render_spending_summary_strip() -> None:
         summary = spending_summary(sheet_id)
         surplus = float(summary.get("surplus_weekly", 0.0) or 0.0)
-        safe_spend = 0.0 if surplus < -0.005 else float(summary.get("everyday_weekly", 0.0) or 0.0)
+        result_label = "Shortfall / week" if surplus < -0.005 else "Available to allocate / week"
+        result_value = abs(surplus) if surplus < -0.005 else surplus
         st.markdown(f"""
         <div class="metric-strip">
           <div class="metric-tile"><div class="metric-label">Income / week</div><div class="metric-value">{html.escape(money_text(summary['income_weekly']))}</div></div>
           <div class="metric-tile"><div class="metric-label">Outflows / week</div><div class="metric-value">{html.escape(money_text(summary['expense_weekly']))}</div></div>
-          <div class="metric-tile"><div class="metric-label">Safe spend / week</div><div class="metric-value">{html.escape(money_text(safe_spend))}</div></div>
-          <div class="metric-tile {'warning' if surplus < -0.005 else ''}"><div class="metric-label">{'Shortfall / week' if surplus < -0.005 else 'Available to allocate / week'}</div><div class="metric-value">{html.escape(money_text(abs(surplus) if surplus < -0.005 else surplus))}</div></div>
+          <div class="metric-tile"><div class="metric-label">Suggested APs / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly'] + summary['sinking_weekly']))}</div></div>
+          <div class="metric-tile {'warning' if surplus < -0.005 else ''}"><div class="metric-label">{result_label}</div><div class="metric-value">{html.escape(money_text(result_value))}</div></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -5305,14 +5465,252 @@ def render_tasklist_manager(sheet_id: str) -> None:
                     st.warning(safe_user_message(message))
                 st.rerun()
 
-def render_google_calendar_export_manager(sheet_id: str) -> None:
-    st.subheader("Google Calendar Export")
-    st.write("Calendar export turns selected project steps and routine activities into time blocks. Repeat settings are used for recurring routine activities where available.")
+def _parse_calendar_block_datetime(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
+        try:
+            return datetime.strptime(raw[:16] if "T" in raw else raw[:16], fmt)
+        except Exception:
+            pass
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _google_calendar_datetime_body(value: Any) -> dict[str, str]:
+    dt = _parse_calendar_block_datetime(value)
+    if dt is None:
+        dt = datetime.now().replace(second=0, microsecond=0)
+    return {"dateTime": dt.isoformat(timespec="minutes"), "timeZone": "Pacific/Auckland"}
+
+
+def get_or_create_pathmark_calendar(title: str = "Pathmark") -> tuple[bool, str, str]:
+    service = calendar_service()
+    if service is None:
+        return False, "", "Google Calendar access is not available for this session. Reconnect Google to enable Calendar sync."
+    wanted = (title or "Pathmark").strip() or "Pathmark"
+    try:
+        token = None
+        while True:
+            result = service.calendarList().list(maxResults=250, pageToken=token).execute()
+            for item in result.get("items", []) or []:
+                if str(item.get("summary", "")).strip().lower() == wanted.lower():
+                    return True, str(item.get("id", "")), f"Using existing Google Calendar: {wanted}."
+            token = result.get("nextPageToken")
+            if not token:
+                break
+        created = service.calendars().insert(body={"summary": wanted, "description": "Calendar time created by Pathmark."}).execute()
+        return True, str(created.get("id", "")), f"Created Google Calendar: {wanted}."
+    except Exception as exc:
+        return False, "", f"Could not find or create the Google Calendar: {exc}"
+
+
+def _calendar_update_for_block(event: dict[str, Any], calendar_id: str, recurrence: str, sync_status: str) -> dict[str, str]:
+    return {
+        "google_calendar_id": calendar_id,
+        "google_calendar_event_id": str(event.get("id", "") or ""),
+        "google_calendar_status": str(event.get("status", "") or "confirmed"),
+        "google_calendar_updated_at": str(event.get("updated", "") or ""),
+        "google_calendar_synced_at": utc_now_text(),
+        "google_calendar_recurrence": recurrence or "",
+        "calendar_sync_status": sync_status,
+    }
+
+
+def _action_calendar_lookup(sheet_id: str) -> dict[str, dict[str, str]]:
+    actions = read_online_table(sheet_id, "actions")
+    lookup: dict[str, dict[str, str]] = {}
+    if actions.empty:
+        return lookup
+    for _, row in actions.iterrows():
+        aid = str(row.get("action_id", "") or "").strip()
+        if aid:
+            lookup[aid] = {k: str(row.get(k, "") or "") for k in actions.columns}
+    return lookup
+
+
+def _google_calendar_event_body(block: pd.Series) -> dict[str, Any]:
+    title = str(block.get("title", "Pathmark calendar time") or "Pathmark calendar time").strip()
+    area = str(block.get("area_name", "") or "").strip()
+    description = str(block.get("description", "") or "")
+    linked = str(block.get("linked_record_id", "") or "")
+    notes = [description]
+    if area:
+        notes.append(f"Area: {area}")
+    if linked:
+        notes.append(f"Pathmark linked record ID: {linked}")
+    body: dict[str, Any] = {
+        "summary": title,
+        "description": "\n\n".join([n for n in notes if n]),
+        "start": _google_calendar_datetime_body(block.get("start", "")),
+        "end": _google_calendar_datetime_body(block.get("end", "")),
+    }
+    recurrence = str(block.get("recurrence", "") or "").strip()
+    if recurrence:
+        body["recurrence"] = [f"RRULE:{recurrence}" if not recurrence.upper().startswith("RRULE:") else recurrence]
+    return body
+
+
+def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tuple[bool, str]:
+    service = calendar_service()
+    if service is None:
+        return False, "Google Calendar access is not available for this session. Use the reconnect button to enable Calendar sync."
+    if blocks.empty:
+        return False, "No calendar items are ready to sync."
+    ok, calendar_id, cal_msg = get_or_create_pathmark_calendar("Pathmark")
+    if not ok or not calendar_id:
+        return False, cal_msg
+    action_lookup = _action_calendar_lookup(sheet_id)
+    created = updated = failed = 0
+    for _, block in blocks.iterrows():
+        linked_id = str(block.get("linked_record_id", "") or "").strip()
+        if not linked_id:
+            failed += 1
+            continue
+        action = action_lookup.get(linked_id, {})
+        existing_id = str(action.get("google_calendar_event_id", "") or "").strip()
+        recurrence = str(block.get("recurrence", "") or "").strip()
+        body = _google_calendar_event_body(block)
+        try:
+            if existing_id:
+                event = service.events().patch(calendarId=calendar_id, eventId=existing_id, body=body).execute()
+                updated += 1
+            else:
+                event = service.events().insert(calendarId=calendar_id, body=body).execute()
+                created += 1
+            update_online_record(sheet_id, "actions", linked_id, _calendar_update_for_block(event, calendar_id, recurrence, "pushed_to_google_calendar"))
+        except Exception:
+            failed += 1
+    clear_online_cache(sheet_id)
+    msg = f"{cal_msg} Pushed {created} new calendar item(s) and updated {updated} existing item(s)."
+    if failed:
+        msg += f" {failed} item(s) could not be synced."
+    return failed == 0, msg
+
+
+def _event_time_string(value: dict[str, Any]) -> str:
+    raw = str(value.get("dateTime") or value.get("date") or "")
+    if not raw:
+        return ""
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return raw[:16].replace("T", " ")
+
+
+def pull_google_calendar_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
+    service = calendar_service()
+    if service is None:
+        return False, "Google Calendar access is not available for this session. Use the reconnect button to enable Calendar sync."
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty or "google_calendar_event_id" not in actions.columns:
+        return False, "No linked Google Calendar events are stored in Pathmark yet. Push calendar items first."
+    linked = actions[actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")]
+    if linked.empty:
+        return False, "No linked Google Calendar events are stored in Pathmark yet. Push calendar items first."
     blocks = staged_calendar_blocks(sheet_id)
+    block_lookup = {str(r.get("linked_record_id", "") or ""): r for _, r in blocks.iterrows()}
+    checked = moved = missing = 0
+    for _, row in linked.iterrows():
+        aid = str(row.get("action_id", "") or "").strip()
+        cal_id = str(row.get("google_calendar_id", "") or "").strip()
+        event_id = str(row.get("google_calendar_event_id", "") or "").strip()
+        if not aid or not cal_id or not event_id:
+            continue
+        try:
+            event = service.events().get(calendarId=cal_id, eventId=event_id).execute()
+            checked += 1
+            status = str(event.get("status", "") or "confirmed")
+            sync_status = "pulled_from_google_calendar"
+            block = block_lookup.get(aid)
+            if block is not None:
+                google_start = _event_time_string(event.get("start", {}) or {})
+                google_end = _event_time_string(event.get("end", {}) or {})
+                pathmark_start = str(block.get("start", "") or "")
+                pathmark_end = str(block.get("end", "") or "")
+                if google_start and pathmark_start and (google_start != pathmark_start or google_end != pathmark_end):
+                    moved += 1
+                    sync_status = "moved_in_google_calendar_review_needed"
+            updates = {
+                "google_calendar_status": status,
+                "google_calendar_updated_at": str(event.get("updated", "") or ""),
+                "google_calendar_synced_at": utc_now_text(),
+                "calendar_sync_status": sync_status,
+            }
+            update_online_record(sheet_id, "actions", aid, updates)
+        except Exception:
+            missing += 1
+            update_online_record(sheet_id, "actions", aid, {"google_calendar_synced_at": utc_now_text(), "calendar_sync_status": "missing_in_google_calendar"})
+    clear_online_cache(sheet_id)
+    msg = f"Checked {checked} linked Google Calendar event(s)."
+    if moved:
+        msg += f" {moved} moved event(s) were flagged for review."
+    if missing:
+        msg += f" {missing} linked event(s) could not be found and were marked for review."
+    return True, msg
+
+
+def google_calendar_sync_summary(sheet_id: str) -> dict[str, int]:
+    blocks = staged_calendar_blocks(sheet_id)
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty:
+        return {"total": int(len(blocks)), "linked": 0, "review": 0, "recurring": int(blocks.get("recurrence", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("").sum()) if not blocks.empty else 0}
+    linked = actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")
+    review = actions.get("calendar_sync_status", pd.Series(dtype=str)).fillna("").astype(str).str.contains("review|missing", case=False, regex=True)
+    recurring = blocks.get("recurrence", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("") if not blocks.empty else pd.Series(dtype=bool)
+    return {"total": int(len(blocks)), "linked": int(linked.sum()), "review": int(review.sum()), "recurring": int(recurring.sum())}
+
+
+def render_google_calendar_export_manager(sheet_id: str) -> None:
+    st.subheader("Google Calendar Sync")
+    st.write("Send Pathmark calendar time directly to Google Calendar. Project steps sync as one-off events; routine activities sync as recurring events so your calendar stays clean.")
+
+    scopes_ready = google_calendar_scope_ready()
+    if not scopes_ready:
+        st.warning("Google Calendar sync needs an extra Google permission. Reconnect Google when you are ready to enable direct Calendar sync.")
+        auth_url = google_auth_url()
+        if auth_url:
+            st.link_button("Reconnect Google and enable Calendar sync", auth_url, use_container_width=True)
+        st.caption("Pathmark will request Google Calendar access as well as the existing Sheets/Drive and Tasks permissions. No refresh token is stored by the hosted app.")
+
+    blocks = staged_calendar_blocks(sheet_id)
+    stats = google_calendar_sync_summary(sheet_id)
+    st.markdown(f"""
+    <div class="metric-strip">
+      <div class="metric-tile"><div class="metric-label">Ready to sync</div><div class="metric-value">{stats['total']}</div></div>
+      <div class="metric-tile"><div class="metric-label">Linked to Google</div><div class="metric-value">{stats['linked']}</div></div>
+      <div class="metric-tile"><div class="metric-label">Recurring events</div><div class="metric-value">{stats['recurring']}</div></div>
+      <div class="metric-tile {'warning' if stats['review'] else ''}"><div class="metric-label">Needs review</div><div class="metric-value">{stats['review']}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    if c1.button("Push Pathmark calendar time to Google Calendar", use_container_width=True, disabled=blocks.empty or not scopes_ready):
+        ok, message = push_pathmark_calendar_to_google(sheet_id, blocks)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+    if c2.button("Pull Calendar status from Google", use_container_width=True, disabled=not scopes_ready):
+        ok, message = pull_google_calendar_status_to_pathmark(sheet_id)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+
+    st.caption("Pathmark remains the planning source of truth. If a linked event is moved or deleted in Google Calendar, Pathmark flags it for review rather than silently overwriting your plan.")
+
     if blocks.empty:
         st.info("No calendar rows are staged yet. Add a project step or routine activity with start and finish times.")
     else:
-        st.markdown("### Calendar items ready to export")
+        st.markdown("### Calendar items ready to sync")
+        action_lookup = _action_calendar_lookup(sheet_id)
         for _, row in blocks.iterrows():
             start_text = human_calendar_datetime(str(row.get("start", "")))
             end_text = human_calendar_datetime(str(row.get("end", "")))
@@ -5320,6 +5718,12 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             area = str(row.get("area_name", "") or "")
             area_line = f"Area: {html.escape(area)}" if area else ""
             repeat_line = html.escape(repeat) if repeat else "Does not repeat"
+            linked_id = str(row.get("linked_record_id", "") or "")
+            action = action_lookup.get(linked_id, {})
+            sync_line = str(action.get("calendar_sync_status", "") or "Not synced")
+            event_id = str(action.get("google_calendar_event_id", "") or "")
+            if event_id:
+                sync_line += " · Linked to Google Calendar"
             joiner = " · " if area_line and repeat_line else ""
             st.markdown(
                 f"""
@@ -5327,15 +5731,24 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
                   <h3>{html.escape(str(row.get('title', 'Calendar item') or 'Calendar item'))}</h3>
                   <p><strong>{html.escape(start_text)}</strong>{' – ' + html.escape(end_text.split(', ')[-1]) if end_text else ''}</p>
                   <p>{area_line}{joiner}{repeat_line}</p>
+                  <p>{html.escape(sync_line)}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with st.expander("Show export details", expanded=False):
-            dataframe_preview(blocks, ["title", "area_name", "start", "end", "recurrence"])
-    st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
+        with st.expander("Show sync details", expanded=False):
+            details = blocks.copy()
+            if not details.empty:
+                details["calendar_sync_status"] = details["linked_record_id"].map(lambda x: action_lookup.get(str(x), {}).get("calendar_sync_status", ""))
+                details["google_calendar_event_id"] = details["linked_record_id"].map(lambda x: action_lookup.get(str(x), {}).get("google_calendar_event_id", ""))
+            dataframe_preview(details, ["title", "area_name", "start", "end", "recurrence", "google_calendar_event_id", "calendar_sync_status"])
+
+    with st.expander("ICS fallback", expanded=False):
+        st.write("Keep this fallback if you want a file-based import instead of direct Google Calendar sync.")
+        st.download_button("Download Google Calendar .ics", data=build_ics_export(blocks), file_name="pathmark_calendar_blocks.ics", mime="text/calendar", use_container_width=True, disabled=blocks.empty)
+
     if not blocks.empty:
-        st.info("After you have downloaded or imported the calendar file, you can move those exported rows to Archive so they leave the active workspace. You can restore archived items later.")
+        st.info("Archive synced calendar rows only when you no longer want them in the active workspace. For recurring routines, keep the source routine activity active.")
         if st.button("Move exported calendar items to Archive", use_container_width=True):
             ids = blocks.get("linked_record_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
             ok, message = mark_actions_exported(sheet_id, ids, "google_calendar", archive=True)
@@ -5383,40 +5796,251 @@ def write_google_tasks_export_tab(sheet_id: str, prompts: pd.DataFrame) -> tuple
         return False, f"Could not write the Google Tasks export tab: {exc}"
 
 
-def render_google_tasks_export_manager(sheet_id: str) -> None:
-    st.subheader("Google Tasks Export")
-    st.write("Google Tasks checklist items are date-based first steps from project steps and routine activities. Use Calendar export for time blocks and durations; Google Tasks export does not preserve due times or durations.")
+def _normalise_google_task_due(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    parsed: date | None = None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            parsed = datetime.strptime(raw[:10], fmt).date()
+            break
+        except Exception:
+            pass
+    if parsed is None:
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+        except Exception:
+            return ""
+    return parsed.isoformat() + "T00:00:00.000Z"
+
+
+def _google_task_date_label(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).date().isoformat()
+    except Exception:
+        return raw[:10]
+
+
+def get_or_create_google_task_list(title: str = "Pathmark") -> tuple[bool, str, str]:
+    service = tasks_service()
+    if service is None:
+        return False, "", "Google Tasks access is not available for this session. Reconnect Google to enable Tasks sync."
+    wanted = (title or "Pathmark").strip() or "Pathmark"
+    try:
+        token = None
+        while True:
+            result = service.tasklists().list(maxResults=100, pageToken=token).execute()
+            for item in result.get("items", []) or []:
+                if str(item.get("title", "")).strip().lower() == wanted.lower():
+                    return True, str(item.get("id", "")), f"Using existing Google Tasks list: {wanted}."
+            token = result.get("nextPageToken")
+            if not token:
+                break
+        created = service.tasklists().insert(body={"title": wanted}).execute()
+        return True, str(created.get("id", "")), f"Created Google Tasks list: {wanted}."
+    except Exception as exc:
+        return False, "", f"Could not find or create the Google Tasks list: {exc}"
+
+
+def _task_update_target(row: pd.Series) -> tuple[str, str]:
+    table = str(row.get("source_table", "") or "").strip()
+    rid = str(row.get("source_id", "") or row.get("id", "") or "").strip()
+    if table not in {"actions", "task_prompts"}:
+        table = "task_prompts" if str(row.get("id", "")).startswith("prompt-") else "actions"
+    return table, rid
+
+
+def _updates_from_google_task(item: dict[str, Any], list_id: str, *, sync_status: str = "synced") -> dict[str, str]:
+    return {
+        "google_task_list_id": list_id,
+        "google_task_id": str(item.get("id", "") or ""),
+        "google_task_status": str(item.get("status", "") or "needsAction"),
+        "google_task_completed_at": str(item.get("completed", "") or ""),
+        "google_task_updated_at": str(item.get("updated", "") or ""),
+        "google_task_synced_at": utc_now_text(),
+        "sync_status": sync_status,
+    }
+
+
+def push_pathmark_tasks_to_google(sheet_id: str, prompts: pd.DataFrame) -> tuple[bool, str]:
+    service = tasks_service()
+    if service is None:
+        return False, "Google Tasks access is not available for this session. Use the reconnect button to enable Google Tasks sync."
+    if prompts.empty:
+        return False, "No checklist items are ready to sync."
+    ok, task_list_id, list_msg = get_or_create_google_task_list("Pathmark")
+    if not ok or not task_list_id:
+        return False, list_msg
+    created = 0
+    updated = 0
+    failed = 0
+    for _, row in prompts.iterrows():
+        title = str(row.get("title", "") or "Pathmark checklist item").strip() or "Pathmark checklist item"
+        notes = str(row.get("notes", "") or "")
+        due = _normalise_google_task_due(row.get("due_date", ""))
+        existing_id = str(row.get("google_task_id", "") or "").strip()
+        body = {"title": title, "notes": notes}
+        if due:
+            body["due"] = due
+        try:
+            if existing_id:
+                item = service.tasks().patch(tasklist=task_list_id, task=existing_id, body=body).execute()
+                updated += 1
+            else:
+                item = service.tasks().insert(tasklist=task_list_id, body=body).execute()
+                created += 1
+            table, rid = _task_update_target(row)
+            updates = _updates_from_google_task(item, task_list_id, sync_status="pushed_to_google_tasks")
+            update_online_record(sheet_id, table, rid, updates)
+        except Exception:
+            failed += 1
+    clear_online_cache(sheet_id)
+    ok_all = failed == 0
+    msg = f"{list_msg} Pushed {created} new item(s) and updated {updated} existing item(s) in Google Tasks."
+    if failed:
+        msg += f" {failed} item(s) could not be synced."
+    return ok_all, msg
+
+
+def pull_google_task_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
+    service = tasks_service()
+    if service is None:
+        return False, "Google Tasks access is not available for this session. Use the reconnect button to enable Google Tasks sync."
     prompts = staged_task_prompts(sheet_id)
+    linked = prompts[prompts.get("google_task_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")] if not prompts.empty else pd.DataFrame()
+    if linked.empty:
+        return False, "No Pathmark checklist items have stored Google Tasks IDs yet. Push items to Google Tasks first."
+    checked = 0
+    completed = 0
+    missing = 0
+    for _, row in linked.iterrows():
+        task_id = str(row.get("google_task_id", "") or "").strip()
+        list_id = str(row.get("google_task_list_id", "") or "").strip()
+        if not task_id or not list_id:
+            continue
+        table, rid = _task_update_target(row)
+        try:
+            item = service.tasks().get(tasklist=list_id, task=task_id).execute()
+            checked += 1
+            updates = _updates_from_google_task(item, list_id, sync_status="pulled_from_google_tasks")
+            status = str(item.get("status", "") or "needsAction")
+            if status == "completed":
+                completed += 1
+                # Project steps can safely be marked done. Routine activities stay active
+                # because they may repeat; their Google completion remains available for reporting.
+                if table == "actions" and str(row.get("source_record_type", "")) == "project_step":
+                    updates["status"] = "Done"
+                elif table == "task_prompts":
+                    updates["status"] = "completed"
+            update_online_record(sheet_id, table, rid, updates)
+        except Exception:
+            missing += 1
+            update_online_record(sheet_id, table, rid, {"google_task_synced_at": utc_now_text(), "sync_status": "missing_in_google_tasks"})
+    clear_online_cache(sheet_id)
+    msg = f"Checked {checked} linked Google Task(s). {completed} completed item(s) were reflected in Pathmark."
+    if missing:
+        msg += f" {missing} linked item(s) could not be found in Google Tasks and were marked for review."
+    return True, msg
+
+
+def google_tasks_sync_summary(sheet_id: str) -> dict[str, int]:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return {"total": 0, "linked": 0, "completed": 0, "missing": 0}
+    linked = prompts.get("google_task_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")
+    completed = prompts.get("google_task_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().eq("completed")
+    missing = prompts.get("sync_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().eq("missing_in_google_tasks")
+    return {"total": int(len(prompts)), "linked": int(linked.sum()), "completed": int(completed.sum()), "missing": int(missing.sum())}
+
+
+def render_google_tasks_export_manager(sheet_id: str) -> None:
+    st.subheader("Google Tasks Sync")
+    st.write("Use Google Tasks as the daily checklist surface. Pathmark remains the planning source of truth, while Google Tasks can carry completion status back into Pathmark.")
+
+    scopes_ready = google_tasks_scope_ready()
+    if not scopes_ready:
+        st.warning("Google Tasks sync needs an extra Google permission. Reconnect Google when you are ready to enable direct task sync.")
+        auth_url = google_auth_url()
+        if auth_url:
+            st.link_button("Reconnect Google and enable Tasks sync", auth_url, use_container_width=True)
+        st.caption("Pathmark will request Google Tasks access as well as the existing Sheets/Drive permission. No refresh token is stored by the hosted app.")
+
+    prompts = staged_task_prompts(sheet_id)
+    sync_stats = google_tasks_sync_summary(sheet_id)
+    st.markdown(f"""
+    <div class="metric-strip">
+      <div class="metric-tile"><div class="metric-label">Ready to sync</div><div class="metric-value">{sync_stats['total']}</div></div>
+      <div class="metric-tile"><div class="metric-label">Linked to Google</div><div class="metric-value">{sync_stats['linked']}</div></div>
+      <div class="metric-tile"><div class="metric-label">Completed in Google</div><div class="metric-value">{sync_stats['completed']}</div></div>
+      <div class="metric-tile {'warning' if sync_stats['missing'] else ''}"><div class="metric-label">Needs review</div><div class="metric-value">{sync_stats['missing']}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    if c1.button("Push Pathmark checklist items to Google Tasks", use_container_width=True, disabled=prompts.empty or not scopes_ready):
+        ok, message = push_pathmark_tasks_to_google(sheet_id, prompts)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+    if c2.button("Pull completion status from Google Tasks", use_container_width=True, disabled=not scopes_ready):
+        ok, message = pull_google_task_status_to_pathmark(sheet_id)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+
+    st.caption("Google Tasks due dates are date-based. Calendar time and durations stay in Pathmark/Google Calendar. Deleted or missing Google Tasks are flagged for review rather than deleted from Pathmark.")
+
     if prompts.empty:
         st.info("No Google Tasks checklist items are staged yet. Add a project step or routine activity.")
     else:
-        st.markdown("### Google Tasks checklist items ready to export")
+        st.markdown("### Checklist items")
         for _, row in prompts.iterrows():
             title = html.escape(str(row.get("title", "Checklist item") or "Checklist item"))
             due = human_calendar_datetime(str(row.get("due_date", "") or ""))
             area = html.escape(str(row.get("area_name", "") or ""))
             task_list = html.escape(str(row.get("task_list", "Pathmark") or "Pathmark"))
+            google_status = str(row.get("google_task_status", "") or row.get("status", "") or "Not synced")
+            sync_status = str(row.get("sync_status", "") or "")
+            synced = str(row.get("google_task_synced_at", "") or "")
+            status_line = f"Google status: {google_status}"
+            if sync_status:
+                status_line += f" · Sync: {sync_status}"
+            if synced:
+                status_line += f" · Last checked: {synced}"
             st.markdown(
                 f"""
                 <div class='step-card'>
                   <h3>{title}</h3>
                   <p><strong>{html.escape(due) if due else 'No due date yet'}</strong></p>
                   <p>{'Area: ' + area + ' · ' if area else ''}Task list: {task_list}</p>
+                  <p>{html.escape(status_line)}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with st.expander("Show Google Tasks export details", expanded=False):
-            dataframe_preview(prompts, ["title", "area_name", "due_date", "task_list", "linked_calendar_summary"])
-    st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
-    if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
-        ok, message = write_google_tasks_export_tab(sheet_id, prompts)
-        if ok:
-            st.success(message)
-        else:
-            st.warning(safe_user_message(message))
+        with st.expander("Show sync details", expanded=False):
+            dataframe_preview(prompts, ["title", "area_name", "due_date", "source_record_type", "google_task_id", "google_task_status", "google_task_completed_at", "sync_status"])
+
+    with st.expander("CSV / Sheet fallback", expanded=False):
+        st.write("Keep this fallback if you want to inspect or manually process the staged task rows outside Pathmark.")
+        st.download_button("Download Google Tasks CSV", data=build_google_tasks_csv(prompts), file_name="pathmark_google_tasks.csv", mime="text/csv", use_container_width=True, disabled=prompts.empty)
+        if st.button("Write Google Tasks export to my sync sheet", use_container_width=True, disabled=prompts.empty):
+            ok, message = write_google_tasks_export_tab(sheet_id, prompts)
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
+
     if not prompts.empty:
-        st.info("After you have downloaded or written the Google Tasks export, you can move those exported rows to Archive so they leave the active workspace.")
+        st.info("Archive exported task rows only when you no longer want them in the active workspace. For recurring routines, keep the source routine activity active.")
         if st.button("Move exported Google Tasks items to Archive", use_container_width=True):
             ids = prompts.get("id", pd.Series(dtype=str)).dropna().astype(str).tolist()
             ok, message = mark_actions_exported(sheet_id, ids, "google_tasks", archive=True)
@@ -5718,7 +6342,7 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
 
 def render_exports_manager(sheet_id: str) -> None:
     st.subheader("Exports")
-    st.write("Use the dedicated Google Calendar Export, Google Tasks Export, and Tasklist tabs to prepare files from your saved actions and routine activities.")
+    st.write("Use the dedicated Google Calendar Sync, Google Tasks Sync, and Tasklist tabs to prepare files from your saved actions and routine activities.")
     c1, c2 = st.columns(2)
     with c1:
         render_google_calendar_export_manager(sheet_id)
@@ -6977,6 +7601,12 @@ def render_online_overview(sheet_id: str) -> None:
 
     routine_count = len(routine_actions) if not routine_actions.empty else 0
     project_count = len(project_actions) if not project_actions.empty else 0
+    project_completed = 0
+    if not project_actions.empty:
+        project_status = project_actions.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
+        project_google = project_actions.get("google_task_status", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
+        project_completed = int((project_status.isin(["done", "completed"]) | project_google.eq("completed")).sum())
+    project_progress_label = f"{project_completed} of {project_count} project steps complete" if project_count else "project steps set up"
     surplus = float(money.get("surplus_weekly", 0.0) or 0.0)
     money_overcommitted = surplus < -0.005
     money_balanced = abs(surplus) <= 0.005
@@ -7009,9 +7639,9 @@ def render_online_overview(sheet_id: str) -> None:
       <div class="pillar-card">
         <div class="kicker">Progress</div>
         <h3>Meaningful projects</h3>
-        <p>Turn goals with a definition of done into scheduled project steps.</p>
+        <p>Turn projects with a definition of done into scheduled project steps.</p>
         <div class="pillar-stat">{project_count}</div>
-        <div class="pillar-foot">project steps set up</div>
+        <div class="pillar-foot">{html.escape(project_progress_label)}</div>
       </div>
       <div class="{money_flow_class}">
         <div class="kicker">Resources</div>
@@ -7435,8 +8065,8 @@ def on_the_go_tab() -> None:
         "Routines",
         "Projects",
         "Tasklist",
-        "Google Calendar Export",
-        "Google Tasks Export",
+        "Google Calendar Sync",
+        "Google Tasks Sync",
         "Archive",
         "Settings",
     ])
@@ -7455,9 +8085,9 @@ def on_the_go_tab() -> None:
     with sections[6]:
         render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
     with sections[7]:
-        render_safe_section("Google Calendar Export", render_google_calendar_export_manager, sheet_id)
+        render_safe_section("Google Calendar Sync", render_google_calendar_export_manager, sheet_id)
     with sections[8]:
-        render_safe_section("Google Tasks Export", render_google_tasks_export_manager, sheet_id)
+        render_safe_section("Google Tasks Sync", render_google_tasks_export_manager, sheet_id)
     with sections[9]:
         render_safe_section("Archive", render_archive_manager, sheet_id)
     with sections[10]:
