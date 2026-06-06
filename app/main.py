@@ -15,6 +15,10 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
 from typing import Any
 
 import pandas as pd
@@ -1277,28 +1281,40 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
 
 
 def render_google_permissions_onboarding(compact: bool = False) -> None:
-    """Explain Pathmark's Google permissions before launching OAuth."""
+    """First-time Google consent screen shown before launching OAuth."""
     if not compact:
-        st.subheader("Connect Google to Pathmark")
-        st.write("Pathmark uses Google so your workspace stays in files and services owned by you.")
-    st.markdown("""
-    <div class="card-grid">
-      <div class="card"><h3>Pathmark Sync</h3><p>Creates and updates your Pathmark Sync Google Sheet, finance template, and backup sheets.</p></div>
-      <div class="card"><h3>Google Tasks</h3><p>Creates Pathmark checklist items and reads linked completion status when you use Tasks Sync.</p></div>
-      <div class="card"><h3>Google Calendar</h3><p>Creates or updates Pathmark calendar events when you use Calendar Sync.</p></div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("""
-    <div class="pathmark-note">
-    <strong>What will not happen automatically:</strong> Pathmark will not sell your data, store your private planning or finance content in Supabase, create Google Tasks or Calendar events until you press a sync button, or deliberately scan unrelated calendars for general content.
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("## Welcome to Pathmark Online")
+    st.write("Before you continue, please review how Pathmark uses Google access.")
+    st.markdown(
+        """
+        <div class="pathmark-panel">
+          <h3>Google access requested by Pathmark</h3>
+          <p><strong>Pathmark Sync:</strong> Pathmark creates and updates your Pathmark Sync Google Sheet, finance template, and backup sheets in Google Drive.</p>
+          <p><strong>Google Tasks:</strong> Pathmark can create checklist items and read linked completion status when you choose to use Tasks Sync.</p>
+          <p><strong>Google Calendar:</strong> Pathmark can create or update Pathmark calendar events when you choose to use Calendar Sync.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.expander("What Pathmark stores", expanded=False):
+        st.write("Your planning and Spending Plan records are stored in Google Sheets owned by you. Supabase stores access/profile metadata only; it is not used as the store for your private planning or finance content.")
+    with st.expander("What Pathmark will not do", expanded=False):
+        st.write("Pathmark will not sell your data, create Google Tasks or Calendar events until you press a sync button, or deliberately scan unrelated calendars for general content.")
+    with st.expander("How to revoke access", expanded=False):
+        st.write("You can revoke Pathmark's Google access later from your Google Account. If you disconnect access, Pathmark Online will not be able to update your Pathmark Sync sheet, Google Tasks, or Google Calendar until you reconnect.")
+    st.markdown(
+        """
+        <div class="pathmark-note">
+        By continuing, you understand that Pathmark will request Google permissions to support these features. Sync actions remain user-controlled.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     auth_url = login_auth_url()
     if auth_url:
-        same_tab_oauth_button("Continue to Google permissions", auth_url)
+        same_tab_oauth_button("Continue to Google", auth_url)
     else:
         st.button("Google permissions unavailable", use_container_width=True, disabled=True)
-    st.caption("You can revoke Pathmark's Google access later from your Google Account. Pathmark stores only short-lived session credentials in the hosted app.")
 
 def role_can_use_on_the_go(role: str, status: str) -> bool:
     return status == "active" and feature_enabled("on_the_go_beta", role, default_enabled=True, default_minimum_role="beta_tester")
@@ -1827,7 +1843,7 @@ def create_user_sync_sheet(include_default_areas: bool = True) -> tuple[bool, st
             if dservice is not None and sheet_id:
                 dservice.files().update(
                     fileId=sheet_id,
-                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.66"}},
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.68"}},
                     fields="id",
                 ).execute()
         except Exception:
@@ -5802,7 +5818,15 @@ def _google_calendar_datetime_body(value: Any) -> dict[str, str]:
     dt = _parse_calendar_block_datetime(value)
     if dt is None:
         dt = datetime.now().replace(second=0, microsecond=0)
-    return {"dateTime": dt.isoformat(timespec="minutes"), "timeZone": "Pacific/Auckland"}
+    # Google Calendar expects RFC3339 datetimes. Provide an explicit NZ
+    # timezone offset as well as the named timezone so one-off and recurring
+    # events are accepted consistently.
+    if dt.tzinfo is None:
+        if ZoneInfo is not None:
+            dt = dt.replace(tzinfo=ZoneInfo("Pacific/Auckland"))
+        else:
+            dt = dt.replace(tzinfo=timezone(timedelta(hours=12)))
+    return {"dateTime": dt.isoformat(timespec="seconds"), "timeZone": "Pacific/Auckland"}
 
 
 def get_or_create_pathmark_calendar(title: str = "Pathmark") -> tuple[bool, str, str]:
@@ -5849,6 +5873,27 @@ def _action_calendar_lookup(sheet_id: str) -> dict[str, dict[str, str]]:
             lookup[aid] = {k: str(row.get(k, "") or "") for k in actions.columns}
     return lookup
 
+
+
+def _sync_error_detail(exc: Exception) -> str:
+    """Return a useful but token-safe error message for Google API failures."""
+    try:
+        if hasattr(exc, "resp") and getattr(exc, "resp", None) is not None:
+            status = getattr(exc.resp, "status", "")
+            reason = getattr(exc.resp, "reason", "")
+            content = getattr(exc, "content", b"")
+            detail = ""
+            if content:
+                try:
+                    payload = json.loads(content.decode("utf-8") if isinstance(content, (bytes, bytearray)) else str(content))
+                    detail = str(payload.get("error", {}).get("message", "") or payload.get("message", ""))
+                except Exception:
+                    detail = str(content)[:200]
+            msg = " ".join(str(x) for x in [status, reason, detail] if str(x).strip())
+            return safe_user_message(msg or str(exc))[:500]
+    except Exception:
+        pass
+    return safe_user_message(str(exc))[:500]
 
 def _google_calendar_event_body(block: pd.Series) -> dict[str, Any]:
     title = str(block.get("title", "Pathmark calendar time") or "Pathmark calendar time").strip()
@@ -5930,53 +5975,91 @@ def push_pathmark_calendar_to_google(sheet_id: str, blocks: pd.DataFrame) -> tup
     validation = validate_calendar_blocks_for_google(blocks)
     invalid_ids = set(validation.loc[validation["Status"] != "Ready", "linked_record_id"].astype(str).tolist()) if not validation.empty else set()
     valid_blocks = blocks[~blocks.get("linked_record_id", pd.Series(dtype=str)).fillna("").astype(str).isin(invalid_ids)].copy() if invalid_ids else blocks.copy()
+    results: list[dict[str, str]] = []
+    for _, row in validation.iterrows():
+        if row.get("Status") != "Ready":
+            results.append({
+                "Item": str(row.get("Item", "") or "Untitled calendar item"),
+                "Type": str(row.get("Type", "") or ""),
+                "Start": str(row.get("Start", "") or ""),
+                "End": str(row.get("End", "") or ""),
+                "Repeat": str(row.get("Repeat", "") or ""),
+                "Status": "Needs review",
+                "Reason": str(row.get("Reason", "") or ""),
+                "Suggested fix": str(row.get("Suggested fix", "") or ""),
+                "Sync stage": "Validation",
+            })
     if valid_blocks.empty:
-        st.session_state["calendar_sync_results"] = validation.drop(columns=["linked_record_id"], errors="ignore")
+        st.session_state["calendar_sync_results"] = pd.DataFrame(results)
         return False, "No calendar items passed validation. Open the sync details table to see what needs fixing."
     ok, calendar_id, cal_msg = get_or_create_pathmark_calendar("Pathmark")
     if not ok or not calendar_id:
         return False, cal_msg
     action_lookup = _action_calendar_lookup(sheet_id)
     created = updated = failed = skipped = 0
-    results: list[dict[str, str]] = []
-    for _, row in validation.iterrows():
-        if row.get("Status") != "Ready":
-            skipped += 1
-            results.append({k: str(row.get(k, "") or "") for k in ["Item", "Type", "Start", "End", "Repeat", "Status", "Reason", "Suggested fix"]})
     for _, block in valid_blocks.iterrows():
         linked_id = str(block.get("linked_record_id", "") or "").strip()
         title = str(block.get("title", "Calendar item") or "Calendar item")
+        recurrence = str(block.get("recurrence", "") or "").strip()
+        block_type = "Routine activity" if recurrence else "Project step"
+        start_text = str(block.get("start", "") or "")
+        end_text = str(block.get("end", "") or "")
         action = action_lookup.get(linked_id, {})
         existing_id = str(action.get("google_calendar_event_id", "") or "").strip()
-        recurrence = str(block.get("recurrence", "") or "").strip()
         body = _google_calendar_event_body(block)
+        base_result = {
+            "Item": title,
+            "Type": block_type,
+            "Start": start_text,
+            "End": end_text,
+            "Repeat": recurrence or "Does not repeat",
+            "Suggested fix": "",
+        }
         try:
             if existing_id:
                 event = service.events().patch(calendarId=calendar_id, eventId=existing_id, body=body).execute()
                 updated += 1
                 status = "Updated"
+                stage = "Google API update"
             else:
                 event = service.events().insert(calendarId=calendar_id, body=body).execute()
                 created += 1
                 status = "Created"
-            ok_update, update_msg = update_online_record(sheet_id, "actions", linked_id, _calendar_update_for_block(event, calendar_id, recurrence, "synced"))
+                stage = "Google API insert"
+            event_id = str(event.get("id", "") or "").strip()
+            if not event_id:
+                failed += 1
+                result = dict(base_result)
+                result.update({"Status": "Needs review", "Reason": "Google Calendar did not return an event ID", "Suggested fix": "Try again, then use repair if the event appears in Google Calendar", "Sync stage": stage})
+                results.append(result)
+                continue
+            updates = _calendar_update_for_block(event, calendar_id, recurrence, "synced")
+            ok_update, update_msg = update_online_record(sheet_id, "actions", linked_id, updates)
             if not ok_update:
                 failed += 1
-                results.append({"Item": title, "Type": "Routine activity" if recurrence else "Project step", "Start": str(block.get("start", "") or ""), "End": str(block.get("end", "") or ""), "Repeat": recurrence or "Does not repeat", "Status": "Needs review", "Reason": "Created in Google Calendar but Pathmark could not store the event ID", "Suggested fix": safe_user_message(update_msg)})
+                result = dict(base_result)
+                result.update({"Status": "Needs review", "Reason": "Google Calendar event was created/updated, but Pathmark could not store the event ID", "Suggested fix": safe_user_message(update_msg), "Sync stage": "Pathmark Sync write-back"})
+                results.append(result)
             else:
-                results.append({"Item": title, "Type": "Routine activity" if recurrence else "Project step", "Start": str(block.get("start", "") or ""), "End": str(block.get("end", "") or ""), "Repeat": recurrence or "Does not repeat", "Status": status, "Reason": "", "Suggested fix": ""})
+                result = dict(base_result)
+                result.update({"Status": status, "Reason": f"Google event ID stored: {event_id}", "Suggested fix": "", "Sync stage": "Synced"})
+                results.append(result)
         except Exception as exc:
             failed += 1
-            results.append({"Item": title, "Type": "Routine activity" if recurrence else "Project step", "Start": str(block.get("start", "") or ""), "End": str(block.get("end", "") or ""), "Repeat": recurrence or "Does not repeat", "Status": "Could not sync", "Reason": safe_user_message(str(exc))[:240], "Suggested fix": "Check the title, start/finish times, repeat pattern, and Google Calendar permission"})
+            result = dict(base_result)
+            result.update({"Status": "Could not sync", "Reason": _sync_error_detail(exc), "Suggested fix": "Check Google Calendar permission and the event start/finish times. If the event was created, use Repair missing Google Calendar links.", "Sync stage": "Google API"})
+            results.append(result)
     clear_online_cache(sheet_id)
     st.session_state["calendar_sync_results"] = pd.DataFrame(results)
     msg = f"{cal_msg} Created {created} new calendar item(s) and updated {updated} existing item(s)."
+    skipped = len([r for r in results if r.get("Sync stage") == "Validation"])
     if skipped:
         msg += f" {skipped} item(s) were skipped because they need review."
     if failed:
         msg += f" {failed} item(s) could not be fully synced; see the sync results table."
+    else:
+        msg += " Pathmark stored the returned Google Calendar event IDs."
     return failed == 0 and skipped == 0, msg
-
 
 def _event_time_string(value: dict[str, Any]) -> str:
     raw = str(value.get("dateTime") or value.get("date") or "")
@@ -5989,6 +6072,96 @@ def _event_time_string(value: dict[str, Any]) -> str:
         return raw[:16].replace("T", " ")
 
 
+def _calendar_event_key_from_values(title: Any, start: Any, end: Any) -> tuple[str, str, str]:
+    return (_normalise_match_text(title), str(start or "")[:16].replace("T", " "), str(end or "")[:16].replace("T", " "))
+
+
+def repair_google_calendar_links_by_title_time(sheet_id: str, blocks: pd.DataFrame | None = None) -> tuple[int, str]:
+    """Repair Pathmark calendar rows when Google events exist but IDs were not stored."""
+    service = calendar_service()
+    if service is None:
+        return 0, "Google Calendar access is not available for repair."
+    if blocks is None:
+        blocks = staged_calendar_blocks(sheet_id)
+    if blocks.empty:
+        return 0, "No Pathmark calendar items are available for repair."
+    ok, calendar_id, cal_msg = get_or_create_pathmark_calendar("Pathmark")
+    if not ok or not calendar_id:
+        return 0, cal_msg
+    actions = read_online_table(sheet_id, "actions")
+    existing_linked = set(actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().tolist()) if not actions.empty else set()
+    diagnostics: list[dict[str, str]] = []
+    try:
+        # Search a broad window around Pathmark staged items. Recurring series masters
+        # are returned with singleEvents=False; one-off events are also included.
+        now = datetime.now(timezone.utc)
+        time_min = (now - timedelta(days=365)).isoformat(timespec="seconds")
+        time_max = (now + timedelta(days=730)).isoformat(timespec="seconds")
+        events: list[dict[str, Any]] = []
+        token = None
+        while True:
+            result = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max, singleEvents=False, showDeleted=False, maxResults=250, pageToken=token).execute()
+            events.extend(result.get("items", []) or [])
+            token = result.get("nextPageToken")
+            if not token:
+                break
+        by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        by_title: dict[str, list[dict[str, Any]]] = {}
+        for ev in events:
+            start_s = _event_time_string(ev.get("start", {}) or {})
+            end_s = _event_time_string(ev.get("end", {}) or {})
+            key = _calendar_event_key_from_values(ev.get("summary", ""), start_s, end_s)
+            by_key.setdefault(key, []).append(ev)
+            by_title.setdefault(key[0], []).append(ev)
+        repaired = 0
+        considered = 0
+        for _, block in blocks.iterrows():
+            linked_id = str(block.get("linked_record_id", "") or "").strip()
+            if not linked_id:
+                continue
+            action_match = actions[actions.get("action_id", pd.Series(dtype=str)).fillna("").astype(str).eq(linked_id)] if not actions.empty else pd.DataFrame()
+            current_event_id = ""
+            if not action_match.empty:
+                current_event_id = str(action_match.iloc[0].get("google_calendar_event_id", "") or "").strip()
+            if current_event_id:
+                continue
+            considered += 1
+            key = _calendar_event_key_from_values(block.get("title", ""), block.get("start", ""), block.get("end", ""))
+            exact = [ev for ev in by_key.get(key, []) if str(ev.get("id", "") or "") not in existing_linked]
+            title_matches = [ev for ev in by_title.get(key[0], []) if str(ev.get("id", "") or "") not in existing_linked]
+            match = None
+            match_type = ""
+            reason = ""
+            if len(exact) == 1:
+                match = exact[0]
+                match_type = "title + start/end time"
+            elif len(exact) > 1:
+                reason = "Multiple Google Calendar events matched the same title and time"
+            elif len(title_matches) == 1:
+                match = title_matches[0]
+                match_type = "unique title"
+            elif len(title_matches) > 1:
+                reason = "Multiple Google Calendar events matched the title; start/end times did not identify one clear event"
+            else:
+                reason = "No Google Calendar event with the same title was found in the Pathmark calendar"
+            if match is not None:
+                recurrence = ";".join(match.get("recurrence", []) or [])
+                ok_update, update_msg = update_online_record(sheet_id, "actions", linked_id, _calendar_update_for_block(match, calendar_id, recurrence, "repaired_google_calendar_link"))
+                if ok_update:
+                    repaired += 1
+                    diagnostics.append({"Pathmark item": str(block.get("title", "") or ""), "Pathmark start": str(block.get("start", "") or ""), "Google candidate": str(match.get("summary", "") or ""), "Google start": _event_time_string(match.get("start", {}) or {}), "Result": "Repaired", "Reason": f"Matched by {match_type}"})
+                else:
+                    diagnostics.append({"Pathmark item": str(block.get("title", "") or ""), "Pathmark start": str(block.get("start", "") or ""), "Google candidate": str(match.get("summary", "") or ""), "Google start": _event_time_string(match.get("start", {}) or {}), "Result": "Could not write back", "Reason": safe_user_message(update_msg)})
+            else:
+                diagnostics.append({"Pathmark item": str(block.get("title", "") or ""), "Pathmark start": str(block.get("start", "") or ""), "Google candidate": ", ".join([str(i.get("summary", "") or "") for i in title_matches[:3]]), "Google start": ", ".join([_event_time_string(i.get("start", {}) or {}) for i in title_matches[:3]]), "Result": "Not matched", "Reason": reason})
+        if repaired:
+            clear_online_cache(sheet_id)
+        st.session_state["calendar_repair_results"] = pd.DataFrame(diagnostics)
+        return repaired, f"{cal_msg} Found {len(events)} Google Calendar event(s), checked {considered} unlinked Pathmark item(s), and repaired {repaired} link(s)."
+    except Exception as exc:
+        return 0, f"Could not repair Google Calendar links: {_sync_error_detail(exc)}"
+
+
 def pull_google_calendar_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
     service = calendar_service()
     if service is None:
@@ -5997,9 +6170,14 @@ def pull_google_calendar_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
     if actions.empty or "google_calendar_event_id" not in actions.columns:
         return False, "No linked Google Calendar events are stored in Pathmark yet. Push calendar items first."
     linked = actions[actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")]
-    if linked.empty:
-        return False, "No linked Google Calendar events are stored in Pathmark yet. Push calendar items first."
     blocks = staged_calendar_blocks(sheet_id)
+    if linked.empty:
+        repaired, repair_msg = repair_google_calendar_links_by_title_time(sheet_id, blocks)
+        if repaired:
+            actions = read_online_table(sheet_id, "actions")
+            linked = actions[actions.get("google_calendar_event_id", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("")] if not actions.empty else pd.DataFrame()
+        if linked.empty:
+            return False, "No linked Google Calendar events are stored in Pathmark yet. " + repair_msg + " Push calendar items first, or use Repair missing Google Calendar links if they already exist in Google Calendar."
     block_lookup = {str(r.get("linked_record_id", "") or ""): r for _, r in blocks.iterrows()}
     checked = moved = missing = 0
     for _, row in linked.iterrows():
@@ -6102,6 +6280,14 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             st.warning(safe_user_message(message))
         st.rerun()
 
+    if st.button("Repair missing Google Calendar links", use_container_width=True, disabled=blocks.empty or not scopes_ready, help="Use this if events were created in Google Calendar but Pathmark did not store their event IDs. It matches Pathmark calendar items to events in the Pathmark calendar by title and start/end time."):
+        repaired, message = repair_google_calendar_links_by_title_time(sheet_id, blocks)
+        if repaired:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+
     st.caption("Pathmark remains the planning source of truth. If a linked event is moved or deleted in Google Calendar, Pathmark flags it for review rather than silently overwriting your plan.")
 
     if blocks.empty:
@@ -6147,7 +6333,12 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             with st.expander("Last Google Calendar sync results", expanded=True):
                 results = st.session_state.get("calendar_sync_results")
                 if isinstance(results, pd.DataFrame):
-                    dataframe_preview(results, ["Item", "Type", "Start", "End", "Repeat", "Status", "Reason", "Suggested fix"])
+                    dataframe_preview(results, ["Item", "Type", "Start", "End", "Repeat", "Status", "Reason", "Suggested fix", "Sync stage"])
+    if "calendar_repair_results" in st.session_state:
+        with st.expander("Last Google Calendar repair diagnostics", expanded=False):
+            diag = st.session_state.get("calendar_repair_results")
+            if isinstance(diag, pd.DataFrame):
+                dataframe_preview(diag, ["Pathmark item", "Pathmark start", "Google candidate", "Google start", "Result", "Reason"])
 
     with st.expander("ICS fallback", expanded=False):
         st.write("Keep this fallback if you want a file-based import instead of direct Google Calendar sync.")
@@ -6324,6 +6515,10 @@ def _google_task_due_key(item: dict[str, Any]) -> str:
     return due[:10]
 
 
+def _normalise_match_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
 def repair_google_task_links_by_title_due(sheet_id: str, prompts: pd.DataFrame | None = None) -> tuple[int, str]:
     """Repair Pathmark rows created in Google Tasks before IDs were written back."""
     service = tasks_service()
@@ -6336,38 +6531,64 @@ def repair_google_task_links_by_title_due(sheet_id: str, prompts: pd.DataFrame |
     ok, task_list_id, list_msg = get_or_create_google_task_list("Pathmark")
     if not ok or not task_list_id:
         return 0, list_msg
+    diagnostics: list[dict[str, str]] = []
     try:
         google_items: list[dict[str, Any]] = []
         token = None
         while True:
-            result = service.tasks().list(tasklist=task_list_id, showCompleted=True, showDeleted=False, maxResults=100, pageToken=token).execute()
+            result = service.tasks().list(tasklist=task_list_id, showCompleted=True, showHidden=True, showDeleted=False, maxResults=100, pageToken=token).execute()
             google_items.extend(result.get("items", []) or [])
             token = result.get("nextPageToken")
             if not token:
                 break
         by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        by_title: dict[str, list[dict[str, Any]]] = {}
         for item in google_items:
-            key = (str(item.get("title", "") or "").strip().lower(), _google_task_due_key(item))
-            by_key.setdefault(key, []).append(item)
+            title_key = _normalise_match_text(item.get("title", ""))
+            due_key = _google_task_due_key(item)
+            by_key.setdefault((title_key, due_key), []).append(item)
+            by_title.setdefault(title_key, []).append(item)
         repaired = 0
+        considered = 0
         for _, row in prompts.iterrows():
             if str(row.get("google_task_id", "") or "").strip():
                 continue
-            title = str(row.get("title", "") or "").strip().lower()
-            due = (_normalise_google_task_due(row.get("due_date", "")) or "")[:10]
-            matches = by_key.get((title, due), [])
-            if len(matches) != 1:
-                continue
-            item = matches[0]
-            table, rid = _task_update_target(row)
-            ok_update, _ = update_online_record(sheet_id, table, rid, _updates_from_google_task(item, task_list_id, sync_status="repaired_google_task_link"))
-            if ok_update:
-                repaired += 1
+            considered += 1
+            title_key = _normalise_match_text(row.get("title", ""))
+            due_key = (_normalise_google_task_due(row.get("due_date", "")) or "")[:10]
+            exact = by_key.get((title_key, due_key), [])
+            title_matches = by_title.get(title_key, [])
+            match = None
+            match_type = ""
+            reason = ""
+            if len(exact) == 1:
+                match = exact[0]
+                match_type = "title + due date"
+            elif len(exact) > 1:
+                reason = "Multiple Google Tasks matched the same title and due date"
+            elif len(title_matches) == 1:
+                match = title_matches[0]
+                match_type = "unique title"
+            elif len(title_matches) > 1:
+                reason = "Multiple Google Tasks matched the title; due dates did not identify one clear task"
+            else:
+                reason = "No Google Task with the same title was found in the Pathmark task list"
+            if match is not None:
+                table, rid = _task_update_target(row)
+                ok_update, update_msg = update_online_record(sheet_id, table, rid, _updates_from_google_task(match, task_list_id, sync_status="repaired_google_task_link"))
+                if ok_update:
+                    repaired += 1
+                    diagnostics.append({"Pathmark item": str(row.get("title", "") or ""), "Pathmark due": due_key, "Google candidate": str(match.get("title", "") or ""), "Google due": _google_task_due_key(match), "Result": "Repaired", "Reason": f"Matched by {match_type}"})
+                else:
+                    diagnostics.append({"Pathmark item": str(row.get("title", "") or ""), "Pathmark due": due_key, "Google candidate": str(match.get("title", "") or ""), "Google due": _google_task_due_key(match), "Result": "Could not write back", "Reason": safe_user_message(update_msg)})
+            else:
+                diagnostics.append({"Pathmark item": str(row.get("title", "") or ""), "Pathmark due": due_key, "Google candidate": ", ".join([str(i.get("title", "") or "") for i in title_matches[:3]]), "Google due": ", ".join([_google_task_due_key(i) for i in title_matches[:3]]), "Result": "Not matched", "Reason": reason})
         if repaired:
             clear_online_cache(sheet_id)
-        return repaired, f"{list_msg} Repaired {repaired} Google Task link(s) by matching title and due date."
+        st.session_state["google_tasks_repair_results"] = pd.DataFrame(diagnostics)
+        return repaired, f"{list_msg} Found {len(google_items)} Google Task(s), checked {considered} unlinked Pathmark item(s), and repaired {repaired} link(s)."
     except Exception as exc:
-        return 0, f"Could not repair Google Task links: {exc}"
+        return 0, f"Could not repair Google Task links: {_sync_error_detail(exc)}"
 
 def pull_google_task_status_to_pathmark(sheet_id: str) -> tuple[bool, str]:
     service = tasks_service()
@@ -6516,6 +6737,11 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
             )
         with st.expander("Show sync details", expanded=False):
             dataframe_preview(prompts, ["title", "area_name", "due_date", "source_record_type", "google_task_id", "google_task_status", "google_task_completed_at", "sync_status"])
+    if "google_tasks_repair_results" in st.session_state:
+        with st.expander("Last Google Tasks repair diagnostics", expanded=False):
+            diag = st.session_state.get("google_tasks_repair_results")
+            if isinstance(diag, pd.DataFrame):
+                dataframe_preview(diag, ["Pathmark item", "Pathmark due", "Google candidate", "Google due", "Result", "Reason"])
 
     with st.expander("CSV / Sheet fallback", expanded=False):
         st.write("Keep this fallback if you want to inspect or manually process the staged task rows outside Pathmark.")

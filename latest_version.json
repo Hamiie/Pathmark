@@ -1,12 +1,14 @@
 {
-  "version": "0.6.66",
+  "version": "0.6.68",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_66.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_66.zip",
-  "release": "v0.6.66 Google permissions onboarding and sync diagnostics",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_66.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_66.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_66.zip",
-  "notes": "Adds a first-connection Google permissions explainer; updates privacy wording for combined Google permissions; adds Calendar Sync validation/results diagnostics; improves Tasks Sync write-back, refresh messaging, and repair by title/date for tasks created before IDs were stored."
+  "filename": "Pathmark_Local_App_Windows_v0_6_68.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_68.zip",
+  "release": "v0.6.68 Google Calendar write-back and repair diagnostics",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_68.zip",
+  "notes": "Improves Google Calendar event ID write-back, calendar repair matching, item-level sync diagnostics, Google Tasks repair diagnostics, and first-time Google consent wording.",
+  "label": "Google Calendar write-back and repair diagnostics",
+  "release_notes": "Improves Google Calendar and Google Tasks sync diagnostics, write-back reliability, repair matching, and first-time Google consent wording."
 }
