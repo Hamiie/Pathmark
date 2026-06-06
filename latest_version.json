@@ -1,16 +1,16 @@
 {
-  "version": "0.6.77",
+  "version": "0.6.78",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_76.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_76.zip",
-  "release": "v0.6.76 Developer theme editor foundation",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_77.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_76.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_76.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_76.zip",
-  "label": "Developer theme editor foundation",
-  "release_notes": "Adds a developer theme configuration file and Theme editor, while preserving the terms/privacy login flow and dashboard redirect polish.",
-  "notes": "Keeps Google Tasks pull status consistent across sync, project, routine and dashboard views, and adds visual progress bars to the Dashboard stability/progress tiles.",
-  "release_name": "Task progress consistency and dashboard visuals"
+  "filename": "Pathmark_Local_App_Windows_v0_6_78.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_78.zip",
+  "release": "v0.6.78 Terms CSS brace hotfix",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_78.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_78.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_78.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_78.zip",
+  "label": "Terms CSS brace hotfix",
+  "release_notes": "Fixes unescaped CSS braces in the Terms & Privacy and theme config preview styles, preserving v0.6.77 progress consistency and dashboard visuals.",
+  "notes": "Hotfix for NameError caused by single CSS braces in an f-string.",
+  "release_name": "Terms CSS brace hotfix"
 }

@@ -585,10 +585,10 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
    card if the menu changes before a full rerun. */
 
 
-.pathmark-terms-box { max-height: 420px; overflow-y: auto; padding: 1rem 1.1rem; border: 1px solid var(--pm-border); border-radius: 16px; background: var(--pm-card-bg); color: var(--pm-card-text); }
-.pathmark-terms-box h3, .pathmark-terms-box h4 { color: var(--pm-card-text); margin-top: .7rem; margin-bottom: .35rem; }
-.pathmark-terms-box p { color: var(--pm-card-muted); margin: 0 0 .65rem 0; line-height: 1.45; }
-.theme-config-preview { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }
+.pathmark-terms-box {{ max-height: 420px; overflow-y: auto; padding: 1rem 1.1rem; border: 1px solid var(--pm-border); border-radius: 16px; background: var(--pm-card-bg); color: var(--pm-card-text); }}
+.pathmark-terms-box h3, .pathmark-terms-box h4 {{ color: var(--pm-card-text); margin-top: .7rem; margin-bottom: .35rem; }}
+.pathmark-terms-box p {{ color: var(--pm-card-muted); margin: 0 0 .65rem 0; line-height: 1.45; }}
+.theme-config-preview {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }}
 
 </style>
 """
