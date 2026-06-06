@@ -215,7 +215,8 @@ DAY_ALIASES.update({d[:3].lower(): d for d in VALID_DAYS})
 GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 GOOGLE_TASKS_SCOPES = ["https://www.googleapis.com/auth/tasks"]
 GOOGLE_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar"]
-LOGIN_SCOPES = ["openid", "email", "profile"] + GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES
+BASE_LOGIN_SCOPES = ["openid", "email", "profile"]
+LOGIN_SCOPES = BASE_LOGIN_SCOPES + GOOGLE_SHEETS_SCOPES
 SYNC_SHEET_TITLE = "Pathmark Sync"
 
 
@@ -1382,7 +1383,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
             "configured": "no",
             "client_id_prefix": "",
             "redirect_uri": "",
-            "scope": ", ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
+            "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
             "login_scope": " ".join(LOGIN_SCOPES),
             "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
         }
@@ -1392,7 +1393,7 @@ def google_oauth_diagnostics() -> dict[str, str]:
         "configured": "yes",
         "client_id_prefix": prefix,
         "redirect_uri": cfg.get("redirect_uri", ""),
-        "scope": ", ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
+        "scope": ", ".join(GOOGLE_SHEETS_SCOPES),
         "login_scope": " ".join(LOGIN_SCOPES),
         "auth_uri": cfg.get("client_config", {}).get("web", {}).get("auth_uri", "https://accounts.google.com/o/oauth2/v2/auth"),
     }
@@ -1428,7 +1429,7 @@ def render_google_sheets_oauth_diagnostics() -> None:
         5. **Google Auth Platform → Data Access**: include the requested scopes `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/tasks`, and `https://www.googleapis.com/auth/calendar`.
         6. **APIs & Services → Library**: enable both **Google Sheets API** and **Google Drive API** for the same project.
 
-        Pathmark now requests `drive.file` and optional Google Tasks access during Google login so signed-in users can enter the Web Companion with a Pathmark sync sheet already available. The scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
+        Pathmark requests `drive.file` during login so signed-in users can enter Pathmark Online with a Pathmark sync sheet available. Google Tasks and Google Calendar scopes are requested only when the user chooses those sync features. The Drive scope lets Pathmark create and update files the user authorises, rather than requesting access to all spreadsheets.
         """)
 
 
@@ -1590,20 +1591,24 @@ def handle_google_oauth_redirect() -> None:
         st.warning("Could not complete Google authorisation. Please try logging in again.")
 
 
-def google_auth_url() -> str | None:
+def google_auth_url(extra_scopes: list[str] | None = None, return_hint: str = "on_the_go") -> str | None:
     cfg = google_oauth_config()
     if not cfg:
         return None
     try:
         user = current_user()
         user_email = str(user.get("email", "") or "").strip().lower()
-        context = f"return=on_the_go&email={urllib.parse.quote(user_email, safe='')}" if user_email else "return=on_the_go"
+        context = f"return={return_hint}&email={urllib.parse.quote(user_email, safe='')}" if user_email else f"return={return_hint}"
         state = make_signed_oauth_state("sheets", context=context)
+        scopes: list[str] = []
+        for scope in GOOGLE_SHEETS_SCOPES + list(extra_scopes or []):
+            if scope not in scopes:
+                scopes.append(scope)
         params = {
             "client_id": cfg["client_id"],
             "redirect_uri": cfg["redirect_uri"],
             "response_type": "code",
-            "scope": " ".join(GOOGLE_SHEETS_SCOPES + GOOGLE_TASKS_SCOPES + GOOGLE_CALENDAR_SCOPES),
+            "scope": " ".join(scopes),
             "state": state,
             "access_type": "online",
             "include_granted_scopes": "true",
@@ -1611,7 +1616,7 @@ def google_auth_url() -> str | None:
         }
         st.session_state["google_oauth_state"] = state
         return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    except Exception as exc:
+    except Exception:
         st.warning("Could not prepare Google authorisation. Please refresh the page and try again.")
         return None
 
@@ -1733,7 +1738,13 @@ def find_existing_sync_sheet() -> tuple[bool, str, str]:
 
 
 def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
-    """Find or create the user's Pathmark sync sheet for the current session."""
+    """Find or create the user's Pathmark sync sheet for the current session.
+
+    If a previously linked sheet cannot be verified, clear the stale ID so the
+    recovery screen can offer a fresh create/restore path. This is important
+    when a user deletes Pathmark Sync from Google Drive: recovery must not
+    depend on the missing sheet still being present.
+    """
     existing = st.session_state.get("sync_sheet_id", "")
     if existing:
         service = sheets_service()
@@ -1743,7 +1754,9 @@ def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
             ensure_pathmark_online_schema(service, existing)
             return True, existing, f"https://docs.google.com/spreadsheets/d/{existing}"
         except Exception as exc:
-            return False, "", f"Could not verify the selected Pathmark sync sheet: {exc}"
+            st.session_state.pop("sync_sheet_id", None)
+            st.session_state["sync_sheet_recovery_message"] = f"Pathmark could not verify the previously linked Pathmark Sync sheet. It may have been deleted, moved, or no longer authorised. Details: {safe_user_message(str(exc))}"
+            return False, "", st.session_state["sync_sheet_recovery_message"]
 
     found, sheet_id, link_or_message = find_existing_sync_sheet()
     if found and sheet_id:
@@ -1752,6 +1765,7 @@ def ensure_pathmark_sync_sheet_ready() -> tuple[bool, str, str]:
             ensure_pathmark_online_schema(service, sheet_id)
         return True, sheet_id, link_or_message
 
+    st.session_state["sync_sheet_recovery_message"] = link_or_message
     return False, "", link_or_message
 
 
@@ -1791,7 +1805,7 @@ def create_user_sync_sheet() -> tuple[bool, str, str]:
             if dservice is not None and sheet_id:
                 dservice.files().update(
                     fileId=sheet_id,
-                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.1"}},
+                    body={"appProperties": {"pathmark_sync": "true", "pathmark_version": "0.6.63"}},
                     fields="id",
                 ).execute()
         except Exception:
@@ -5181,6 +5195,38 @@ def _clear_and_write_sheet_values(service: Any, sheet_id: str, title: str, value
     ).execute()
 
 
+def restore_missing_pathmark_sync_from_backup(backup_sheet_id: str) -> tuple[bool, str, str]:
+    """Create a new Pathmark Sync sheet and restore data from a selected backup.
+
+    This supports the deleted-sheet recovery path where there is no current
+    sheet to restore into. A safety backup is not created because the active
+    sheet is missing; the selected backup remains unchanged.
+    """
+    service = sheets_service()
+    backup_sheet_id = extract_google_sheet_id(backup_sheet_id)
+    if service is None:
+        return False, "", "Google Sheets access is not available for this session."
+    if not backup_sheet_id:
+        return False, "", "Choose a Pathmark Backup sheet first."
+    ok_create, new_sheet_id, new_url = create_user_sync_sheet()
+    if not ok_create or not new_sheet_id:
+        return False, "", new_url or "Could not create a new Pathmark Sync sheet."
+    try:
+        backup_tables = {"pending_changes": SYNC_COLUMNS, **ONLINE_TABLES}
+        restored = 0
+        for title, columns in backup_tables.items():
+            ensure_sheet_with_header(service, new_sheet_id, title, columns)
+            values = _values_for_sheet_backup(service, backup_sheet_id, title, columns)
+            _clear_and_write_sheet_values(service, new_sheet_id, title, values, columns)
+            restored += max(len(values) - 1, 0)
+        clear_online_cache(new_sheet_id)
+        st.session_state["sync_sheet_id"] = new_sheet_id
+        st.session_state.pop("sync_sheet_recovery_message", None)
+        return True, new_sheet_id, f"Created a new Pathmark Sync sheet and restored {restored} row(s) from backup."
+    except Exception as exc:
+        return False, new_sheet_id, f"Created a new Pathmark Sync sheet, but could not restore the selected backup: {exc}"
+
+
 def restore_pathmark_sync_from_backup(sheet_id: str, backup_sheet_id: str) -> tuple[bool, str]:
     service = sheets_service()
     sheet_id = extract_google_sheet_id(sheet_id)
@@ -5867,14 +5913,15 @@ def google_calendar_sync_summary(sheet_id: str) -> dict[str, int]:
 def render_google_calendar_export_manager(sheet_id: str) -> None:
     st.subheader("Google Calendar Sync")
     st.write("Send Pathmark calendar time directly to Google Calendar. Project steps sync as one-off events; routine activities sync as recurring events so your calendar stays clean.")
+    st.info("Calendar Sync is optional. Pathmark creates or reuses a dedicated Pathmark calendar and stores linked event IDs in Pathmark Sync so it can update Pathmark events without scanning unrelated calendars.")
 
     scopes_ready = google_calendar_scope_ready()
     if not scopes_ready:
         st.warning("Google Calendar sync needs an extra Google permission. Reconnect Google when you are ready to enable direct Calendar sync.")
-        auth_url = google_auth_url()
+        auth_url = google_auth_url(GOOGLE_CALENDAR_SCOPES, return_hint="calendar_sync")
         if auth_url:
             st.link_button("Reconnect Google and enable Calendar sync", auth_url, use_container_width=True)
-        st.caption("Pathmark will request Google Calendar access as well as the existing Sheets/Drive and Tasks permissions. No refresh token is stored by the hosted app.")
+        st.caption("Pathmark will request Google Calendar access for this sync feature, alongside the existing Sheets/Drive permission. No refresh token is stored by the hosted app.")
 
     blocks = staged_calendar_blocks(sheet_id)
     stats = google_calendar_sync_summary(sheet_id)
@@ -5887,8 +5934,11 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
+    backup_before_calendar_sync = st.checkbox("Create a safety backup before Calendar sync", value=True, key="backup_before_calendar_sync", help="Recommended. This backs up Pathmark Sync before sync metadata is written back to the sheet.")
     c1, c2 = st.columns(2)
     if c1.button("Push Pathmark calendar time to Google Calendar", use_container_width=True, disabled=blocks.empty or not scopes_ready):
+        if backup_before_calendar_sync:
+            create_pathmark_sync_backup(sheet_id)
         ok, message = push_pathmark_calendar_to_google(sheet_id, blocks)
         if ok:
             st.success(message)
@@ -5896,6 +5946,8 @@ def render_google_calendar_export_manager(sheet_id: str) -> None:
             st.warning(safe_user_message(message))
         st.rerun()
     if c2.button("Pull Calendar status from Google", use_container_width=True, disabled=not scopes_ready):
+        if backup_before_calendar_sync:
+            create_pathmark_sync_backup(sheet_id)
         ok, message = pull_google_calendar_status_to_pathmark(sheet_id)
         if ok:
             st.success(message)
@@ -6159,14 +6211,15 @@ def google_tasks_sync_summary(sheet_id: str) -> dict[str, int]:
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Sync")
     st.write("Use Google Tasks as the daily checklist surface. Pathmark remains the planning source of truth, while Google Tasks can carry completion status back into Pathmark.")
+    st.info("Tasks Sync is optional. Pathmark creates or reuses a dedicated Pathmark task list and stores linked task IDs in Pathmark Sync so completion checks focus on Pathmark tasks.")
 
     scopes_ready = google_tasks_scope_ready()
     if not scopes_ready:
         st.warning("Google Tasks sync needs an extra Google permission. Reconnect Google when you are ready to enable direct task sync.")
-        auth_url = google_auth_url()
+        auth_url = google_auth_url(GOOGLE_TASKS_SCOPES, return_hint="tasks_sync")
         if auth_url:
             st.link_button("Reconnect Google and enable Tasks sync", auth_url, use_container_width=True)
-        st.caption("Pathmark will request Google Tasks access as well as the existing Sheets/Drive permission. No refresh token is stored by the hosted app.")
+        st.caption("Pathmark will request Google Tasks access for this sync feature, alongside the existing Sheets/Drive permission. No refresh token is stored by the hosted app.")
 
     prompts = staged_task_prompts(sheet_id)
     sync_stats = google_tasks_sync_summary(sheet_id)
@@ -6179,8 +6232,11 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
+    backup_before_tasks_sync = st.checkbox("Create a safety backup before Tasks sync", value=True, key="backup_before_tasks_sync", help="Recommended. This backs up Pathmark Sync before sync metadata or completion status is written back to the sheet.")
     c1, c2 = st.columns(2)
     if c1.button("Push Pathmark checklist items to Google Tasks", use_container_width=True, disabled=prompts.empty or not scopes_ready):
+        if backup_before_tasks_sync:
+            create_pathmark_sync_backup(sheet_id)
         ok, message = push_pathmark_tasks_to_google(sheet_id, prompts)
         if ok:
             st.success(message)
@@ -6188,6 +6244,8 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
             st.warning(safe_user_message(message))
         st.rerun()
     if c2.button("Pull completion status from Google Tasks", use_container_width=True, disabled=not scopes_ready):
+        if backup_before_tasks_sync:
+            create_pathmark_sync_backup(sheet_id)
         ok, message = pull_google_task_status_to_pathmark(sheet_id)
         if ok:
             st.success(message)
@@ -6301,6 +6359,19 @@ def render_online_settings(sheet_id: str) -> None:
     if c3.button("Disconnect Google access", use_container_width=True):
         revoke_google_session_token()
         st.rerun()
+
+    with st.expander("Security & permissions", expanded=False):
+        st.write("Pathmark keeps Google permissions as narrow and visible as possible.")
+        st.markdown("""
+        - Google login uses identity plus the limited `drive.file` permission so Pathmark can create and update Pathmark-owned Google Sheets.
+        - Google Tasks Sync and Google Calendar Sync are optional. Their extra permissions are requested from the relevant sync tab when you choose to enable them.
+        - Pathmark uses dedicated Pathmark task lists/calendars and stored Google IDs so sync actions focus on linked Pathmark items.
+        - OAuth tokens are used for the current session and should never be stored in Supabase, GitHub, logs, or user-visible error messages.
+        - Backup, restore, reset, template import, and bulk sync actions include safety-backup options.
+        - Resetting Pathmark Sync does not delete Google Tasks or Google Calendar items; those can be reviewed separately in Google.
+        """)
+        st.caption("You can revoke Pathmark's Google access from your Google Account at any time, or use Disconnect Google access in this settings page for the current session.")
+
     with st.expander("Backup & restore", expanded=False):
         st.write("Create a separate Google Sheet backup before making larger changes, or restore Pathmark Sync if something goes wrong.")
         st.caption("Backups copy Pathmark Online planning, tasklist, archive, spending-plan, Google Tasks and Google Calendar sync metadata into a separate user-owned Google Sheet. They do not copy or delete Google Calendar events or Google Tasks themselves.")
@@ -8171,14 +8242,31 @@ def about_privacy_tab() -> None:
     1. **Sign-in** — Google confirms your email address so Pathmark can apply the correct access level.
     2. **Your Pathmark Sync sheet** — Pathmark creates or updates the Google Sheet that stores your online planning records.
     3. **Finance template and backups** — Pathmark can create a separate Pathmark Finance Template and timestamped Pathmark Backup sheets when you choose those actions.
-    4. **Optional Google Tasks Sync** — if you use it, Pathmark can create checklist items, read linked Pathmark tasks, and check completion status so project progress and routine support can update.
-    5. **Optional Google Calendar Sync** — if you use it, Pathmark can create or update Pathmark calendar events and check whether linked events have moved or been deleted.
+    4. **Optional Google Tasks Sync** — if you use it, Pathmark asks for Google Tasks permission, creates or reuses a dedicated Pathmark task list, creates linked checklist items, and reads linked completion status so project progress and routine support can update.
+    5. **Optional Google Calendar Sync** — if you use it, Pathmark asks for Google Calendar permission, creates or reuses a dedicated Pathmark calendar, creates or updates linked Pathmark events, and checks whether linked events have moved or been deleted.
 
-    Pathmark uses the limited `drive.file` permission for Drive files. In practical terms, Pathmark works with Pathmark files it creates or files you explicitly use with Pathmark. It does **not** request the broader Google Drive permission that would allow general access to all Drive files. Google Tasks and Google Calendar permissions are requested for the sync actions they support.
+    Pathmark uses the limited `drive.file` permission for Drive files. In practical terms, Pathmark works with Pathmark files it creates or files you explicitly use with Pathmark. It does **not** request the broader Google Drive permission that would allow general access to all Drive files. Google Tasks and Google Calendar permissions are optional and requested at the point of use for the sync actions they support.
     """)
     st.markdown("""
     <div class="safe-rule"><strong>Pathmark does not collect your Google password.</strong><br>You sign in on Google's page. Pathmark receives confirmation from Google after you approve access.</div>
     """, unsafe_allow_html=True)
+
+    st.subheader("Security model")
+    st.markdown("""
+    Pathmark is designed so your private planning and Spending Plan content stays in Google files owned by you. Supabase stores access/profile metadata only, not your projects, routines, finance records, tasklist rows, Google Tasks content, or Google Calendar content.
+
+    Pathmark follows these security guardrails:
+
+    - Use the least privileged Google scopes practical for the feature.
+    - Keep Google Tasks and Google Calendar Sync optional.
+    - Create or reuse dedicated Pathmark task lists and calendars rather than treating your whole Google account as Pathmark content.
+    - Store Google task/event IDs so linked items can be updated without relying on broad title searches.
+    - Never store OAuth tokens in Supabase, GitHub, logs, or user-visible error messages.
+    - Create safety backups before import, restore, reset, and bulk sync actions.
+    - Confirm destructive actions before running them.
+    - Make clear that resetting Pathmark Sync does not automatically delete Google Tasks or Google Calendar items.
+    """)
+
 
     st.subheader("Branding during Google sign-in")
     st.markdown("""
@@ -8236,7 +8324,7 @@ def about_privacy_tab() -> None:
     with st.expander("Service-by-service summary", expanded=False):
         st.markdown("""
         **Google**  
-        Used for sign-in, your own Pathmark Sync sheet, optional finance templates and optional backup sheets. Pathmark requests `drive.file`, which limits Drive access to files Pathmark creates or files you explicitly authorise for Pathmark. Optional Google Tasks Sync uses Tasks permission to create/read linked checklist items and completion status. Optional Google Calendar Sync uses Calendar permission to create/update linked Pathmark events and check moved or missing events. Pathmark does not have general access to your whole Google Drive.
+        Used for sign-in, your own Pathmark Sync sheet, optional finance templates and optional backup sheets. Pathmark requests `drive.file`, which limits Drive access to files Pathmark creates or files you explicitly authorise for Pathmark. Optional Google Tasks Sync asks for Tasks permission at the point of use to create/read linked checklist items and completion status in a dedicated Pathmark task list. Optional Google Calendar Sync asks for Calendar permission at the point of use to create/update linked Pathmark events in a dedicated Pathmark calendar and check moved or missing events. Pathmark does not have general access to your whole Google Drive.
 
         **Streamlit**  
         Hosts the Pathmark web app. Deployment credentials are kept in Streamlit secrets, outside the GitHub repository.
@@ -8260,6 +8348,68 @@ def about_privacy_tab() -> None:
         """)
 
     st.caption("This page explains the current Pathmark beta design. It is not a formal legal privacy policy, but it is intended to help beta testers understand what access they are granting and where their information is stored.")
+
+def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
+    """Render a recovery path when Pathmark Sync is missing.
+
+    Returns True when the caller should stop normal rendering for this run.
+    """
+    st.warning("Pathmark Sync was not found.")
+    recovery_message = st.session_state.get("sync_sheet_recovery_message", "Pathmark could not find your Pathmark Sync sheet in Google Drive. It may have been deleted, moved, or access may have changed.")
+    st.write(safe_user_message(recovery_message))
+    st.caption("You can recreate a fresh Pathmark Sync sheet, recreate it with starter examples, restore from a Pathmark Backup sheet, or check Google Drive Trash. Recreating Pathmark Sync does not delete Google Tasks or Google Calendar events, but existing sync links may become stale unless restored from backup.")
+
+    c1, c2, c3 = st.columns(3)
+    if c1.button("Recreate Pathmark Sync", key=f"recreate_sync_{context}", use_container_width=True):
+        ok, new_sheet_id, url_or_msg = create_user_sync_sheet()
+        if ok:
+            st.session_state.pop("sync_sheet_recovery_message", None)
+            st.success("Created a new Pathmark Sync sheet.")
+            if url_or_msg:
+                st.link_button("Open Pathmark Sync", url_or_msg, use_container_width=True)
+            st.rerun()
+        else:
+            st.error(safe_user_message(url_or_msg))
+
+    if c2.button("Recreate with starter examples", key=f"recreate_sync_examples_{context}", use_container_width=True):
+        ok, new_sheet_id, url_or_msg = create_user_sync_sheet()
+        if ok:
+            ok_examples, msg_examples = append_many_online_records(new_sheet_id, build_starter_example_records())
+            st.session_state.pop("sync_sheet_recovery_message", None)
+            if ok_examples:
+                st.success("Created a new Pathmark Sync sheet with starter examples.")
+            else:
+                st.warning(safe_user_message(msg_examples))
+            if url_or_msg:
+                st.link_button("Open Pathmark Sync", url_or_msg, use_container_width=True)
+            st.rerun()
+        else:
+            st.error(safe_user_message(url_or_msg))
+
+    c3.link_button("Check Google Drive Trash", "https://drive.google.com/drive/trash", use_container_width=True)
+
+    with st.expander("Restore from Pathmark Backup", expanded=True):
+        ok_backups, backups, backup_msg = list_pathmark_backup_sheets("")
+        if ok_backups and backups:
+            labels = [f"{b.get('name','Untitled backup')} — {b.get('modifiedTime','')}" for b in backups]
+            selected_label = st.selectbox("Choose a backup sheet", labels, key=f"missing_sync_backup_choice_{context}")
+            selected = backups[labels.index(selected_label)] if selected_label in labels else backups[0]
+            st.link_button("Open selected backup", selected.get("webViewLink", ""), use_container_width=True)
+            confirm = st.checkbox("I understand Pathmark will create a new Pathmark Sync sheet from this backup.", key=f"missing_sync_backup_confirm_{context}")
+            if st.button("Restore backup into new Pathmark Sync", key=f"missing_sync_restore_backup_{context}", use_container_width=True, disabled=not confirm):
+                ok_restore, new_sheet_id, msg_restore = restore_missing_pathmark_sync_from_backup(selected.get("id", ""))
+                if ok_restore:
+                    st.success(safe_user_message(msg_restore))
+                    st.rerun()
+                else:
+                    st.error(safe_user_message(msg_restore))
+        elif ok_backups:
+            st.info("No Pathmark Backup sheets were found. Use Recreate Pathmark Sync to start fresh, or check Google Drive Trash if you deleted the sheet recently.")
+        else:
+            st.warning(safe_user_message(backup_msg))
+
+    return True
+
 
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
@@ -8292,6 +8442,10 @@ def on_the_go_tab() -> None:
         if auth_url:
             st.link_button("Sign in with Google", auth_url, use_container_width=True)
         st.caption("Pathmark asks for permission to create or update Pathmark files you use with the app. Details are in About & Privacy.")
+        return
+
+    if credentials and not sheet_id:
+        render_missing_sync_sheet_recovery("online")
         return
 
     if not (credentials and sheet_id):
@@ -8368,6 +8522,10 @@ def spending_plan_beta_tab() -> None:
         if auth_url:
             st.link_button("Sign in with Google", auth_url, use_container_width=True)
         st.caption("Pathmark asks for permission to create or update Pathmark files you use with the app. Details are in About & Privacy.")
+        return
+
+    if credentials and not sheet_id:
+        render_missing_sync_sheet_recovery("spending")
         return
 
     if not (credentials and sheet_id):
