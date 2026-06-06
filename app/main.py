@@ -615,6 +615,17 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 }}
 .pillar-card::before, .card::before, .pathmark-card::before, .workspace-card::before {{ content: none !important; }}
 
+.progress-summary { margin:.65rem 0 1rem; }
+.progress-head { display:flex; justify-content:space-between; gap:.8rem; align-items:baseline; margin-bottom:.35rem; color:var(--muted); font-size:.92rem; font-weight:720; }
+.progress-track { height:9px; border-radius:999px; background:color-mix(in srgb, var(--muted) 18%, transparent); overflow:hidden; border:1px solid var(--line); }
+.progress-fill { height:100%; background:var(--accent); border-radius:999px; min-width:0; }
+.status-chip { display:inline-flex; align-items:center; border-radius:999px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); padding:.22rem .58rem; font-size:.82rem; font-weight:760; margin:.15rem .25rem .15rem 0; }
+.status-chip.done { background:color-mix(in srgb, #16A34A 18%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #16A34A 45%, var(--line)); }
+.status-chip.pending { background:color-mix(in srgb, var(--accent) 13%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.status-chip.review { background:color-mix(in srgb, #B45309 15%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #B45309 45%, var(--line)); }
+.status-chip.muted { background:var(--surface-2); color:var(--muted); }
+.item-status-row { margin-top:.55rem; display:flex; flex-wrap:wrap; gap:.2rem; }
+
 /* Appearance contrast is paired through Streamlit CSS variables above.
    Avoid separate dark-mode text rules; they can place light text on a light
    card if the menu changes before a full rerun. */
@@ -3641,12 +3652,24 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
         helper_line = ""
         if helper_titles:
             helper_line = "<p><strong>Small action checklist items:</strong> " + html.escape("; ".join(helper_titles)) + "</p>"
+        task_items_for_action = action_task_items(sheet_id, rid) if rid else pd.DataFrame()
+        task_status_bits = []
+        if not task_items_for_action.empty:
+            for _, task_row in task_items_for_action.iterrows():
+                task_title = str(task_row.get("title", "") or "Checklist item").strip()
+                task_status_bits.append(status_chip(f"{task_title}: {plain_task_label_for_status(task_row)}"))
+        elif str(data.get("google_task_id", "") or "").strip() or str(data.get("google_task_status", "") or "").strip():
+            task_status_bits.append(status_chip(_task_sync_user_label(pd.Series(data))))
+        else:
+            task_status_bits.append(status_chip("Not sent to Google Tasks"))
+        task_status_line = "<div class='item-status-row'>" + "".join(task_status_bits) + "</div>"
         st.markdown(
             f"""
             <div class='step-card'>
               <h3>{html.escape(title)}</h3>
               <p>{html.escape(outputs)}</p>
               <p>{html.escape(detail)}</p>
+              {task_status_line}
               {helper_line}
             </div>
             """,
@@ -3883,6 +3906,12 @@ def render_goal_manager(sheet_id: str) -> None:
         if selected_id:
             g = goals[goals["goal_id"] == selected_id].iloc[0].to_dict()
             st.markdown(f"### {g.get('title','Project')}")
+            project_items = project_task_items(sheet_id, selected_id)
+            project_done, project_total = completion_counts(project_items)
+            if project_total:
+                render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project checklist items complete")
+            else:
+                st.caption("No Google Tasks checklist items are linked to this project yet.")
             tabs = st.tabs(["Project details", "Project steps", "Archive"])
             with tabs[0]:
                 with st.form(f"online_edit_goal_{selected_id}"):
@@ -4006,6 +4035,14 @@ def render_routine_manager(sheet_id: str) -> None:
         if selected_id:
             r = routines[routines["routine_id"] == selected_id].iloc[0].to_dict()
             st.markdown(f"### {r.get('title','Routine')}")
+            routine_items_week = routine_task_items(sheet_id, selected_id, current_week_only=True)
+            routine_done, routine_total = completion_counts(routine_items_week)
+            week_start_dt, week_end_dt, _week_pref = _week_bounds_for_settings(sheet_id)
+            if routine_total:
+                render_completion_summary(routine_done, routine_total, f"{routine_done} of {routine_total} routine checklist items complete this week")
+                st.caption(f"Current week: {week_start_dt.strftime('%d/%m/%Y')} to {week_end_dt.strftime('%d/%m/%Y')}")
+            else:
+                st.caption("No Google Tasks checklist items are due for this routine this week.")
             tabs = st.tabs(["Details", "Activities", "Repeat", "Manage"])
             with tabs[0]:
                 with st.form(f"online_edit_routine_{selected_id}"):
@@ -6742,6 +6779,156 @@ def _task_sync_user_label(row: pd.Series) -> str:
     return google_status.replace("_", " ").title()
 
 
+def _normalise_status_for_chip(label: str) -> str:
+    text = str(label or "").lower()
+    if "completed" in text or text in {"done", "complete"}:
+        return "done"
+    if "pending" in text or "synced" in text or "linked" in text or "needsaction" in text:
+        return "pending"
+    if "missing" in text or "review" in text or "changed" in text:
+        return "review"
+    return "muted"
+
+
+def status_chip(label: str) -> str:
+    cls = _normalise_status_for_chip(label)
+    return f"<span class='status-chip {cls}'>{html.escape(str(label or 'Not sent'))}</span>"
+
+
+def progress_bar_html(done: int, total: int, label: str = "") -> str:
+    total = max(int(total or 0), 0)
+    done = max(min(int(done or 0), total), 0) if total else 0
+    percent = int(round((done / total) * 100)) if total else 0
+    display = label or (f"{done} of {total} complete" if total else "No items planned")
+    return (
+        "<div class='progress-summary'>"
+        f"<div class='progress-head'><span>{html.escape(display)}</span><span>{percent}%</span></div>"
+        "<div class='progress-track'>"
+        f"<div class='progress-fill' style='width:{percent}%;'></div>"
+        "</div></div>"
+    )
+
+
+def _today_nz() -> date:
+    try:
+        return datetime.now(_pathmark_nz_timezone()).date()
+    except Exception:
+        return date.today()
+
+
+def _week_bounds_for_settings(sheet_id: str, ref_date: date | None = None) -> tuple[date, date, str]:
+    start_pref = online_setting(sheet_id, "week_starts_on", "Monday").strip().title() or "Monday"
+    if start_pref not in {"Monday", "Sunday"}:
+        start_pref = "Monday"
+    ref = ref_date or _today_nz()
+    start_weekday = 6 if start_pref == "Sunday" else 0
+    delta = (ref.weekday() - start_weekday) % 7
+    start = ref - timedelta(days=delta)
+    return start, start + timedelta(days=6), start_pref
+
+
+def _row_date_in_range(row: pd.Series, start: date, end: date) -> bool:
+    raw = str(row.get("due_date", "") or row.get("scheduled_date", "") or "").strip()
+    dt = parse_online_date(raw)
+    return bool(dt and start <= dt <= end)
+
+
+def task_prompt_matches_parent(row: pd.Series, parent_id: str, parent_kind: str) -> bool:
+    parent_id = str(parent_id or "").strip()
+    if not parent_id:
+        return False
+    parent_kind = str(parent_kind or "").strip().lower()
+    linked_parent_id = str(row.get("linked_parent_id", "") or "").strip()
+    linked_parent_type = str(row.get("linked_parent_type", "") or "").strip().lower()
+    linked_record_id = str(row.get("linked_record_id", "") or "").strip()
+    source_id = str(row.get("source_id", "") or row.get("id", "") or "").strip()
+    source_type = str(row.get("source_record_type", "") or row.get("linked_record_type", "") or "").strip().lower()
+    if linked_parent_id == parent_id and (not linked_parent_type or parent_kind in linked_parent_type):
+        return True
+    if linked_record_id == parent_id:
+        return True
+    if source_id == parent_id and parent_kind in source_type:
+        return True
+    return False
+
+
+def task_prompt_matches_action(row: pd.Series, action_id: str) -> bool:
+    action_id = str(action_id or "").strip()
+    if not action_id:
+        return False
+    return action_id in {
+        str(row.get("source_id", "") or row.get("id", "") or "").strip(),
+        str(row.get("linked_record_id", "") or "").strip(),
+    }
+
+
+def is_task_completed_row(row: pd.Series) -> bool:
+    google_status = str(row.get("google_task_status", "") or row.get("status", "") or "").strip().lower()
+    sync_status = str(row.get("sync_status", "") or "").strip().lower()
+    return google_status == "completed" or sync_status in {"completed", "done"}
+
+
+def completion_counts(items: pd.DataFrame) -> tuple[int, int]:
+    if items is None or items.empty:
+        return 0, 0
+    total = len(items)
+    done = int(sum(1 for _, row in items.iterrows() if is_task_completed_row(row)))
+    return done, total
+
+
+def project_task_items(sheet_id: str, project_id: str) -> pd.DataFrame:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return prompts
+    mask = prompts.apply(lambda r: task_prompt_matches_parent(r, project_id, "project"), axis=1)
+    return prompts[mask].copy()
+
+
+def routine_task_items(sheet_id: str, routine_id: str, *, current_week_only: bool = False) -> pd.DataFrame:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return prompts
+    mask = prompts.apply(lambda r: task_prompt_matches_parent(r, routine_id, "routine"), axis=1)
+    df = prompts[mask].copy()
+    if current_week_only and not df.empty:
+        start, end, _ = _week_bounds_for_settings(sheet_id)
+        df = df[df.apply(lambda r: _row_date_in_range(r, start, end), axis=1)].copy()
+    return df
+
+
+def action_task_items(sheet_id: str, action_id: str) -> pd.DataFrame:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return prompts
+    mask = prompts.apply(lambda r: task_prompt_matches_action(r, action_id), axis=1)
+    return prompts[mask].copy()
+
+
+def plain_task_label_for_status(row: pd.Series) -> str:
+    try:
+        return _task_sync_user_label(row)
+    except Exception:
+        status = str(row.get("google_task_status", "") or row.get("status", "") or "").strip()
+        return "Completed in Google Tasks" if status.lower() == "completed" else "Pending in Google Tasks" if status else "Not sent to Google Tasks"
+
+
+def render_completion_summary(done: int, total: int, label: str) -> None:
+    st.markdown(progress_bar_html(done, total, label), unsafe_allow_html=True)
+
+
+def routine_weekly_completion_summary(sheet_id: str) -> tuple[int, int, str]:
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        return 0, 0, "Monday"
+    start, end, week_start = _week_bounds_for_settings(sheet_id)
+    def _routine_week_row(row: pd.Series) -> bool:
+        source_type = str(row.get("source_record_type", "") or row.get("linked_record_type", "") or "").lower()
+        parent_type = str(row.get("linked_parent_type", "") or "").lower()
+        return ("routine" in source_type or "routine" in parent_type) and _row_date_in_range(row, start, end)
+    weekly = prompts[prompts.apply(_routine_week_row, axis=1)].copy()
+    done, total = completion_counts(weekly)
+    return done, total, week_start
+
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Sync")
     st.write("Use Google Tasks as the daily checklist surface. Pathmark remains the planning source of truth, while Google Tasks can carry completion status back into Pathmark.")
@@ -6905,6 +7092,19 @@ def render_online_settings(sheet_id: str) -> None:
     if c3.button("Disconnect Google access", use_container_width=True):
         revoke_google_session_token()
         st.rerun()
+
+    with st.expander("Week and completion settings", expanded=False):
+        st.write("Choose how Pathmark groups weekly routine completion on the Dashboard and Routines tab.")
+        current_week_start = online_setting(sheet_id, "week_starts_on", "Monday").strip().title() or "Monday"
+        options = ["Monday", "Sunday"]
+        selected_week_start = st.selectbox("Week starts on", options, index=options.index(current_week_start) if current_week_start in options else 0, key="settings_week_starts_on")
+        if st.button("Save week setting", use_container_width=True):
+            ok, msg = save_online_setting(sheet_id, "week_starts_on", selected_week_start, source="pathmark_settings")
+            if ok:
+                st.success("Week setting saved.")
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
 
     with st.expander("Security & permissions", expanded=False):
         st.write("Pathmark keeps Google permissions as narrow and visible as possible.")
@@ -8469,6 +8669,11 @@ def render_online_overview(sheet_id: str) -> None:
             routine_actions = actions[actions["routine_id"].fillna("").astype(str).str.strip().ne("")].copy()
 
     routine_count = len(routine_actions) if not routine_actions.empty else 0
+    routine_done_week, routine_total_week, week_start_pref = routine_weekly_completion_summary(sheet_id)
+    if routine_total_week:
+        routine_progress_label = f"{routine_done_week} of {routine_total_week} routine activities complete this week"
+    else:
+        routine_progress_label = "No routine activities planned this week" if routine_count else "routine activities set up"
     project_count = len(project_actions) if not project_actions.empty else 0
     project_completed = 0
     if not project_actions.empty:
@@ -8502,8 +8707,8 @@ def render_online_overview(sheet_id: str) -> None:
         <div class="kicker">Stability</div>
         <h3>Wellbeing routines</h3>
         <p>Protect the repeating supports that keep you steady before life gets busy.</p>
-        <div class="pillar-stat">{routine_count}</div>
-        <div class="pillar-foot">routine activities set up</div>
+        <div class="pillar-stat">{routine_done_week if routine_total_week else routine_count}</div>
+        <div class="pillar-foot">{html.escape(routine_progress_label)}</div>
       </div>
       <div class="pillar-card">
         <div class="kicker">Progress</div>

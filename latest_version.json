@@ -1,21 +1,21 @@
 {
-  "version": "0.6.71",
+  "version": "0.6.72",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_71.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_71.zip",
-  "release": "v0.6.71 Google sync status persistence and backup control",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_71.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_71.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_71.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_71.zip",
-  "label": "Google sync status persistence and backup control",
-  "release_notes": "Keeps completed Google Tasks visible, uses plain-language pending/completed status consistently, improves Calendar datetime comparison, and stops normal sync actions creating excessive backups by default.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_72.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_72.zip",
+  "release": "v0.6.72 Routine and project completion views",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_72.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_72.zip",
+  "label": "Routine and project completion views",
+  "release_notes": "Adds weekly routine completion to Dashboard and Routines, project completion summaries to Projects, Google Tasks status chips for steps/activities, and a setting for week start day.",
   "notes": [
-    "Completed Google Tasks remain visible in Pathmark",
-    "Pending/completed Google Tasks use plain-language status labels",
-    "Google Calendar pull comparison parses timezone-aware RFC3339 values correctly",
-    "Tasks/Calendar safety backups default to off for normal sync",
-    "Added backup cleanup control in Settings"
+    "Dashboard Stability tile shows routine completion for the current week",
+    "Routines tab shows weekly completion progress for the selected routine",
+    "Projects tab shows project checklist completion progress",
+    "Project steps and routine activities show Google Tasks status chips",
+    "Settings includes Week starts on with Monday as default"
   ]
 }
