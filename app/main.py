@@ -3395,14 +3395,14 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     area_expression = f"area-{uuid.uuid4().hex}"
     area_making = f"area-{uuid.uuid4().hex}"
     areas = [
-        {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "Sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Body And Stability", "google_calendar_colour_id": "2", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_expression, "area_name": "Expression And Culture", "description": "Creative practice, study, language, culture, reading and skills you want to develop.", "colour": "Grape", "status": "active", "default_calendar": "Expression And Culture", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Expression And Culture", "google_calendar_colour_id": "3", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_home, "area_name": "Home And Garden", "description": "Meals, household reset, gardening, repairs and routines that support home life.", "colour": "Basil", "status": "active", "default_calendar": "Home And Garden", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Home And Garden", "google_calendar_colour_id": "10", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
-        {"area_id": area_making, "area_name": "Making And Craft", "description": "Practical making, craft, tools, materials and hands-on projects.", "colour": "Tangerine", "status": "active", "default_calendar": "Making And Craft", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Making And Craft", "google_calendar_colour_id": "6", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename or archive if it does not fit."},
+        {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "Sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Body And Stability", "google_calendar_colour_id": "2", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_expression, "area_name": "Expression And Culture", "description": "Creative practice, study, language, culture, reading and skills you want to develop.", "colour": "Grape", "status": "active", "default_calendar": "Expression And Culture", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Expression And Culture", "google_calendar_colour_id": "3", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_home, "area_name": "Home And Garden", "description": "Meals, household reset, gardening, repairs and routines that support home life.", "colour": "Basil", "status": "active", "default_calendar": "Home And Garden", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Home And Garden", "google_calendar_colour_id": "10", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_making, "area_name": "Making And Craft", "description": "Practical making, craft, tools, materials and hands-on projects.", "colour": "Tangerine", "status": "active", "default_calendar": "Making And Craft", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Making And Craft", "google_calendar_colour_id": "6", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
     ]
 
     def routine(title: str, area_id: str, area_name: str, purpose: str, frequency: str, preferred_days: str, next_due: str, checklist: str = "") -> dict[str, Any]:
-        return {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": area_id, "area_name": area_name, "title": title, "description": purpose, "frequency": frequency, "preferred_days": preferred_days, "duration_minutes": "", "status": "Active", "purpose": purpose, "next_due": next_due, "checklist": checklist, "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."}
+        return {"routine_id": f"routine-{uuid.uuid4().hex}", "area_id": area_id, "area_name": area_name, "title": title, "description": purpose, "frequency": frequency, "preferred_days": preferred_days, "duration_minutes": "", "status": "Active", "purpose": purpose, "next_due": next_due, "checklist": checklist, "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."}
 
     sleep_id = f"routine-{uuid.uuid4().hex}"
     cook_weeknight_id = f"routine-{uuid.uuid4().hex}"
@@ -3412,13 +3412,13 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     violin_id = f"routine-{uuid.uuid4().hex}"
     running_id = f"routine-{uuid.uuid4().hex}"
     routines = [
-        {"routine_id": sleep_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Protect an 8-hour sleep block", "description": "Give tomorrow a better starting point by protecting enough time for sleep.", "frequency": "Daily", "preferred_days": "Every day", "duration_minutes": "480", "status": "Active", "purpose": "Protect sleep before adding more work to the system.", "next_due": date.today().isoformat(), "checklist": "Set wind-down time\nPut phone away\nPrepare tomorrow's first action", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": cook_weeknight_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": friday_takeaways_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": sunday_meal_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": strength_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Strength training", "description": "A four-session weekly strength routine split into A, B, C and D activities.", "frequency": "Weekly", "preferred_days": "Monday, Tuesday, Thursday, Friday", "duration_minutes": "45", "status": "Active", "purpose": "Keep strength work visible and repeatable.", "next_due": next_weekday_iso("Monday"), "checklist": "Warm up\nMain lift\nAccessory work\nLog session", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": violin_id, "area_id": area_expression, "area_name": "Expression And Culture", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
-        {"routine_id": running_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Run 30 minutes", "description": "A weekday running habit that can be reduced or paused if recovery needs it.", "frequency": "Weekdays", "preferred_days": "Monday, Tuesday, Wednesday, Thursday, Friday", "duration_minutes": "30", "status": "Active", "purpose": "Make regular cardiovascular work easy to see in the calendar.", "next_due": next_weekday_iso("Monday"), "checklist": "Shoes ready\nEasy pace\nLog how it felt", "notes": "Starter routine. Edit, pause, retire or archive if it does not fit."},
+        {"routine_id": sleep_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Protect an 8-hour sleep block", "description": "Give tomorrow a better starting point by protecting enough time for sleep.", "frequency": "Daily", "preferred_days": "Every day", "duration_minutes": "480", "status": "Active", "purpose": "Protect sleep before adding more work to the system.", "next_due": date.today().isoformat(), "checklist": "Set wind-down time\nPut phone away\nPrepare tomorrow's first action", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": cook_weeknight_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": friday_takeaways_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": sunday_meal_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": strength_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Strength training", "description": "A four-session weekly strength routine split into A, B, C and D activities.", "frequency": "Weekly", "preferred_days": "Monday, Tuesday, Thursday, Friday", "duration_minutes": "45", "status": "Active", "purpose": "Keep strength work visible and repeatable.", "next_due": next_weekday_iso("Monday"), "checklist": "Warm up\nMain lift\nAccessory work\nLog session", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": violin_id, "area_id": area_expression, "area_name": "Expression And Culture", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": running_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Run 30 minutes", "description": "A weekday running habit that can be reduced or paused if recovery needs it.", "frequency": "Weekdays", "preferred_days": "Monday, Tuesday, Wednesday, Thursday, Friday", "duration_minutes": "30", "status": "Active", "purpose": "Make regular cardiovascular work easy to see in the calendar.", "next_due": next_weekday_iso("Monday"), "checklist": "Shoes ready\nEasy pace\nLog how it felt", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
     ]
 
     def activity(routine_id: str, area_id: str, area_name: str, title: str, day: str, start: str, end: str, minutes: str, first_step: str, location: str = "") -> dict[str, Any]:
@@ -4604,11 +4604,44 @@ def load_spending_income_starters(sheet_id: str) -> tuple[bool, str]:
             "monthly_amount": "0",
             "yearly_amount": "0",
             "annual_amount": "0",
-            "notes": "Starter income source. Add an amount if this applies, or archive it later.",
+            "notes": "Starter income source. Add an amount if this applies, set it to $0.00, deactivate it, or delete the row if it does not fit.",
             "status": "active",
             "source": "Pathmark Spending Plan income setup",
         })
     return append_many_online_records(sheet_id, {"spending_income": records})
+
+
+def ensure_spending_plan_default_rows(sheet_id: str) -> None:
+    """Ensure the Spending Plan opens with editable starter rows.
+
+    This avoids making users press separate "load common sources" buttons before
+    they can set up income, spending, AP roles, or projections. Existing data is
+    never overwritten.
+    """
+    if not sheet_id:
+        return
+    cache_key = f"spending_defaults_checked::{sheet_id}"
+    if st.session_state.get(cache_key):
+        return
+    st.session_state[cache_key] = True
+    try:
+        changed = False
+        if active_online_df(read_online_table(sheet_id, "spending_income")).empty:
+            ok, _msg = load_spending_income_starters(sheet_id)
+            changed = changed or ok
+        if active_online_df(read_online_table(sheet_id, "spending_expenses")).empty:
+            ok, _msg = load_spending_starter_categories(sheet_id)
+            changed = changed or ok
+        if active_online_df(read_online_table(sheet_id, "spending_accounts")).empty:
+            summary = spending_summary(sheet_id)
+            ok, _msg = append_many_online_records(sheet_id, {"spending_accounts": spending_account_role_records(summary)})
+            changed = changed or ok
+        if changed:
+            clear_online_cache(sheet_id)
+    except Exception:
+        # The individual Spending Plan tabs will still show editable controls and
+        # user-facing warnings if Google Sheets is temporarily unavailable.
+        pass
 
 
 def render_spending_plan_disclaimer(compact: bool = False) -> None:
@@ -4760,15 +4793,7 @@ def render_spending_income_form(sheet_id: str) -> None:
     )
     income = active_online_df(read_online_table(sheet_id, "spending_income"))
     if income.empty:
-        st.info("Start with the common income source list from the spreadsheet, then enter amounts for the rows that apply.")
-        if st.button("Load common income sources", use_container_width=True):
-            ok, msg = load_spending_income_starters(sheet_id)
-            if ok:
-                st.session_state["spending_notice"] = msg
-                st.rerun()
-            else:
-                st.warning(safe_user_message(msg))
-        return
+        st.info("No income rows were found yet. Pathmark normally creates starter income rows automatically; refresh this page or add an income source below.")
 
     editor_rows = []
     for _, row in income.iterrows():
@@ -4993,13 +5018,8 @@ def render_spending_expense_form(sheet_id: str) -> None:
     )
     expenses = active_online_df(read_online_table(sheet_id, "spending_expenses"))
     if expenses.empty:
-        st.info("Start by loading the common spending checklist, then fill in the rows that apply to your life.")
-        if st.button("Load common spending checklist", use_container_width=True):
-            ok, msg = load_spending_starter_categories(sheet_id)
-            if ok:
-                st.session_state["spending_notice"] = msg
-                st.rerun()
-            st.warning(safe_user_message(msg))
+        st.info("No spending checklist rows were found yet. Pathmark normally creates starter spending rows automatically; refresh this page or add a custom spending item below.")
+        render_add_custom_spending_item(sheet_id, "Everyday spend", expenses)
         return
 
     kind_labels = [SPENDING_BUCKET_LABELS[k] for k in SPENDING_BUCKET_ORDER]
@@ -5423,6 +5443,7 @@ def restore_pathmark_sync_to_default(sheet_id: str, include_starter_examples: bo
         else:
             ok_default, default_msg = append_many_online_records(sheet_id, build_default_area_records())
             message += "\n" + (default_msg if ok_default else safe_user_message(default_msg))
+            ensure_spending_plan_default_rows(sheet_id)
         return True, message
     except Exception as exc:
         return False, f"Could not restore Pathmark Sync to default: {exc}"
@@ -5739,9 +5760,19 @@ def render_spending_template_tools(sheet_id: str) -> None:
 
 PROJECTION_ACCOUNT_NAMES = {
     "debt": "Projection — Debt payoff",
-    "emergency": "Projection — Emergency fund",
-    "savings": "Projection — Savings goal",
+    "emergency": "Account 3 — Emergency savings",
+    "savings": "Account 5 — Debt reduction or savings goals",
 }
+
+PROJECTION_ACCOUNT_ROLE_NAMES = [
+    "Account 1 — Hub account",
+    "Account 2 — Everyday card account",
+    "Account 3 — Emergency savings",
+    "Account 4 — Gifts, holidays, clothes and Christmas",
+    "Account 5 — Debt reduction or savings goals",
+]
+
+DEBT_PROJECTION_NAME = "Projection — Debt payoff"
 
 
 def _account_rows_by_name(sheet_id: str) -> dict[str, pd.Series]:
@@ -5819,16 +5850,19 @@ def _projection_weeks_to_target(kind: str, current: float, target: float, weekly
 
 def _projection_summary(sheet_id: str) -> dict[str, Any]:
     summary = spending_summary(sheet_id)
-    surplus_weekly = float(summary.get("surplus_weekly", 0.0) or 0.0)
-    rows = {key: _projection_row(sheet_id, key) for key in PROJECTION_ACCOUNT_NAMES}
-    debt_balance = _projection_value(rows.get("debt"), "current_balance", 0.0)
-    debt_weekly = _projection_value(rows.get("debt"), "transfer_per_week", 0.0)
-    emergency_current = _projection_value(rows.get("emergency"), "current_balance", 0.0)
-    emergency_target = _projection_value(rows.get("emergency"), "target_balance", float(summary.get("emergency_target", 0.0) or 0.0))
-    emergency_weekly = _projection_value(rows.get("emergency"), "transfer_per_week", 0.0)
-    savings_current = _projection_value(rows.get("savings"), "current_balance", 0.0)
-    savings_target = _projection_value(rows.get("savings"), "target_balance", 0.0)
-    savings_weekly = _projection_value(rows.get("savings"), "transfer_per_week", 0.0)
+    surplus_weekly = max(float(summary.get("surplus_weekly", 0.0) or 0.0), 0.0)
+    rows = _account_rows_by_name(sheet_id)
+    debt_row = rows.get(DEBT_PROJECTION_NAME)
+    emergency_row = rows.get("Account 3 — Emergency savings") or rows.get(PROJECTION_ACCOUNT_NAMES["emergency"])
+    savings_row = rows.get("Account 5 — Debt reduction or savings goals") or rows.get(PROJECTION_ACCOUNT_NAMES["savings"])
+    debt_balance = _projection_value(debt_row, "current_balance", 0.0)
+    debt_weekly = _projection_value(debt_row, "transfer_per_week", 0.0)
+    emergency_current = _projection_value(emergency_row, "current_balance", 0.0)
+    emergency_target = _projection_value(emergency_row, "target_balance", float(summary.get("emergency_target", 0.0) or 0.0))
+    emergency_weekly = _projection_value(emergency_row, "transfer_per_week", 0.0)
+    savings_current = _projection_value(savings_row, "current_balance", 0.0)
+    savings_target = _projection_value(savings_row, "target_balance", 0.0)
+    savings_weekly = _projection_value(savings_row, "transfer_per_week", 0.0)
     return {
         "surplus_weekly": surplus_weekly,
         "debt_balance": debt_balance,
@@ -5847,17 +5881,15 @@ def _projection_summary(sheet_id: str) -> dict[str, Any]:
     }
 
 
-def _projection_card_html(title: str, current: float, target: float, weekly: float, weeks: int | None, sheet_id: str, kind: str) -> str:
+def render_projection_card(title: str, current: float, target: float, weekly: float, weeks: int | None, sheet_id: str, kind: str) -> None:
     if kind == "debt":
-        done = max(target - current, 0.0) if target > 0 else 0.0
-        total = max(target, current, 0.0)
-        remaining_label = money_text(max(current, 0.0))
-        status_line = f"{remaining_label} remaining"
+        total = max(current, 0.0)
+        done = 0.0 if total else 0.0
+        headline = f"{money_text(max(current, 0.0))} remaining"
     else:
         total = max(target, 0.0)
         done = min(max(current, 0.0), total) if total else 0.0
-        remaining_label = money_text(max(target - current, 0.0))
-        status_line = f"{money_text(current)} of {money_text(target)} saved"
+        headline = f"{money_text(current)} of {money_text(target)} saved"
     percent = int(round((done / total) * 100)) if total > 0 else 0
     if weeks is None:
         date_line = "Add a weekly amount to project a date."
@@ -5866,21 +5898,21 @@ def _projection_card_html(title: str, current: float, target: float, weekly: flo
     else:
         projected = _payday_date_from_settings(sheet_id, weeks)
         date_line = f"About {weeks} week{'s' if weeks != 1 else ''} — around {projected.strftime('%d/%m/%Y')}."
-    return f"""
+    st.markdown(f"""
     <div class="card projection-card">
       <div class="kicker">{html.escape(title)}</div>
-      <h3>{html.escape(status_line)}</h3>
+      <h3>{html.escape(headline)}</h3>
       <p>{html.escape(date_line)}</p>
       <div class="progress-summary"><div class="progress-head percent-only"><span></span><span>{percent}%</span></div><div class="progress-track"><div class="progress-fill" style="width:{max(min(percent,100),0)}%;"></div></div></div>
       <div class="pillar-foot">Weekly allocation: {html.escape(money_text(weekly))}</div>
     </div>
-    """
+    """, unsafe_allow_html=True)
 
 
 def render_spending_projections(sheet_id: str) -> None:
     st.markdown("#### Projections")
     st.write(
-        "Use optional balances and targets to estimate how long debt, emergency savings and savings goals may take if the Spending Plan is followed."
+        "Use balances and targets to estimate how long debt, emergency savings and savings goals may take if the Spending Plan is followed. Income and planned outflows are pulled from the Income, Spending and APs tabs."
     )
     st.caption("These are budgeting estimates only. They are based on the figures you enter and are not financial advice.")
     summary = spending_summary(sheet_id)
@@ -5889,68 +5921,85 @@ def render_spending_projections(sheet_id: str) -> None:
     if shortfall:
         st.warning("Your planned outflows are higher than income. Projections are paused until the plan has money available to allocate.")
     else:
-        st.info(f"Current money available to allocate: **{money_text(available)} / week**.")
+        st.info(f"Current money available to allocate from the Assessment tab: **{money_text(available)} / week**.")
 
     proj = _projection_summary(sheet_id)
     day_options = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     frequency_options = ["Weekly", "Fortnightly", "Monthly"]
-    with st.form("spending_projection_settings_form", clear_on_submit=False):
+    accounts = _account_rows_by_name(sheet_id)
+
+    st.markdown("##### Pay timing")
+    with st.form("spending_projection_payday_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
         pay_frequency = c1.selectbox("Pay frequency", frequency_options, index=frequency_options.index(proj.get("pay_frequency", "Weekly")) if proj.get("pay_frequency", "Weekly") in frequency_options else 0)
-        pay_day = c2.selectbox("Pay day", day_options, index=day_options.index(proj.get("pay_day", "Monday")) if proj.get("pay_day", "Monday") in day_options else 0)
-        st.markdown("##### Balances and targets")
+        pay_day = c2.selectbox("Pay day money arrives in the hub account", day_options, index=day_options.index(proj.get("pay_day", "Monday")) if proj.get("pay_day", "Monday") in day_options else 0)
+        save_payday = st.form_submit_button("Save pay timing", use_container_width=True)
+    if save_payday:
+        ok1, msg1 = save_online_setting(sheet_id, "spending_pay_frequency", pay_frequency, source="spending_projections")
+        ok2, msg2 = save_online_setting(sheet_id, "spending_pay_day", pay_day, source="spending_projections")
+        if ok1 and ok2:
+            spending_save_and_refresh("Saved projection pay timing.")
+        else:
+            st.warning("Could not save pay timing: " + "; ".join([safe_user_message(m) for ok,m in [(ok1,msg1),(ok2,msg2)] if not ok]))
+
+    st.markdown("##### Account balances")
+    st.caption("These are optional. Enter the current balances of the five Spending Plan account roles, plus any separate debt balance if relevant.")
+    with st.form("spending_projection_balances_form", clear_on_submit=False):
+        balance_values: dict[str, float] = {}
+        target_values: dict[str, float] = {}
+        transfer_values: dict[str, float] = {}
+        for account_name in PROJECTION_ACCOUNT_ROLE_NAMES:
+            row = accounts.get(account_name)
+            st.markdown(f"**{account_name}**")
+            b1, b2, b3 = st.columns(3)
+            balance_values[account_name] = b1.number_input(f"Current balance — {account_name}", min_value=0.0, step=50.0, value=_projection_value(row, "current_balance", 0.0), format="%.2f", key=f"proj_balance_{account_name}")
+            target_default = _projection_value(row, "target_balance", float(summary.get("emergency_target", 0.0) or 0.0) if "Emergency" in account_name else 0.0)
+            target_values[account_name] = b2.number_input(f"Target balance — {account_name}", min_value=0.0, step=50.0, value=target_default, format="%.2f", key=f"proj_target_{account_name}")
+            transfer_default = _projection_value(row, "transfer_per_week", float(summary.get("surplus_weekly", 0.0) or 0.0) if "Debt reduction" in account_name else 0.0)
+            transfer_values[account_name] = b3.number_input(f"Weekly transfer — {account_name}", min_value=0.0, step=10.0, value=max(transfer_default, 0.0), format="%.2f", key=f"proj_transfer_{account_name}")
+        st.markdown("**Separate debt balance**")
+        debt_row = accounts.get(DEBT_PROJECTION_NAME)
         d1, d2 = st.columns(2)
-        debt_balance = d1.number_input("Current debt balance", min_value=0.0, step=100.0, value=float(proj.get("debt_balance", 0.0) or 0.0), format="%.2f")
-        debt_weekly = d2.number_input("Weekly debt repayment from available money", min_value=0.0, step=10.0, value=float(proj.get("debt_weekly", 0.0) or 0.0), format="%.2f")
-        e1, e2, e3 = st.columns(3)
-        emergency_current = e1.number_input("Emergency current balance", min_value=0.0, step=100.0, value=float(proj.get("emergency_current", 0.0) or 0.0), format="%.2f")
-        emergency_target = e2.number_input("Emergency target", min_value=0.0, step=100.0, value=float(proj.get("emergency_target", summary.get("emergency_target", 0.0)) or 0.0), format="%.2f")
-        emergency_weekly = e3.number_input("Weekly emergency contribution", min_value=0.0, step=10.0, value=float(proj.get("emergency_weekly", 0.0) or 0.0), format="%.2f")
-        s1, s2, s3 = st.columns(3)
-        savings_current = s1.number_input("Savings goal current balance", min_value=0.0, step=100.0, value=float(proj.get("savings_current", 0.0) or 0.0), format="%.2f")
-        savings_target = s2.number_input("Savings goal target", min_value=0.0, step=100.0, value=float(proj.get("savings_target", 0.0) or 0.0), format="%.2f")
-        savings_weekly = s3.number_input("Weekly savings contribution", min_value=0.0, step=10.0, value=float(proj.get("savings_weekly", 0.0) or 0.0), format="%.2f")
-        total_allocated = debt_weekly + emergency_weekly + savings_weekly
+        debt_balance = d1.number_input("Current debt balance", min_value=0.0, step=100.0, value=_projection_value(debt_row, "current_balance", 0.0), format="%.2f")
+        debt_weekly = d2.number_input("Weekly debt repayment from available money", min_value=0.0, step=10.0, value=_projection_value(debt_row, "transfer_per_week", 0.0), format="%.2f")
+        total_allocated = sum(transfer_values.values()) + debt_weekly
         st.caption(f"Weekly projection allocations: {money_text(total_allocated)}. Current available to allocate: {money_text(available)}.")
-        save_projection = st.form_submit_button("Save projection settings", use_container_width=True)
-    if save_projection:
+        save_balances = st.form_submit_button("Save balances and projection amounts", use_container_width=True)
+    if save_balances:
         warnings = []
         if not shortfall and total_allocated > available + 0.005:
             warnings.append("Projection allocations are higher than the current money available to allocate. Pathmark will save them, but the estimate assumes you can actually fund those amounts.")
-        ok_settings_1, msg1 = save_online_setting(sheet_id, "spending_pay_frequency", pay_frequency, source="spending_projections")
-        ok_settings_2, msg2 = save_online_setting(sheet_id, "spending_pay_day", pay_day, source="spending_projections")
-        account_updates = [
-            (PROJECTION_ACCOUNT_NAMES["debt"], {"purpose": "Projected debt payoff based on the weekly amount entered.", "current_balance": str(debt_balance), "target_balance": "0", "transfer_per_week": str(debt_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
-            (PROJECTION_ACCOUNT_NAMES["emergency"], {"purpose": "Projected emergency fund target based on the weekly amount entered.", "current_balance": str(emergency_current), "target_balance": str(emergency_target), "transfer_per_week": str(emergency_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
-            (PROJECTION_ACCOUNT_NAMES["savings"], {"purpose": "Projected savings goal based on the weekly amount entered.", "current_balance": str(savings_current), "target_balance": str(savings_target), "transfer_per_week": str(savings_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"}),
-        ]
         failures = []
-        if not ok_settings_1:
-            failures.append(safe_user_message(msg1))
-        if not ok_settings_2:
-            failures.append(safe_user_message(msg2))
-        for name, updates in account_updates:
-            ok, msg = _upsert_spending_account_by_name(sheet_id, name, updates)
+        for account_name in PROJECTION_ACCOUNT_ROLE_NAMES:
+            updates = {
+                "current_balance": str(balance_values[account_name]),
+                "target_balance": str(target_values[account_name]),
+                "transfer_per_week": str(transfer_values[account_name]),
+                "notes": "Balance and target updated from Spending Plan projections.",
+                "source": "Spending Plan projections",
+            }
+            ok, msg = _upsert_spending_account_by_name(sheet_id, account_name, updates)
             if not ok:
                 failures.append(safe_user_message(msg))
+        ok_debt, msg_debt = _upsert_spending_account_by_name(sheet_id, DEBT_PROJECTION_NAME, {"purpose": "Projected debt payoff based on the weekly amount entered.", "current_balance": str(debt_balance), "target_balance": "0", "transfer_per_week": str(debt_weekly), "notes": "Budgeting estimate only.", "source": "Spending Plan projections"})
+        if not ok_debt:
+            failures.append(safe_user_message(msg_debt))
         if failures:
             st.warning("Some projection settings could not be saved: " + "; ".join(failures[:3]))
         else:
-            msg = "Saved Spending Plan projections."
             if warnings:
                 st.warning(" ".join(warnings))
-            spending_save_and_refresh(msg)
+            spending_save_and_refresh("Saved Spending Plan balances and projections.")
 
     proj = _projection_summary(sheet_id)
     st.markdown("#### Estimated pathway")
-    st.markdown(
-        "<div class='pillar-grid'>" +
-        _projection_card_html("Debt payoff", proj["debt_balance"], max(proj["debt_balance"], 0.0), proj["debt_weekly"], proj["debt_weeks"], sheet_id, "debt") +
-        _projection_card_html("Emergency fund", proj["emergency_current"], proj["emergency_target"], proj["emergency_weekly"], proj["emergency_weeks"], sheet_id, "emergency") +
-        _projection_card_html("Savings goal", proj["savings_current"], proj["savings_target"], proj["savings_weekly"], proj["savings_weeks"], sheet_id, "savings") +
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        render_projection_card("Debt payoff", proj["debt_balance"], max(proj["debt_balance"], 0.0), proj["debt_weekly"], proj["debt_weeks"], sheet_id, "debt")
+    with c2:
+        render_projection_card("Emergency fund", proj["emergency_current"], proj["emergency_target"], proj["emergency_weekly"], proj["emergency_weeks"], sheet_id, "emergency")
+    with c3:
+        render_projection_card("Savings goal", proj["savings_current"], proj["savings_target"], proj["savings_weekly"], proj["savings_weeks"], sheet_id, "savings")
 
 def render_spending_records(sheet_id: str) -> None:
     st.markdown("#### Spending Plan records")
@@ -5970,6 +6019,7 @@ def render_spending_records(sheet_id: str) -> None:
 
 
 def render_spending_plan_manager(sheet_id: str) -> None:
+    ensure_spending_plan_default_rows(sheet_id)
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
 
@@ -8351,14 +8401,14 @@ def _render_wizard_nav(sheet_id: str, draft: dict[str, Any], can_next: bool, nex
     back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
     back_col, note_col, next_col = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
     with back_col:
-        go_back = st.button("‹ Back", key=f"wiz_back_{draft.get('current_step_key')}", use_container_width=True, disabled=back_disabled, help="Back")
+        go_back = st.button("‹ Back", key=f"wiz_back_{draft.get('current_step_key')}", use_container_width=True, disabled=back_disabled, help="Back", type="primary")
     with note_col:
         if can_next:
             st.markdown("<div class='wizard-nav-note'>Ready to continue.</div>", unsafe_allow_html=True)
         else:
             st.markdown("<div class='wizard-nav-note'>Complete the required question to continue.</div>", unsafe_allow_html=True)
     with next_col:
-        go_next = st.button("Next ›", key=f"wiz_next_{draft.get('current_step_key')}", use_container_width=True, disabled=not can_next, help="Next")
+        go_next = st.button("Next ›", key=f"wiz_next_{draft.get('current_step_key')}", use_container_width=True, disabled=not can_next, help="Next", type="primary")
     if go_back:
         _wizard_back(sheet_id, draft)
     if go_next:
@@ -8387,11 +8437,11 @@ def _wizard_required_text_form(
             text = st.text_input(label, value=value, placeholder=placeholder)
         c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
         with c1:
-            go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+            go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
         with c2:
             st.markdown(f"<div class='wizard-nav-note'>{html.escape(note)}</div>", unsafe_allow_html=True)
         with c3:
-            go_next = st.form_submit_button("Next ›", use_container_width=True)
+            go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
     return str(text or ""), bool(go_back), bool(go_next)
 
 
@@ -8636,11 +8686,11 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="09:00", key=f"project_start_text_{current.get('step_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
-                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
                 with c2:
                     st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
                 with c3:
-                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+                    go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
             if go_back:
                 _wizard_back(sheet_id, draft)
             if go_next:
@@ -8660,11 +8710,11 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00", key=f"project_finish_text_{current.get('step_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
-                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
                 with c2:
                     st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
                 with c3:
-                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+                    go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
             if go_back:
                 _wizard_back(sheet_id, draft)
             if go_next:
@@ -8768,11 +8818,11 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             selected_days = st.multiselect("Days", VALID_DAYS, default=[d for d in routine.get("preferred_days", []) if d in VALID_DAYS])
             c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
             with c1:
-                go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
             with c2:
                 st.markdown("<div class='wizard-nav-note'>Required for selected-day routines.</div>", unsafe_allow_html=True)
             with c3:
-                go_next = st.form_submit_button("Next ›", use_container_width=True)
+                go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
         if go_back:
             _wizard_back(sheet_id, draft)
         if go_next:
@@ -8817,11 +8867,11 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 start_text = st.text_input("Start time", value=str(current.get("calendar_start_time", "") or ""), placeholder="22:30", key=f"routine_start_text_{current.get('activity_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
-                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
                 with c2:
                     st.markdown("<div class='wizard-nav-note'>Required because this activity will become calendar time.</div>", unsafe_allow_html=True)
                 with c3:
-                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+                    go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
             if go_back:
                 _wizard_back(sheet_id, draft)
             if go_next:
@@ -8841,11 +8891,11 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="06:30", key=f"routine_finish_text_{current.get('activity_id','')}")
                 c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
                 with c1:
-                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled)
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
                 with c2:
                     st.markdown("<div class='wizard-nav-note'>Required because this activity will become calendar time.</div>", unsafe_allow_html=True)
                 with c3:
-                    go_next = st.form_submit_button("Next ›", use_container_width=True)
+                    go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
             if go_back:
                 _wizard_back(sheet_id, draft)
             if go_next:
