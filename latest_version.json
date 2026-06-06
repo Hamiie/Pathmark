@@ -1,18 +1,20 @@
 {
   "app_name": "Pathmark",
-  "version": "0.6.50",
+  "version": "0.6.52",
   "release_date": "2026-06-06",
   "notes": [
-    "Fixes the NameError caused by an unescaped CSS rule in the Pathmark accent contrast stylesheet.",
-    "Keeps the v0.6.49 sleek accent and dark-mode contrast refinements."
+    "Adds an overcommitted Spending Plan state when planned outflows exceed income.",
+    "Shows weekly shortfall instead of a positive safe-to-spend headline in overcommitted plans.",
+    "Clamps recommended safe-to-spend transfers to $0.00 while the plan is overcommitted.",
+    "Adds a restrained planning warning panel and dashboard shortfall display without presenting financial advice."
   ],
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_50.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_52.zip",
   "mac_package": "",
-  "release": "v0.6.50 CSS brace hotfix",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip",
-  "release_name": "CSS brace hotfix",
-  "release_notes": "Fixes a NameError caused by an unescaped CSS brace in the Pathmark stylesheet.",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip",
-  "label": "CSS brace hotfix",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_50.zip"
+  "release": "v0.6.52 Spending Plan shortfall state",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_52.zip",
+  "release_name": "Spending Plan shortfall state",
+  "release_notes": "Improves Spending Plan handling when outflows exceed income by showing a shortfall state and holding safe-to-spend at $0.00 for planning purposes.",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_52.zip",
+  "label": "Spending Plan shortfall state",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_52.zip"
 }

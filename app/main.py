@@ -422,7 +422,7 @@ def pathmark_theme_tokens_css(mode: str = "") -> str:
 CSS = f"""
 <style>
 /*
-Pathmark v0.6.50 theme model
+Pathmark v0.6.52 theme model
 --------------------------------
 Streamlit owns the full appearance mode: page background, text, widgets,
 inputs, popovers and the Settings menu. Pathmark only adds a seasonal accent
@@ -433,13 +433,7 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
   --accent: #334E68;
   --accent-2: #7A4E7A;
   --button-ink: #FFFFFF;
-  --ink: var(--text-color, inherit);
-  --muted: color-mix(in srgb, var(--text-color, #1F2221) 92%, var(--background-color, #FFFFFF));
-  --surface: color-mix(in srgb, var(--secondary-background-color, transparent) 92%, var(--text-color, #1F2221) 4%);
-  --surface-2: color-mix(in srgb, var(--secondary-background-color, transparent) 88%, var(--text-color, #1F2221) 6%);
-  --line: color-mix(in srgb, var(--text-color, #1F2221) 46%, var(--background-color, transparent));
-  --shadow: color-mix(in srgb, #000000 14%, transparent);
-  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
+{pathmark_theme_tokens_css(streamlit_appearance_mode())}
 }}
 .block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
@@ -547,6 +541,13 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .metric-value {{ font-size:1.35rem; font-weight:780; line-height:1.1; }}
 .attention-card {{ background:var(--surface); border:1px solid var(--line); border-radius:1rem; padding:1rem 1.05rem; margin:.55rem 0; box-shadow:none; }}
 .attention-card.high {{ border-left:5px solid #C2410C; }}
+
+.overcommit-panel {{ background: color-mix(in srgb, #B45309 13%, var(--surface)); border:1px solid color-mix(in srgb, #B45309 45%, var(--line)); border-left:5px solid #B45309; border-radius:1rem; padding:1rem 1.05rem; margin:.9rem 0 1.2rem; }}
+.overcommit-panel h4 {{ margin:.05rem 0 .3rem; letter-spacing:-.025em; }}
+.overcommit-panel p {{ margin:.25rem 0 0; color:var(--muted); font-size:.98rem; line-height:1.48; }}
+.overcommit-panel strong {{ color:var(--ink); }}
+.pillar-card.warning {{ border-left:5px solid #B45309; }}
+.metric-tile.warning {{ border-left:5px solid #B45309; }}
 .attention-card.medium {{ border-left:5px solid var(--accent); }}
 .attention-label {{ color:var(--muted); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.2rem; }}
 .attention-text {{ font-size:.98rem; line-height:1.45; }}
@@ -572,20 +573,52 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 }}
 @media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
 
-/* Sleek contrast pass: avoid low-contrast decorative gradients and keep cards visible in dark mode. */
+/* Dark-safe contrast guardrails for Pathmark-owned components.
+   Body/muted text must remain readable in Streamlit Dark mode, even when
+   Streamlit's CSS variable names or browser System settings differ. */
 .sublead, .small-muted, .pillar-card p, .card p, .process-card p, .dashboard-hero p,
-.metric-label, .pillar-foot, .helper-row-card p, .wizard-hero p, .attention-label {{
-  color: color-mix(in srgb, var(--text-color, #1F2221) 88%, var(--background-color, #FFFFFF)) !important;
+.metric-label, .pillar-foot, .helper-row-card p, .wizard-hero p, .attention-label,
+.meta-label, .wizard-progress-text, .wizard-nav-note, .wizard-exit-note, .money-flow-table th {{
+  color: var(--muted) !important;
 }}
 .card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box,
 .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card, .pillar-card,
 .metric-tile, .attention-card, .money-summary-card, .helper-row-card, .repeat-summary {{
-  border-color: color-mix(in srgb, var(--text-color, #1F2221) 32%, transparent) !important;
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
 }}
+.helper-row-card, .repeat-summary, .metric-tile {{ background: var(--surface-2) !important; }}
 .pillar-card, .card, .pathmark-card, .workspace-card, .download-panel {{
-  border-top: 1px solid color-mix(in srgb, var(--text-color, #1F2221) 32%, transparent) !important;
+  border-top: 1px solid var(--line) !important;
 }}
 .pillar-card::before, .card::before, .pathmark-card::before, .workspace-card::before {{ content: none !important; }}
+
+/* Streamlit may resolve Dark through Settings rather than the browser's
+   prefers-color-scheme. These selectors intentionally adjust only Pathmark's
+   custom tokens/components, not Streamlit's global page or widget theme. */
+html[data-theme="dark"], body[data-theme="dark"], [data-theme="dark"],
+.stApp[data-theme="dark"], [data-baseweb-theme="dark"], [class*="dark"] .stApp {{
+  --bg: #0E1117;
+  --ink: #F8FAFC;
+  --muted: #D1D5DB;
+  --surface: #171C24;
+  --surface-2: #1F2630;
+  --line: #3A4656;
+  --shadow: rgba(0,0,0,.48);
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
+}}
+@media (prefers-color-scheme: dark) {{
+  :root {{
+    --bg: #0E1117;
+    --ink: #F8FAFC;
+    --muted: #D1D5DB;
+    --surface: #171C24;
+    --surface-2: #1F2630;
+    --line: #3A4656;
+    --shadow: rgba(0,0,0,.48);
+    --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  }}
+}}
 
 </style>
 """
@@ -4402,6 +4435,20 @@ def render_spending_assessment(sheet_id: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
+    overcommitted = summary["surplus_weekly"] < -0.005
+    shortfall_weekly = abs(summary["surplus_weekly"]) if overcommitted else 0.0
+    safe_to_spend_weekly = 0.0 if overcommitted else summary["everyday_weekly"]
+    result_label = "OVERCOMMITTED" if overcommitted else "AVAILABLE"
+    result_title = "Shortfall / week" if overcommitted else "What is safe to spend"
+    result_body = (
+        "Your planned outflows are higher than your income. Treat safe-to-spend as $0.00 until the plan is adjusted."
+        if overcommitted
+        else "The weekly everyday-spend amount you have deliberately set."
+    )
+    result_amount = shortfall_weekly if overcommitted else safe_to_spend_weekly
+    result_foot = "weekly shortfall" if overcommitted else "safe weekly spend"
+    result_class = "pillar-card warning" if overcommitted else "pillar-card"
+
     st.markdown(f"""
     <div class="pillar-grid">
       <div class="pillar-card">
@@ -4416,21 +4463,33 @@ def render_spending_assessment(sheet_id: str) -> None:
         <p>Everyday spending, regular bills, and planned irregular costs.</p>
         <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(summary['expense_weekly']))}</div><div class="pillar-foot">planned outflows per week</div></div>
       </div>
-      <div class="pillar-card">
-        <div class="pillar-label">AVAILABLE</div>
-        <h3>What is safe to spend</h3>
-        <p>The weekly everyday-spend amount you have deliberately set.</p>
-        <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(summary['everyday_weekly']))}</div><div class="pillar-foot">safe weekly spend</div></div>
+      <div class="{result_class}">
+        <div class="pillar-label">{html.escape(result_label)}</div>
+        <h3>{html.escape(result_title)}</h3>
+        <p>{html.escape(result_body)}</p>
+        <div class="pillar-metric"><div class="pillar-stat">{html.escape(money_text(result_amount))}</div><div class="pillar-foot">{html.escape(result_foot)}</div></div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
+    if overcommitted:
+        st.markdown(f"""
+        <div class="overcommit-panel">
+          <h4>Plan is overcommitted by {html.escape(money_text(shortfall_weekly))} / week</h4>
+          <p><strong>Safe-to-spend is shown as $0.00 for planning purposes.</strong> Your entered everyday spending is still recorded, but the current plan does not have enough income to fund all outflows. Review regular bills, irregular costs and weekly spend money before relying on the suggested APs.</p>
+          <p>This is a budgeting signal only, not financial advice. If this reflects hardship or debt pressure, consider seeking budgeting support from an appropriate service.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    unallocated_label = "Shortfall / week" if overcommitted else "Unallocated / week"
+    unallocated_value = shortfall_weekly if overcommitted else summary["surplus_weekly"]
+    unallocated_class = "metric-tile warning" if overcommitted else "metric-tile"
     st.markdown(f"""
     <div class="metric-strip">
       <div class="metric-tile"><div class="metric-label">Regular bills / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly']))}</div></div>
       <div class="metric-tile"><div class="metric-label">Irregular costs / week</div><div class="metric-value">{html.escape(money_text(summary['sinking_weekly']))}</div></div>
       <div class="metric-tile"><div class="metric-label">Suggested APs / week</div><div class="metric-value">{html.escape(money_text(summary['fixed_weekly'] + summary['sinking_weekly']))}</div></div>
-      <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(summary['surplus_weekly']))}</div></div>
+      <div class="{unallocated_class}"><div class="metric-label">{html.escape(unallocated_label)}</div><div class="metric-value">{html.escape(money_text(unallocated_value))}</div></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4464,7 +4523,13 @@ def render_spending_assessment(sheet_id: str) -> None:
     st.caption("These suggested APs and transfers are generated from your entered income and outflows. Review them carefully before changing bank payments.")
     rows = [
         ("Income lands in", "Hub account", summary["income_weekly"], "Starting point for bills, APs and transfers"),
-        ("Transfer to", "Everyday card account", summary["everyday_weekly"], "Safe weekly spend money"),
+        ("Transfer to", "Everyday card account", safe_to_spend_weekly, "Safe weekly spend money; held at $0.00 while the plan is overcommitted" if overcommitted else "Safe weekly spend money"),
+        ("Keep/transfer for", "Regular bills and commitments", summary["fixed_weekly"], "Rent, utilities, subscriptions, insurance and minimum repayments"),
+        ("Transfer to", "Planned irregular costs", summary["sinking_weekly"], "Christmas, clothes, car costs, annual fees and other predictable irregular costs"),
+        ("Resolve shortfall", "Review entered costs and APs", shortfall_weekly, "Planned outflows exceed income" if overcommitted else "No shortfall in the current plan"),
+    ] if overcommitted else [
+        ("Income lands in", "Hub account", summary["income_weekly"], "Starting point for bills, APs and transfers"),
+        ("Transfer to", "Everyday card account", safe_to_spend_weekly, "Safe weekly spend money"),
         ("Keep/transfer for", "Regular bills and commitments", summary["fixed_weekly"], "Rent, utilities, subscriptions, insurance and minimum repayments"),
         ("Transfer to", "Planned irregular costs", summary["sinking_weekly"], "Christmas, clothes, car costs, annual fees and other predictable irregular costs"),
         ("Direct surplus to", "Debt, emergency fund, then savings/goals", max(summary["surplus_weekly"], 0.0), "Extra repayment first, then resilience, then longer-term goals"),
@@ -6612,8 +6677,18 @@ def render_online_overview(sheet_id: str) -> None:
 
     routine_count = len(routine_actions) if not routine_actions.empty else 0
     project_count = len(project_actions) if not project_actions.empty else 0
-    safe_spend = money_text(money.get("everyday_weekly", 0.0))
     surplus = money.get("surplus_weekly", 0.0)
+    money_overcommitted = surplus < -0.005
+    safe_spend = money_text(0.0 if money_overcommitted else money.get("everyday_weekly", 0.0))
+    money_flow_title = "Weekly shortfall" if money_overcommitted else "Money flow"
+    money_flow_foot = "shortfall to resolve" if money_overcommitted else "safe weekly spend"
+    money_flow_value = money_text(abs(surplus)) if money_overcommitted else safe_spend
+    money_flow_body = (
+        "Planned outflows are higher than income. Treat safe-to-spend as $0.00 until adjusted."
+        if money_overcommitted
+        else "Direct income into spending, bills, irregular costs, debt and savings."
+    )
+    money_flow_class = "pillar-card warning" if money_overcommitted else "pillar-card"
 
     st.markdown(f"""
     <div class="pillar-grid">
@@ -6631,12 +6706,12 @@ def render_online_overview(sheet_id: str) -> None:
         <div class="pillar-stat">{project_count}</div>
         <div class="pillar-foot">project steps set up</div>
       </div>
-      <div class="pillar-card">
+      <div class="{money_flow_class}">
         <div class="kicker">Resources</div>
-        <h3>Money flow</h3>
-        <p>Direct income into spending, bills, irregular costs, debt and savings.</p>
-        <div class="pillar-stat">{html.escape(safe_spend)}</div>
-        <div class="pillar-foot">safe weekly spend</div>
+        <h3>{html.escape(money_flow_title)}</h3>
+        <p>{html.escape(money_flow_body)}</p>
+        <div class="pillar-stat">{html.escape(money_flow_value)}</div>
+        <div class="pillar-foot">{html.escape(money_flow_foot)}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -6829,6 +6904,8 @@ def theme_tab() -> None:
     <div class="grid-2">
       <div class="card"><h3>Seasonal</h3><p>Seasonal is a single automatic option. It currently resolves to <strong>{html.escape(current_season)}</strong> for Southern Hemisphere timing, and will change as the year changes.</p></div>
       <div class="card"><h3>Stable colour themes</h3><p>Primary Navy, Primary Cyan, Secondary Steel, Tertiary Mist, Tertiary Pearl, Graphite, Clay, Olive and Plum stay the same all year.</p></div>
+      <div class="card"><h3>Light, Dark and System</h3><p>Use Streamlit's built-in menu for the base appearance. Pathmark does not override the page background, global text, widgets or menus.</p></div>
+      <div class="card"><h3>Dark-mode guardrails</h3><p>Pathmark keeps body text, muted text, cards and borders above minimum contrast in dark mode. Very dark accents are lifted before they are used on black or near-black surfaces.</p></div>
     </div>
     <div class="seasonal-preview-card">Current Pathmark accent: <span class="seasonal-theme-name"></span></div>
     """, unsafe_allow_html=True)
