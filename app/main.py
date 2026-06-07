@@ -546,11 +546,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .account-card {{ background: transparent !important; border-color: transparent !important; padding: .15rem 0 !important; }}
 .account-title {{ color: var(--muted); font-size: .78rem; font-weight: 760; letter-spacing: .04em; text-transform: uppercase; }}
 .account-value {{ color: var(--muted); font-size: .9rem; }}
-.account-chip-row {{ display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; min-height:2.2rem; }}
-.account-chip {{ display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:.28rem .62rem; color:var(--muted); font-size:.86rem; box-shadow:none; }}
-.account-chip strong {{ color:var(--ink); font-weight:720; }}
-.connection-strip {{ display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:.34rem .7rem; color:var(--muted); font-size:.9rem; margin:.25rem 0 .7rem; }}
-.connection-strip strong {{ color:var(--ink); font-weight:720; }}
+.account-chip-row {{ display:flex; align-items:center; gap:.42rem; flex-wrap:wrap; min-height:1.8rem; opacity:.82; }}
+.account-chip {{ display:inline-flex; align-items:center; gap:.32rem; border:1px solid color-mix(in srgb, var(--line) 70%, transparent); background:color-mix(in srgb, var(--surface) 72%, transparent); border-radius:999px; padding:.18rem .52rem; color:var(--muted); font-size:.8rem; box-shadow:none; }}
+.account-chip strong {{ color:var(--ink); font-weight:680; }}
+.connection-strip {{ display:inline-flex; align-items:center; gap:.42rem; border:1px solid color-mix(in srgb, var(--line) 72%, transparent); background:color-mix(in srgb, var(--surface) 78%, transparent); border-radius:999px; padding:.24rem .62rem; color:var(--muted); font-size:.84rem; margin:.1rem 0 .65rem; }}
+.connection-strip strong {{ color:var(--ink); font-weight:700; }}
 .connection-strip.warn {{ border-color: color-mix(in srgb, #B45309 44%, var(--line)); }}
 .safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
 .profile-pill {{ display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }}
@@ -701,10 +701,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .project-due-card.clear {{ border-left:5px solid var(--accent); }}
 .project-due-label {{ color:var(--muted); font-size:.82rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; }}
 .project-due-main {{ font-size:1.05rem; font-weight:780; color:var(--ink); }}
-.focus-block-shell {{ border:1px solid var(--line); border-radius:1.15rem; background:var(--surface); padding:.95rem; margin:.9rem 0; }}
-.focus-block-shell .step-card {{ margin:.15rem 0 .65rem; }}
-.support-block-group {{ margin:.45rem 0 0 1rem; padding-left:.9rem; border-left:3px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }}
-.support-block-group-label {{ color:var(--muted); font-size:.82rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; margin:.35rem 0 .45rem; }}
+.focus-block-shell {{ border:1px solid var(--line); border-left:5px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-radius:1.15rem; background:color-mix(in srgb, var(--surface) 92%, var(--accent-soft) 8%); padding:.95rem; margin:.9rem 0 1.15rem; }}
+.focus-block-shell .step-card {{ margin:.15rem 0 .65rem; box-shadow:none; }}
+.support-block-group {{ margin:.5rem 0 0 1.1rem; padding:.65rem .8rem .75rem .95rem; border-left:3px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius:.85rem; background:color-mix(in srgb, var(--surface-2) 78%, transparent); }}
+.support-block-group .step-card {{ background:var(--surface) !important; }}
+.support-block-group-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.07em; text-transform:uppercase; margin:.1rem 0 .55rem; }}
 .project-select-card {{ border:1px solid var(--line); border-left:5px solid var(--line); border-radius:.95rem; background:var(--surface); padding:.72rem .85rem; margin:.45rem 0; }}
 .project-select-card.overdue {{ border-left-color:#DC2626; background:color-mix(in srgb, #DC2626 7%, var(--surface)); }}
 .project-select-card.due-soon {{ border-left-color:#B45309; background:color-mix(in srgb, #B45309 7%, var(--surface)); }}
@@ -3129,6 +3130,49 @@ def parent_lookup(sheet_id: str) -> tuple[dict[str, dict[str, str]], dict[str, d
     return goal_lookup, routine_lookup
 
 
+def _pathmark_now_local() -> datetime:
+    try:
+        if ZoneInfo is not None:
+            return datetime.now(ZoneInfo("Pacific/Auckland")).replace(tzinfo=None)
+    except Exception:
+        pass
+    return datetime.now()
+
+
+def _calendar_end_as_datetime(value: str, *, all_day: bool = False) -> datetime | None:
+    text_value = str(value or "").strip()
+    if not text_value:
+        return None
+    try:
+        if all_day and re.fullmatch(r"\d{4}-\d{2}-\d{2}", text_value):
+            return datetime.combine(date.fromisoformat(text_value), time(23, 59))
+        normalised = text_value.replace("T", " ").replace("Z", "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", normalised):
+            return datetime.combine(date.fromisoformat(normalised), time(23, 59) if all_day else time(0, 0))
+        return datetime.fromisoformat(normalised)
+    except Exception:
+        return None
+
+
+def _should_stage_calendar_block(action: pd.Series, *, end_text: str, recurrence: str, all_day: bool) -> bool:
+    """Return False for elapsed, unlinked one-off calendar blocks.
+
+    Google Calendar is most useful for upcoming or still-active planned time.
+    Completed past one-off blocks without an existing Google link stay out of
+    the staging count so Google Sync does not make the page look busier than it
+    is. Existing linked events and repeating routines are still included for
+    status/repair/update workflows.
+    """
+    if str(recurrence or "").strip():
+        return True
+    if str(action.get("google_calendar_event_id", "") or "").strip():
+        return True
+    end_dt = _calendar_end_as_datetime(end_text, all_day=all_day)
+    if end_dt is None:
+        return True
+    return end_dt >= _pathmark_now_local()
+
+
 def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
     if actions.empty:
@@ -3167,6 +3211,8 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
                 start = datetime.combine(start_d, start_t).strftime("%Y-%m-%d %H:%M")
                 end = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
         recurrence = simple_rrule(routine.get("frequency"), routine.get("preferred_days") or action.get("activity_days")) if routine_id else ""
+        if not _should_stage_calendar_block(action, end_text=end, recurrence=recurrence, all_day=is_all_day_focus):
+            continue
         routine_parent = routines.get(routine_id, {})
         if str(routine_parent.get("status", "")).lower() == "paused":
             continue
@@ -4050,7 +4096,7 @@ def project_supporting_actions_for_parent(actions: pd.DataFrame, parent_action_i
         return pd.DataFrame(columns=actions.columns)
     return actions[actions["parent_progress_item_id"].fillna("").astype(str) == str(parent_action_id)].copy()
 
-def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
+def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "", show_heading: bool = True) -> None:
     """Render saved project steps or routine activities in a user-facing way."""
     kind = "routine activities" if routine_id else "project steps"
     if linked is None or linked.empty:
@@ -4058,7 +4104,8 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
         return
 
     blocks = staged_calendar_blocks(sheet_id)
-    st.markdown(f"#### Saved {kind}")
+    if show_heading:
+        st.markdown(f"#### Saved {kind}")
     for _, row in linked.iterrows():
         data = {k: row.get(k, "") for k in linked.columns}
         rid = str(data.get("action_id", "") or "")
@@ -4398,13 +4445,13 @@ def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal
         title = str(focus_row.get("title", "") or "Untitled focus block")
         supports = project_supporting_actions_for_parent(support_rows, focus_id)
         st.markdown("<div class='focus-block-shell'>", unsafe_allow_html=True)
-        _render_action_list(sheet_id, pd.DataFrame([focus_row.to_dict()]), goal_id=goal_id, default_area=default_area)
+        _render_action_list(sheet_id, pd.DataFrame([focus_row.to_dict()]), goal_id=goal_id, default_area=default_area, show_heading=False)
         st.markdown("<div class='support-block-group'>", unsafe_allow_html=True)
         st.markdown("<div class='support-block-group-label'>Supporting time blocks inside this focus block</div>", unsafe_allow_html=True)
         if supports.empty:
             st.caption("No supporting time blocks yet.")
         else:
-            _render_action_list(sheet_id, supports, goal_id=goal_id, default_area=default_area)
+            _render_action_list(sheet_id, supports, goal_id=goal_id, default_area=default_area, show_heading=False)
         with st.expander(f"Add supporting time block for {title}", expanded=False):
             st.caption("This will sit under the focus block, sync to Google Calendar and Google Tasks, and stay out of the project completion percentage.")
             _action_form(
@@ -6684,11 +6731,6 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-    try:
-        tabs = st.tabs(section_options)
-    except Exception:
-        tabs = []
-
     def _spending_piece(label: str, body_func, *, summary: bool = True) -> None:
         try:
             if summary:
@@ -6702,35 +6744,18 @@ def render_spending_plan_manager(sheet_id: str) -> None:
                 with st.expander("Developer details", expanded=False):
                     st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
 
-    if not tabs:
-        choice = st.radio("Spending Plan section", section_options, horizontal=True)
-        dispatch = {
-            "Assessment": (render_spending_assessment, False),
-            "Income": (render_spending_income_form, True),
-            "Spending": (render_spending_expense_form, True),
-            "APs": (render_spending_account_form, True),
-            "Projections": (render_spending_projections, True),
-            "Template": (render_spending_template_tools, True),
-            "Records": (render_spending_records, True),
-        }
-        body_func, show_summary = dispatch.get(choice, (render_spending_assessment, False))
-        _spending_piece(choice, body_func, summary=show_summary)
-        return
-
-    with tabs[0]:
-        _spending_piece("Assessment", render_spending_assessment, summary=False)
-    with tabs[1]:
-        _spending_piece("Income", render_spending_income_form)
-    with tabs[2]:
-        _spending_piece("Spending", render_spending_expense_form)
-    with tabs[3]:
-        _spending_piece("APs", render_spending_account_form)
-    with tabs[4]:
-        _spending_piece("Projections", render_spending_projections)
-    with tabs[5]:
-        _spending_piece("Template", render_spending_template_tools)
-    with tabs[6]:
-        _spending_piece("Records", render_spending_records)
+    choice = st.radio("Finance section", section_options, horizontal=True, label_visibility="collapsed", key="finance_section_select")
+    dispatch = {
+        "Assessment": (render_spending_assessment, False),
+        "Income": (render_spending_income_form, True),
+        "Spending": (render_spending_expense_form, True),
+        "APs": (render_spending_account_form, True),
+        "Projections": (render_spending_projections, True),
+        "Template": (render_spending_template_tools, True),
+        "Records": (render_spending_records, True),
+    }
+    body_func, show_summary = dispatch.get(choice, (render_spending_assessment, False))
+    _spending_piece(choice, body_func, summary=show_summary)
 
 def fallback_staged_tasklist(sheet_id: str) -> pd.DataFrame:
     """Build a simple tasklist directly from actions if the richer tasklist builder fails."""
@@ -8323,9 +8348,9 @@ def render_google_sync_manager(sheet_id: str) -> None:
     task_stats = google_tasks_sync_summary(sheet_id)
     st.markdown(f"""
     <div class="metric-strip">
-      <div class="metric-tile"><div class="metric-label">Calendar items</div><div class="metric-value">{len(blocks) if not blocks.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Calendar ready</div><div class="metric-value">{len(blocks) if not blocks.empty else 0}</div></div>
       <div class="metric-tile"><div class="metric-label">Calendar linked</div><div class="metric-value">{cal_stats.get('linked', 0)}</div></div>
-      <div class="metric-tile"><div class="metric-label">Task items</div><div class="metric-value">{len(prompts) if not prompts.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Tasks ready</div><div class="metric-value">{len(prompts) if not prompts.empty else 0}</div></div>
       <div class="metric-tile"><div class="metric-label">Tasks linked</div><div class="metric-value">{task_stats.get('linked', 0)}</div></div>
     </div>
     """, unsafe_allow_html=True)
@@ -8370,8 +8395,7 @@ def render_google_sync_manager(sheet_id: str) -> None:
             st.info("No Google Tasks checklist items are staged yet.")
         else:
             dataframe_preview(prompts, ["title", "area_name", "due_date", "source_record_type", "google_task_id", "google_task_status", "sync_status"])
-    with st.expander("Printable tasklist", expanded=False):
-        render_tasklist_manager(sheet_id)
+    st.caption("Printable tasklists now live in the Tasklist tab so Google Sync stays focused on Calendar and Tasks.")
 
 
 def render_archive_manager(sheet_id: str) -> None:
@@ -10667,7 +10691,6 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Planning")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -10678,9 +10701,11 @@ def on_the_go_tab() -> None:
             st.warning(safe_user_message(message))
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
-    render_connection_summary(credentials, sheet_id, auth_ready)
     if credentials and sheet_id:
+        apply_online_theme(sheet_id)
         render_seasonal_banner(compact=True)
+    st.header("Planning")
+    render_connection_summary(credentials, sheet_id, auth_ready)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -10693,8 +10718,6 @@ def on_the_go_tab() -> None:
     if not (credentials and sheet_id):
         st.info("Pathmark is still preparing your online workspace. Refresh online data or reconnect from Settings if this does not resolve.")
         return
-
-    apply_online_theme(sheet_id)
 
     service = sheets_service()
     if service is not None:
@@ -12514,7 +12537,6 @@ def render_shopping_list_manager(sheet_id: str) -> None:
 
 def shopping_list_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Nutrition")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12525,9 +12547,11 @@ def shopping_list_beta_tab() -> None:
             st.warning(safe_user_message(message))
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
-    render_connection_summary(credentials, sheet_id, auth_ready)
     if credentials and sheet_id:
+        apply_online_theme(sheet_id)
         render_seasonal_banner(compact=True)
+    st.header("Nutrition")
+    render_connection_summary(credentials, sheet_id, auth_ready)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -12539,7 +12563,6 @@ def shopping_list_beta_tab() -> None:
         st.info("Pathmark is still preparing your sync sheet. Refresh online data or reconnect from Settings if this does not resolve.")
         return
 
-    apply_online_theme(sheet_id)
     service = sheets_service()
     if service is not None:
         try:
@@ -12553,9 +12576,6 @@ def shopping_list_beta_tab() -> None:
 
 def spending_plan_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Finance")
-    st.write("Use this space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
-
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12566,9 +12586,12 @@ def spending_plan_beta_tab() -> None:
             st.warning(safe_user_message(message))
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
-    render_connection_summary(credentials, sheet_id, auth_ready)
     if credentials and sheet_id:
+        apply_online_theme(sheet_id)
         render_seasonal_banner(compact=True)
+    st.header("Finance")
+    st.write("Use this space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+    render_connection_summary(credentials, sheet_id, auth_ready)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -12582,7 +12605,6 @@ def spending_plan_beta_tab() -> None:
         st.info("Pathmark is still preparing your sync sheet. Refresh online data or reconnect from Settings if this does not resolve.")
         return
 
-    apply_online_theme(sheet_id)
     service = sheets_service()
     if service is not None:
         try:
