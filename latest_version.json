@@ -1,23 +1,23 @@
 {
-  "version": "0.7.3",
+  "version": "0.7.4",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_3.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_3.zip",
-  "release": "v0.7.3 Mobile containment and focus hierarchy polish",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_3.zip",
-  "label": "Mobile containment and focus hierarchy polish",
-  "release_notes": "Polishes the hosted phone layout, removes horizontal overflow, and makes focus blocks/supporting time blocks appear as a proper nested hierarchy in projects and printable tasklists.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_4.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_4.zip",
+  "release": "v0.7.4 Responsive layout and focus hierarchy correction",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_4.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_4.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_4.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_4.zip",
+  "label": "Responsive layout and focus hierarchy correction",
+  "release_notes": "Corrects mobile overflow, restores responsive desktop width, and reworks focus/support hierarchy in Projects and printable Tasklist.",
   "notes": [
-    "Improves the hosted phone layout by preventing horizontal page overflow and making cards/text wrap within the screen width.",
-    "Focus blocks and supporting time blocks now render as a single nested project hierarchy rather than separate boxed fragments.",
-    "Supporting time blocks are visually indented inside the focus block they support while remaining excluded from project progress.",
-    "Printable tasklists now use proper indentation and subtle row styling for supporting time blocks instead of em-dash prefixes.",
-    "Tasklist widget keys are made unique per render to avoid duplicate-key failures if Streamlit renders a fallback path."
+    "Restored responsive layout rules so hosted pages use desktop width on desktop while preventing horizontal panning on phones.",
+    "Corrected focus-based project hierarchy so supporting time blocks render directly inside their parent focus block without exposing raw HTML.",
+    "Updated Tasklist ordering so supporting time blocks remain directly beneath the focus block/progress item they support, even when scheduled earlier.",
+    "Improved printable tasklist hierarchy with proper indentation and subtle support-row styling rather than prefix characters.",
+    "Clarified that public Privacy, Terms and Google access pages are OAuth review links, while About & Privacy remains the in-app explanation page."
   ],
-  "release_name": "Mobile containment and focus hierarchy polish",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip"
+  "release_name": "Responsive layout and focus hierarchy correction",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_4.zip"
 }

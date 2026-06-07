@@ -683,7 +683,13 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{ background: var(--accent-soft) !important; color: var(--pathmark-accent-ui, var(--accent)) !important; border-color: color-mix(in srgb, var(--pathmark-accent-ui, var(--accent)) 42%, var(--line)) !important; }}
   [data-testid="stTabs"] button[role="tab"] p, button[data-baseweb="tab"] p {{ font-size: .84rem !important; font-weight: 700 !important; }}
   div[data-testid="column"] {{ width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important; }}
-  .stDataFrame, [data-testid="stDataFrame"] {{ overflow-x: auto; }}
+  .stDataFrame, [data-testid="stDataFrame"] {{ overflow-x: auto; max-width: 100%; }}
+  .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .card, .pillar-card, .metric-tile {{ max-width: 100%; overflow: hidden; }}
+  .step-card *, .focus-block-shell *, .focus-block-card *, .support-card *, .project-select-card *, .card *, .pillar-card *, .metric-tile * {{ max-width: 100%; overflow-wrap: anywhere; word-break: normal; white-space: normal; }}
+  .support-block-group {{ margin-left: .65rem; padding-left: .75rem; }}
+  .support-block-group .support-card {{ padding: .8rem; }}
+  .status-chip {{ max-width: 100%; white-space: normal; align-items: flex-start; }}
+  .project-card-meta {{ max-width: 100%; overflow-wrap: anywhere; }}
 }}
 
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{
@@ -737,11 +743,12 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .project-due-card.clear {{ border-left:5px solid var(--accent); }}
 .project-due-label {{ color:var(--muted); font-size:.82rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; }}
 .project-due-main {{ font-size:1.05rem; font-weight:780; color:var(--ink); }}
-.focus-block-shell {{ border:1px solid var(--line); border-left:5px solid color-mix(in srgb, var(--accent) 50%, var(--line)); border-radius:1.15rem; background:color-mix(in srgb, var(--surface) 92%, var(--accent-soft) 8%); padding:.95rem; margin:.9rem 0 1.15rem; }}
-.focus-block-shell .step-card {{ margin:.15rem 0 .65rem; box-shadow:none; }}
-.support-block-group {{ margin:.5rem 0 0 1.1rem; padding:.65rem .8rem .75rem .95rem; border-left:3px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius:.85rem; background:color-mix(in srgb, var(--surface-2) 78%, transparent); }}
-.support-block-group .step-card {{ background:var(--surface) !important; }}
-.support-block-group-label {{ color:var(--muted); font-size:.78rem; font-weight:850; letter-spacing:.07em; text-transform:uppercase; margin:.1rem 0 .55rem; }}
+.focus-block-shell {{ border:1px solid color-mix(in srgb, var(--accent) 42%, var(--line)); border-left:5px solid color-mix(in srgb, var(--accent) 62%, var(--line)); border-radius:1.18rem; background:color-mix(in srgb, var(--surface) 94%, var(--accent-soft) 6%); padding:1rem; margin:1rem 0 1.25rem; overflow:hidden; }}
+.focus-block-shell .focus-block-card {{ margin:0 0 .85rem 0; box-shadow:none; border-radius:1rem; background:var(--surface) !important; }}
+.support-block-group {{ margin:.45rem 0 0 1.45rem; padding:.15rem 0 .05rem 1rem; border-left:3px solid color-mix(in srgb, var(--accent) 42%, var(--line)); background:transparent; }}
+.support-block-group .support-card {{ margin:.65rem 0 0 0; box-shadow:none; border-radius:.95rem; background:var(--surface-2) !important; border-left:4px solid color-mix(in srgb, var(--muted) 40%, var(--line)); }}
+.support-block-group-label {{ color:var(--muted); font-size:.76rem; font-weight:850; letter-spacing:.075em; text-transform:uppercase; margin:.05rem 0 .25rem; }}
+.support-block-empty {{ color:var(--muted); font-size:.92rem; padding:.45rem .2rem; }}
 .project-select-card {{ border:1px solid var(--line); border-left:5px solid var(--line); border-radius:.95rem; background:var(--surface); padding:.72rem .85rem; margin:.45rem 0; }}
 .project-select-card.overdue {{ border-left-color:#DC2626; background:color-mix(in srgb, #DC2626 7%, var(--surface)); }}
 .project-select-card.due-soon {{ border-left-color:#B45309; background:color-mix(in srgb, #B45309 7%, var(--surface)); }}
@@ -827,6 +834,89 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer
   .support-block-group {{ margin-left: .55rem; padding-left: .7rem; }}
   .project-card-meta {{ font-size:.9rem; }}
   .stDataFrame, [data-testid="stDataFrame"], div[data-testid="stTable"] {{ max-width: 100% !important; overflow-x: auto !important; }}
+}}
+
+
+
+/* v0.7.4 responsive containment + focus hierarchy final overrides */
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}}
+.block-container, .main .block-container {{
+  width: 100% !important;
+  max-width: min(1280px, calc(100vw - 2rem)) !important;
+  overflow-x: hidden !important;
+}}
+.element-container, [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"], div[data-testid="column"] {{
+  max-width: 100% !important;
+  min-width: 0 !important;
+}}
+.card, .pillar-card, .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .metric-tile, .attention-card, .money-summary-card, .seasonal-banner, .download-panel, .setup-shell, .pathmark-card, .workspace-card {{
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}}
+.step-card *, .focus-block-shell *, .focus-block-card *, .support-card *, .project-select-card *, .project-card-meta, .item-status-row, .status-chip {{
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}}
+.focus-block-shell {{
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line)) !important;
+  border-left: 5px solid color-mix(in srgb, var(--accent) 62%, var(--line)) !important;
+  border-radius: 1.18rem !important;
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent-soft) 6%) !important;
+  padding: 1rem !important;
+  margin: 1rem 0 1.25rem !important;
+  overflow: hidden !important;
+}}
+.focus-block-shell .focus-block-card {{
+  margin: 0 0 .8rem 0 !important;
+  border-radius: 1rem !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}}
+.support-block-group {{
+  margin: .45rem 0 0 1.45rem !important;
+  padding: .15rem 0 .05rem 1rem !important;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 42%, var(--line)) !important;
+  background: transparent !important;
+}}
+.support-block-group .support-card {{
+  margin: .65rem 0 0 0 !important;
+  border-radius: .95rem !important;
+  background: var(--surface-2) !important;
+  border-left: 4px solid color-mix(in srgb, var(--muted) 40%, var(--line)) !important;
+  box-shadow: none !important;
+}}
+.support-block-empty {{
+  color: var(--muted);
+  font-size: .92rem;
+  padding: .45rem .2rem;
+}}
+@media (max-width: 760px) {{
+  .block-container, .main .block-container {{
+    max-width: 100vw !important;
+    padding-left: .85rem !important;
+    padding-right: .85rem !important;
+  }}
+  .support-block-group {{
+    margin-left: .55rem !important;
+    padding-left: .7rem !important;
+  }}
+  .focus-block-shell {{
+    padding: .85rem !important;
+    border-radius: 1rem !important;
+  }}
+  .focus-block-card h3, .support-card h3 {{
+    font-size: clamp(1.25rem, 7vw, 1.75rem) !important;
+    line-height: 1.12 !important;
+  }}
+  .status-chip {{
+    max-width: 100% !important;
+    white-space: normal !important;
+  }}
 }}
 
 </style>
@@ -3757,7 +3847,9 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
         df["sort_status"] = df["status"].map({"Next": 1, "Scheduled": 2, "Planned": 3, "Included": 4}).fillna(5)
         df["is_supporting_time_block"] = df.apply(_tasklist_is_supporting_row, axis=1)
         df["support_sort_anchor"] = df.apply(lambda r: str(r.get("parent_progress_item_id", "") or r.get("action_id", "") or ""), axis=1)
-        df = df.sort_values(["source_type", "parent", "scheduled_date", "support_sort_anchor", "is_supporting_time_block", "sort_status", "due_date", "title"], na_position="last").drop(columns=["sort_status", "support_sort_anchor"])
+        # Keep supporting time blocks directly under the focus/progress item they support,
+        # even when the support session is dated before the broader focus block.
+        df = df.sort_values(["source_type", "parent", "support_sort_anchor", "is_supporting_time_block", "scheduled_date", "sort_status", "due_date", "title"], na_position="last").drop(columns=["sort_status", "support_sort_anchor"])
     return df.reset_index(drop=True)
 
 
@@ -4620,23 +4712,25 @@ def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal
         focus_id = str(focus_row.get("action_id", "") or "").strip()
         title = str(focus_row.get("title", "") or "Untitled focus block")
         supports = project_supporting_actions_for_parent(support_rows, focus_id)
-        support_cards = ""
+        focus_card = _project_work_card_html(sheet_id, focus_row, linked, blocks=blocks, card_class="focus-block-card")
         if supports.empty:
-            support_cards = "<div class='project-card-meta'>No supporting time blocks yet.</div>"
+            support_cards = "<div class='support-block-empty'>No supporting time blocks have been added under this focus block yet.</div>"
         else:
-            support_cards = "".join(_project_work_card_html(sheet_id, support_row, linked, blocks=blocks, card_class="support-card") for _, support_row in supports.iterrows())
-        st.markdown(
-            f"""
-            <div class='focus-block-shell'>
-              {_project_work_card_html(sheet_id, focus_row, linked, blocks=blocks, card_class="focus-block-card")}
-              <div class='support-block-group'>
-                <div class='support-block-group-label'>Supporting time blocks inside this focus block</div>
-                {support_cards}
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+            support_cards = "".join(
+                _project_work_card_html(sheet_id, support_row, linked, blocks=blocks, card_class="support-card")
+                for _, support_row in supports.iterrows()
+            )
+        support_label = "Supporting time blocks" if len(supports.index) != 1 else "Supporting time block"
+        focus_shell = (
+            "<div class='focus-block-shell'>"
+            f"{focus_card}"
+            "<div class='support-block-group'>"
+            f"<div class='support-block-group-label'>{html.escape(support_label)}</div>"
+            f"{support_cards}"
+            "</div>"
+            "</div>"
         )
+        st.markdown(focus_shell, unsafe_allow_html=True)
         with st.expander(f"Edit focus block · {title}", expanded=False):
             _action_form(
                 sheet_id,
@@ -7067,8 +7161,7 @@ def render_tasklist_manager(sheet_id: str) -> None:
                     for _, row in group.iterrows():
                         action_id = str(row.get("action_id", "") or row.name)
                         title_text = str(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled")
-                        if _tasklist_is_supporting_row(row):
-                            title_text = f"Supporting time block: {title_text}"
+                        is_support = _tasklist_is_supporting_row(row)
                         label_bits = []
                         scheduled = str(row.get("scheduled_date", "") or "").strip()
                         due = str(row.get("due_date", "") or "").strip()
@@ -7077,7 +7170,14 @@ def render_tasklist_manager(sheet_id: str) -> None:
                         if due and due != scheduled:
                             label_bits.append(f"due {_tasklist_human_date(due)}")
                         suffix = f" ({'; '.join(label_bits)})" if label_bits else ""
-                        if st.checkbox(f"{title_text}{suffix}", value=False, key=f"tasklist_{prefix}_{action_id}_{row.name}"):
+                        label = f"{title_text}{suffix}"
+                        if is_support:
+                            spacer, check_col = st.columns([0.08, 0.92])
+                            with check_col:
+                                checked = st.checkbox(label, value=False, key=f"tasklist_{prefix}_{action_id}_{row.name}")
+                        else:
+                            checked = st.checkbox(label, value=False, key=f"tasklist_{prefix}_{action_id}_{row.name}")
+                        if checked:
                             selected_action_ids.append(action_id)
 
             if not goal_actions.empty:
@@ -8959,8 +9059,7 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
             is_support = _tasklist_is_supporting_row(row)
             indent = "    " if is_support else ""
             title_text = row.get('title') or row.get('display_title') or 'Untitled'
-            label = f"Supporting: {title_text}" if is_support else str(title_text)
-            lines.append(f"{indent}☐ {label}")
+            lines.append(f"{indent}☐ {title_text}")
             notes = re.sub(r"<br\s*/?>", " | ", tasklist_notes_text(row))
             if notes:
                 lines.append(f"{indent}   {notes}")
@@ -13114,7 +13213,7 @@ def render_public_privacy_policy() -> None:
     This page is public so it can be used on the Google OAuth consent screen.
 
     ## Summary
-    Pathmark is designed so your private planning, Finance and Nutrition records stay in files owned by you, primarily a Google Sheet called **Pathmark Sync**. Pathmark uses Google sign-in and Google APIs only after you grant permission.
+    Pathmark is designed so your private planning, Finance and Nutrition records stay in files owned by you, primarily a Google Sheet called **Pathmark Sync**. Pathmark uses Google sign-in and Google APIs only after you grant permission. This public Privacy Policy is the concise policy page used for Google OAuth and public review; the in-app **About & Privacy** page gives additional plain-English context for signed-in users.
 
     ## Information Pathmark uses
     Pathmark may use:
@@ -13158,7 +13257,7 @@ def render_public_terms_of_service() -> None:
     Pathmark is a planning, wellbeing, project, calendar/task sync, Finance, Nutrition and starter-pack tool. It helps users organise routines, projects, tasks, calendar time, spending-plan records, recipes, ingredients and related information.
 
     ## Beta status
-    Pathmark is in active development. Features may change, break, be renamed or be removed. You should keep backups before using import, sync, reset, restore or delete workflows.
+    Pathmark is in active development. Features may change, break, be renamed or be removed. You should keep backups before using import, sync, reset, restore or delete workflows. This public Terms page is intended to be stable and accessible for Google OAuth review; the in-app **About & Privacy** page can provide fuller operational explanations without replacing these terms.
 
     ## Your responsibility
     You are responsible for the accuracy of information you enter, the files you authorise Pathmark to use, the sync actions you run, and the decisions you make from Pathmark outputs.
