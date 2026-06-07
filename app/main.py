@@ -764,6 +764,71 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .oauth-domain-card code {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.35rem; padding:.08rem .25rem; }}
 .theme-config-preview {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }}
 
+/* Mobile containment and polished project hierarchy */
+html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}}
+*, *::before, *::after {{ box-sizing: border-box; }}
+.block-container, .main .block-container {{ width: 100% !important; max-width: min(1180px, calc(100vw - 2rem)) !important; overflow-x: hidden !important; }}
+.card, .pillar-card, .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .metric-tile, .attention-card, .money-summary-card, .seasonal-banner, .download-panel, .setup-shell, .pathmark-card, .workspace-card {{
+  max-width: 100% !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}}
+.step-card p, .focus-block-card p, .support-card p, .project-card-meta, .item-status-row, .status-chip, .small-muted {{
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+}}
+.item-status-row {{ display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }}
+.status-chip {{ max-width: 100%; }}
+.focus-block-shell {{
+  border: 1px solid var(--line);
+  border-left: 5px solid color-mix(in srgb, var(--accent) 62%, var(--line));
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent-soft) 6%);
+  padding: 1rem;
+  margin: .9rem 0 1.15rem;
+  box-shadow: 0 8px 20px var(--shadow);
+}}
+.focus-block-card, .support-card {{
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 1rem;
+  padding: 1rem;
+  margin: .35rem 0 .7rem;
+}}
+.focus-block-card {{ border-left: 5px solid var(--accent); }}
+.support-block-group {{
+  margin: .85rem 0 .25rem 1.15rem;
+  padding: .25rem 0 .15rem 1rem;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+}}
+.support-block-group-label {{
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 850;
+  letter-spacing: .095em;
+  text-transform: uppercase;
+  margin: .2rem 0 .45rem;
+}}
+.support-card {{ background: var(--surface-2); border-left: 4px solid color-mix(in srgb, var(--accent) 42%, var(--line)); }}
+.project-card-meta {{ color: var(--muted); font-size:.94rem; line-height:1.42; margin:.45rem 0; }}
+@media (max-width: 760px) {{
+  html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{ overflow-x: hidden !important; width: 100vw !important; }}
+  .block-container, .main .block-container {{ padding-left: .85rem !important; padding-right: .85rem !important; max-width: 100vw !important; }}
+  .hero h1 {{ font-size: clamp(3rem, 18vw, 4.6rem) !important; overflow-wrap: normal; }}
+  .lead, .sublead {{ max-width: 100% !important; }}
+  .focus-block-shell {{ padding: .85rem; margin: .75rem 0 1rem; border-radius: 1rem; }}
+  .focus-block-card, .support-card {{ padding: .85rem; border-radius:.9rem; }}
+  .focus-block-card h3, .support-card h3 {{ font-size: clamp(1.25rem, 7vw, 1.75rem) !important; line-height: 1.12; }}
+  .support-block-group {{ margin-left: .55rem; padding-left: .7rem; }}
+  .project-card-meta {{ font-size:.9rem; }}
+  .stDataFrame, [data-testid="stDataFrame"], div[data-testid="stTable"] {{ max-width: 100% !important; overflow-x: auto !important; }}
+}}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -3670,7 +3735,7 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
             "action_id": action.get("action_id", ""),
             "source_type": "Routine activity" if routine_id else "Goal action",
             "title": title,
-            "display_title": (f"— {title}" if is_support else title),
+            "display_title": title,
             "area_name": action.get("area_name", "") or routines.get(routine_id, {}).get("area_name", "") or goals.get(goal_id, {}).get("area_name", ""),
             "parent": parent,
             "status": status or ("Included" if routine_id else "Planned"),
@@ -4137,6 +4202,75 @@ def project_supporting_actions_for_parent(actions: pd.DataFrame, parent_action_i
         return pd.DataFrame(columns=actions.columns)
     return actions[actions["parent_progress_item_id"].fillna("").astype(str) == str(parent_action_id)].copy()
 
+def _project_work_card_html(sheet_id: str, row: pd.Series | dict[str, Any], linked: pd.DataFrame, *, blocks: pd.DataFrame | None = None, card_class: str = "focus-block-card") -> str:
+    data = row.to_dict() if isinstance(row, pd.Series) else dict(row or {})
+    rid = str(data.get("action_id", "") or "")
+    title = str(data.get("title", "") or "Untitled").strip()
+    item_label = project_action_type_label(data)
+    sync_label = "Calendar time · tasklist · Google Tasks"
+    date_bits: list[str] = []
+    scheduled = str(data.get("scheduled_date", "") or "").strip()
+    if scheduled:
+        date_bits.append(f"Starts {human_calendar_datetime(scheduled)}")
+    start_t = str(data.get("calendar_start_time", "") or "").strip()
+    end_t = str(data.get("calendar_end_time", "") or "").strip()
+    end_d = str(data.get("calendar_end_date", "") or scheduled or "").strip()
+    if start_t and end_t:
+        if end_d and end_d != scheduled:
+            date_bits.append(f"{start_t} to {end_d} {end_t}")
+        else:
+            date_bits.append(f"{start_t} to {end_t}")
+    recurrence = ""
+    try:
+        recurrence = linked_calendar_summary_for_action(pd.Series(data), blocks if blocks is not None else staged_calendar_blocks(sheet_id))
+    except Exception:
+        recurrence = ""
+    if recurrence:
+        date_bits.append(recurrence)
+    parent_note = ""
+    if is_supporting_project_action(data):
+        parent_id = str(data.get("parent_progress_item_id", "") or "").strip()
+        parent_title = ""
+        if parent_id and linked is not None and not linked.empty and "action_id" in linked.columns:
+            match = linked[linked["action_id"].fillna("").astype(str) == parent_id]
+            if not match.empty:
+                parent_title = str(match.iloc[0].get("title", "") or "").strip()
+        if parent_title:
+            parent_note = f"<div class='project-card-meta'><strong>Supports:</strong> {html.escape(parent_title)}</div>"
+    helper_line = ""
+    try:
+        helper_df = helper_prompts_for_action(sheet_id, rid) if rid else pd.DataFrame()
+        helper_titles = [str(r.get("title", "") or r.get("prompt_text", "") or "").strip() for _, r in helper_df.iterrows() if str(r.get("title", "") or r.get("prompt_text", "") or "").strip()]
+        if helper_titles:
+            helper_line = "<div class='project-card-meta'><strong>Small checklist items:</strong> " + html.escape("; ".join(helper_titles)) + "</div>"
+    except Exception:
+        helper_line = ""
+    task_status_bits: list[str] = []
+    try:
+        task_items = action_task_items(sheet_id, rid) if rid else pd.DataFrame()
+        if not task_items.empty:
+            for _, task_row in task_items.iterrows():
+                task_title = str(task_row.get("title", "") or "Checklist item").strip()
+                task_status_bits.append(status_chip(f"{task_title}: {plain_task_label_for_status(task_row)}"))
+        elif str(data.get("google_task_id", "") or "").strip() or str(data.get("google_task_status", "") or "").strip():
+            task_status_bits.append(status_chip(_task_sync_user_label(pd.Series(data))))
+        else:
+            task_status_bits.append(status_chip("Not sent to Google Tasks"))
+    except Exception:
+        task_status_bits.append(status_chip("Task status unavailable"))
+    detail = " · ".join([bit for bit in date_bits if str(bit).strip()])
+    return f"""
+    <div class='{html.escape(card_class)}'>
+      <h3>{html.escape(title)}</h3>
+      <div class='project-card-meta'>{html.escape(sync_label)}</div>
+      <div class='project-card-meta'><strong>{html.escape(item_label)}</strong></div>
+      {f"<div class='project-card-meta'>{html.escape(detail)}</div>" if detail else ""}
+      {parent_note}
+      <div class='item-status-row'>{''.join(task_status_bits)}</div>
+      {helper_line}
+    </div>
+    """
+
 def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "", show_heading: bool = True) -> None:
     """Render saved project steps or routine activities in a user-facing way."""
     kind = "routine activities" if routine_id else "project steps"
@@ -4471,12 +4605,13 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
 
 
 def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal_id: str, default_area: str = "") -> None:
-    """Render focus blocks with supporting time blocks nested directly underneath."""
+    """Render focus blocks with supporting time blocks nested visually and semantically."""
     if linked is None or linked.empty:
         st.info("No focus blocks yet. Add one below when you are ready.")
         return
     progress_rows = linked[linked.apply(project_action_counts_toward_progress, axis=1)].copy()
     support_rows = linked[linked.apply(lambda r: not project_action_counts_toward_progress(r), axis=1)].copy()
+    blocks = staged_calendar_blocks(sheet_id)
     if progress_rows.empty:
         st.info("No focus blocks yet. Add one below when you are ready.")
     else:
@@ -4485,16 +4620,33 @@ def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal
         focus_id = str(focus_row.get("action_id", "") or "").strip()
         title = str(focus_row.get("title", "") or "Untitled focus block")
         supports = project_supporting_actions_for_parent(support_rows, focus_id)
-        st.markdown("<div class='focus-block-shell'>", unsafe_allow_html=True)
-        _render_action_list(sheet_id, pd.DataFrame([focus_row.to_dict()]), goal_id=goal_id, default_area=default_area, show_heading=False)
-        st.markdown("<div class='support-block-group'>", unsafe_allow_html=True)
-        st.markdown("<div class='support-block-group-label'>Supporting time blocks inside this focus block</div>", unsafe_allow_html=True)
+        support_cards = ""
         if supports.empty:
-            st.caption("No supporting time blocks yet.")
+            support_cards = "<div class='project-card-meta'>No supporting time blocks yet.</div>"
         else:
-            _render_action_list(sheet_id, supports, goal_id=goal_id, default_area=default_area, show_heading=False)
+            support_cards = "".join(_project_work_card_html(sheet_id, support_row, linked, blocks=blocks, card_class="support-card") for _, support_row in supports.iterrows())
+        st.markdown(
+            f"""
+            <div class='focus-block-shell'>
+              {_project_work_card_html(sheet_id, focus_row, linked, blocks=blocks, card_class="focus-block-card")}
+              <div class='support-block-group'>
+                <div class='support-block-group-label'>Supporting time blocks inside this focus block</div>
+                {support_cards}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"Edit focus block · {title}", expanded=False):
+            _action_form(
+                sheet_id,
+                goal_id=goal_id,
+                default_area=default_area,
+                form_key=f"edit_focus_{focus_id or uuid.uuid4().hex}",
+                action={k: focus_row.get(k, "") for k in linked.columns},
+            )
         with st.expander(f"Add supporting time block for {title}", expanded=False):
-            st.caption("This will sit under the focus block, sync to Google Calendar and Google Tasks, and stay out of the project completion percentage.")
+            st.caption("This sits under the focus block, syncs to Google Calendar and Google Tasks, and stays out of the project completion percentage.")
             _action_form(
                 sheet_id,
                 goal_id=goal_id,
@@ -4502,7 +4654,17 @@ def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal
                 form_key=f"goal_{goal_id}_support_{focus_id}",
                 action={"item_type": "supporting_time", "contributes_to_progress": "0", "parent_progress_item_id": focus_id},
             )
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        for _, support_row in supports.iterrows():
+            support_id = str(support_row.get("action_id", "") or "").strip()
+            support_title = str(support_row.get("title", "") or "Supporting time block")
+            with st.expander(f"Edit supporting time block · {support_title}", expanded=False):
+                _action_form(
+                    sheet_id,
+                    goal_id=goal_id,
+                    default_area=default_area,
+                    form_key=f"edit_support_{support_id or uuid.uuid4().hex}",
+                    action={k: support_row.get(k, "") for k in linked.columns},
+                )
     unassigned = support_rows.copy()
     if not unassigned.empty and "parent_progress_item_id" in unassigned.columns:
         unassigned = unassigned[unassigned["parent_progress_item_id"].fillna("").astype(str).str.strip() == ""].copy()
@@ -6818,7 +6980,7 @@ def fallback_staged_tasklist(sheet_id: str) -> pd.DataFrame:
                 "action_id": str(a.get("action_id", "") or ""),
                 "source_type": "Routine activity" if str(a.get("routine_id", "") or "").strip() else "Goal action",
                 "title": title,
-                "display_title": (f"— {title}" if is_support else title),
+                "display_title": title,
                 "area_name": str(a.get("area_name", "") or ""),
                 "parent": str(a.get("goal_id", "") or a.get("routine_id", "") or "Unlinked"),
                 "status": str(a.get("status", "") or "Planned"),
@@ -6881,11 +7043,13 @@ def render_tasklist_manager(sheet_id: str) -> None:
     title = "Weekly Tasklist"
     notes = ""
     selected_action_ids: list[str] = []
+    st.session_state["tasklist_render_instance"] = int(st.session_state.get("tasklist_render_instance", 0)) + 1
+    tasklist_key_prefix = f"tasklist_{st.session_state['tasklist_render_instance']}"
 
     try:
         with st.expander("Choose what goes on the tasklist", expanded=True):
-            title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.", key="tasklist_print_title")
-            notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.", key="tasklist_print_notes")
+            title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.", key=f"{tasklist_key_prefix}_print_title")
+            notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.", key=f"{tasklist_key_prefix}_print_notes")
             source_series = tasklist["source_type"].fillna("").astype(str) if "source_type" in tasklist.columns else pd.Series([""] * len(tasklist), index=tasklist.index)
             goal_actions = tasklist[source_series == "Goal action"].copy()
             routine_rows = tasklist[source_series == "Routine activity"].copy()
@@ -6903,8 +7067,8 @@ def render_tasklist_manager(sheet_id: str) -> None:
                     for _, row in group.iterrows():
                         action_id = str(row.get("action_id", "") or row.name)
                         title_text = str(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled")
-                        if _tasklist_is_supporting_row(row) and not title_text.startswith("—"):
-                            title_text = f"— {title_text}"
+                        if _tasklist_is_supporting_row(row):
+                            title_text = f"Supporting time block: {title_text}"
                         label_bits = []
                         scheduled = str(row.get("scheduled_date", "") or "").strip()
                         due = str(row.get("due_date", "") or "").strip()
@@ -6961,12 +7125,12 @@ def render_tasklist_manager(sheet_id: str) -> None:
         mime = "text/plain"
         filename = "pathmark_tasklist.txt"
 
-    st.download_button("Download printable tasklist", data=pdf_bytes, file_name=filename, mime=mime, use_container_width=True, disabled=selected_rows.empty and not str(notes or "").strip(), key="tasklist_print_download")
+    st.download_button("Download printable tasklist", data=pdf_bytes, file_name=filename, mime=mime, use_container_width=True, disabled=selected_rows.empty and not str(notes or "").strip(), key=f"{tasklist_key_prefix}_print_download")
 
     if not selected_rows.empty:
         with st.expander("After printing or saving"):
             st.write("Printing or saving a tasklist does not move items to Archive. Project steps and routine activities remain in their Projects or Routines tabs until you pause or archive them deliberately.")
-            if st.button("Mark selected rows as exported", use_container_width=True, key="tasklist_mark_selected_exported"):
+            if st.button("Mark selected rows as exported", use_container_width=True, key=f"{tasklist_key_prefix}_mark_selected_exported"):
                 ids = selected_rows.get("action_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
                 ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=False)
                 if ok:
@@ -8682,7 +8846,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                     supporting_rows.append(len(data))
                 data.append([
                     checkbox_box(),
-                    Paragraph(clean_text(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled"), task_style),
+                    Paragraph(clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled"), task_style),
                     Paragraph(clean_text(tasklist_notes_text(row)), small),
                 ])
             table = Table(data, colWidths=[8*mm, 70*mm, 100*mm], repeatRows=1)
@@ -8699,7 +8863,9 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ] + [("LEFTPADDING", (1, r), (1, r), 14) for r in supporting_rows]))
+            ] + [("LEFTPADDING", (1, r), (1, r), 20) for r in supporting_rows]
+              + [("BACKGROUND", (1, r), (-1, r), colors.HexColor("#F3F5F4")) for r in supporting_rows]
+              + [("LINEBEFORE", (1, r), (1, r), 1.2, colors.HexColor("#9BA7A1")) for r in supporting_rows]))
             story.append(table)
             story.append(Spacer(1, 8))
 
@@ -8790,8 +8956,11 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
             if parent and parent != current_parent:
                 lines.append(f"\n{parent}")
                 current_parent = parent
-            indent = "    " if _tasklist_is_supporting_row(row) else ""
-            lines.append(f"{indent}☐ {row.get('display_title') or row.get('title','Untitled')}")
+            is_support = _tasklist_is_supporting_row(row)
+            indent = "    " if is_support else ""
+            title_text = row.get('title') or row.get('display_title') or 'Untitled'
+            label = f"Supporting: {title_text}" if is_support else str(title_text)
+            lines.append(f"{indent}☐ {label}")
             notes = re.sub(r"<br\s*/?>", " | ", tasklist_notes_text(row))
             if notes:
                 lines.append(f"{indent}   {notes}")

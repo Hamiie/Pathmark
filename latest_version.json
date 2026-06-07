@@ -1,23 +1,23 @@
 {
-  "version": "0.7.2",
+  "version": "0.7.3",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_2.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_2.zip",
-  "release": "v0.7.2 Google OAuth public policy links",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_2.zip",
-  "label": "Google OAuth public policy links",
-  "release_notes": "Adds direct public Privacy Policy, Terms of Service, and Google access explanation pages suitable for Google Auth Platform app-domain links.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_3.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_3.zip",
+  "release": "v0.7.3 Mobile containment and focus hierarchy polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_3.zip",
+  "label": "Mobile containment and focus hierarchy polish",
+  "release_notes": "Polishes the hosted phone layout, removes horizontal overflow, and makes focus blocks/supporting time blocks appear as a proper nested hierarchy in projects and printable tasklists.",
   "notes": [
-    "Adds public URL-routed Privacy Policy and Terms of Service pages for Google Auth Platform branding links.",
-    "Adds a public Google access explanation page summarising the intended OAuth consent-screen settings and Pathmark permission behaviour.",
-    "Adds visible Home and About & Privacy links to the public policy pages so the OAuth app domain pages are easy to find.",
-    "Keeps these pages accessible without signing in, so Google consent-screen review and users can open them directly.",
-    "Retains the mobile-first hosted UI from v0.7.1."
+    "Improves the hosted phone layout by preventing horizontal page overflow and making cards/text wrap within the screen width.",
+    "Focus blocks and supporting time blocks now render as a single nested project hierarchy rather than separate boxed fragments.",
+    "Supporting time blocks are visually indented inside the focus block they support while remaining excluded from project progress.",
+    "Printable tasklists now use proper indentation and subtle row styling for supporting time blocks instead of em-dash prefixes.",
+    "Tasklist widget keys are made unique per render to avoid duplicate-key failures if Streamlit renders a fallback path."
   ],
-  "release_name": "Google OAuth public policy links",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip"
+  "release_name": "Mobile containment and focus hierarchy polish",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_3.zip"
 }
