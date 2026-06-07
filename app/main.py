@@ -683,8 +683,25 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .status-chip.done {{ background:color-mix(in srgb, #16A34A 18%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #16A34A 45%, var(--line)); }}
 .status-chip.pending {{ background:color-mix(in srgb, var(--accent) 13%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }}
 .status-chip.review {{ background:color-mix(in srgb, #B45309 15%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #B45309 45%, var(--line)); }}
+.status-chip.overdue {{ background:color-mix(in srgb, #DC2626 16%, var(--surface)); color:var(--ink); border-color:color-mix(in srgb, #DC2626 52%, var(--line)); }}
 .status-chip.muted {{ background:var(--surface-2); color:var(--muted); }}
 .item-status-row {{ margin-top:.55rem; display:flex; flex-wrap:wrap; gap:.2rem; }}
+.project-due-card {{ margin:.45rem 0 .9rem; padding:.82rem .95rem; border-radius:1rem; border:1px solid var(--line); background:var(--surface-2); display:flex; justify-content:space-between; gap:.8rem; align-items:center; flex-wrap:wrap; }}
+.project-due-card.overdue {{ border-left:5px solid #DC2626; background:color-mix(in srgb, #DC2626 9%, var(--surface)); }}
+.project-due-card.due-soon {{ border-left:5px solid #B45309; background:color-mix(in srgb, #B45309 9%, var(--surface)); }}
+.project-due-card.clear {{ border-left:5px solid var(--accent); }}
+.project-due-label {{ color:var(--muted); font-size:.82rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; }}
+.project-due-main {{ font-size:1.05rem; font-weight:780; color:var(--ink); }}
+.focus-block-shell {{ border:1px solid var(--line); border-radius:1.15rem; background:var(--surface); padding:.95rem; margin:.9rem 0; }}
+.focus-block-shell .step-card {{ margin:.15rem 0 .65rem; }}
+.support-block-group {{ margin:.45rem 0 0 1rem; padding-left:.9rem; border-left:3px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }}
+.support-block-group-label {{ color:var(--muted); font-size:.82rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; margin:.35rem 0 .45rem; }}
+.project-select-card { border:1px solid var(--line); border-left:5px solid var(--line); border-radius:.95rem; background:var(--surface); padding:.72rem .85rem; margin:.45rem 0; }
+.project-select-card.overdue { border-left-color:#DC2626; background:color-mix(in srgb, #DC2626 7%, var(--surface)); }
+.project-select-card.due-soon { border-left-color:#B45309; background:color-mix(in srgb, #B45309 7%, var(--surface)); }
+.project-select-card.clear { border-left-color:var(--accent); }
+.project-select-title { font-weight:780; color:var(--ink); margin-bottom:.22rem; }
+.project-select-meta { color:var(--muted); font-size:.88rem; line-height:1.35; }
 
 /* Appearance contrast is paired through Streamlit CSS variables above.
    Avoid separate dark-mode text rules; they can place light text on a light
@@ -2549,7 +2566,7 @@ def render_safe_section(label: str, func, *args, **kwargs) -> None:
         role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
         if role_can_develop(role, status):
             with st.expander("Developer details", expanded=False):
-                st.code("".join(traceback.format_exception_only(type(exc), exc)).strip())
+                st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
         return
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
@@ -2587,6 +2604,30 @@ def pathmark_column_config(kind: str, label: str, **kwargs):
             except Exception:
                 return None
     return None
+
+
+
+def pathmark_column_config_map(config_map: dict[str, Any]) -> dict[str, Any] | None:
+    cleaned = {k: v for k, v in (config_map or {}).items() if v is not None}
+    return cleaned or None
+
+
+def safe_data_editor(df: pd.DataFrame, *, column_order: list[str] | None = None, column_config: dict[str, Any] | None = None, **kwargs) -> pd.DataFrame:
+    """Render st.data_editor with compatibility fallbacks for older Streamlit builds."""
+    frame = df.copy() if isinstance(df, pd.DataFrame) else pd.DataFrame(df)
+    for col in column_order or []:
+        if col not in frame.columns:
+            frame[col] = ""
+    safe_config = pathmark_column_config_map(column_config or {})
+    try:
+        return st.data_editor(frame, column_order=column_order, column_config=safe_config, **kwargs)
+    except TypeError:
+        try:
+            return st.data_editor(frame, column_order=column_order, **kwargs)
+        except Exception:
+            return st.data_editor(frame, **{k: v for k, v in kwargs.items() if k not in {"column_order", "column_config"}})
+    except Exception:
+        return st.data_editor(frame, **{k: v for k, v in kwargs.items() if k not in {"column_order", "column_config"}})
 
 
 def online_setting(sheet_id: str, key: str, default: str = "") -> str:
@@ -3877,6 +3918,91 @@ def project_has_focus_blocks(actions: pd.DataFrame, project_id: str) -> bool:
     return any(is_focus_project_action(row) for _, row in project_rows.iterrows())
 
 
+
+def project_due_summary_html(project: pd.Series | dict[str, Any]) -> str:
+    raw = str(project.get("target_date", "") or "").strip()
+    if not raw:
+        return "<div class='project-due-card clear'><div><div class='project-due-label'>Target date</div><div class='project-due-main'>No target date set</div></div><span class='status-chip muted'>No due date</span></div>"
+    parsed = parse_online_date(raw)
+    display = _tasklist_human_date(raw)
+    status = str(project.get("status", "") or "").strip().lower()
+    if parsed is None:
+        return f"<div class='project-due-card'><div><div class='project-due-label'>Target date</div><div class='project-due-main'>{html.escape(display)}</div></div><span class='status-chip review'>Check date</span></div>"
+    today = _today_nz()
+    days = (parsed - today).days
+    complete_statuses = {"closed", "done", "completed", "archived", "abandoned"}
+    if status in complete_statuses:
+        chip = status_chip("Closed")
+        card_class = "clear"
+        helper = "Target retained for reference"
+    elif days < 0:
+        chip = status_chip(f"Overdue by {abs(days)} day" + ("" if abs(days) == 1 else "s"))
+        card_class = "overdue"
+        helper = "Needs review"
+    elif days == 0:
+        chip = status_chip("Due today")
+        card_class = "due-soon"
+        helper = "Due today"
+    elif days <= 7:
+        chip = status_chip(f"Due in {days} day" + ("" if days == 1 else "s"))
+        card_class = "due-soon"
+        helper = "Coming up"
+    else:
+        chip = status_chip(f"Due in {days} days")
+        card_class = "clear"
+        helper = "On the horizon"
+    return f"<div class='project-due-card {card_class}'><div><div class='project-due-label'>{html.escape(helper)}</div><div class='project-due-main'>Target: {html.escape(display)}</div></div>{chip}</div>"
+
+
+def project_due_sort_label(project: pd.Series | dict[str, Any]) -> str:
+    raw = str(project.get("target_date", "") or "").strip()
+    parsed = parse_online_date(raw)
+    if parsed is None:
+        return "No target date"
+    today = _today_nz()
+    days = (parsed - today).days
+    if days < 0:
+        return f"Overdue · {parsed.strftime('%d/%m/%Y')}"
+    if days == 0:
+        return "Due today"
+    if days <= 7:
+        return f"Due soon · {parsed.strftime('%d/%m/%Y')}"
+    return f"Due {parsed.strftime('%d/%m/%Y')}"
+
+
+def project_due_class(project: pd.Series | dict[str, Any]) -> str:
+    raw = str(project.get("target_date", "") or "").strip()
+    parsed = parse_online_date(raw)
+    status = str(project.get("status", "") or "").strip().lower()
+    if status in {"closed", "done", "completed", "archived", "abandoned"}:
+        return "clear"
+    if parsed is None:
+        return "clear"
+    days = (parsed - _today_nz()).days
+    if days < 0:
+        return "overdue"
+    if days <= 7:
+        return "due-soon"
+    return "clear"
+
+
+def render_project_visibility_cards(projects: pd.DataFrame, selected_id: str = "") -> None:
+    if projects is None or projects.empty:
+        return
+    st.markdown("#### Due dates at a glance")
+    for _, prow in projects.iterrows():
+        pid = str(prow.get("goal_id", "") or "")
+        cls = project_due_class(prow)
+        selected = " · selected" if pid == selected_id else ""
+        title = str(prow.get("title", "Untitled project") or "Untitled project")
+        status = str(prow.get("status", "") or "").strip()
+        due = project_due_sort_label(prow)
+        st.markdown(
+            f"<div class='project-select-card {cls}'><div class='project-select-title'>{html.escape(title)}</div><div class='project-select-meta'>{html.escape(status)} · {html.escape(due)}{html.escape(selected)}</div></div>",
+            unsafe_allow_html=True,
+        )
+
+
 def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bool:
     """Return whether a project action should count toward project completion.
 
@@ -4253,6 +4379,49 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                 if ok:
                     st.rerun()
 
+
+def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal_id: str, default_area: str = "") -> None:
+    """Render focus blocks with supporting time blocks nested directly underneath."""
+    if linked is None or linked.empty:
+        st.info("No focus blocks yet. Add one below when you are ready.")
+        return
+    progress_rows = linked[linked.apply(project_action_counts_toward_progress, axis=1)].copy()
+    support_rows = linked[linked.apply(lambda r: not project_action_counts_toward_progress(r), axis=1)].copy()
+    if progress_rows.empty:
+        st.info("No focus blocks yet. Add one below when you are ready.")
+    else:
+        st.markdown("#### Focus blocks")
+    for _, focus_row in progress_rows.iterrows():
+        focus_id = str(focus_row.get("action_id", "") or "").strip()
+        title = str(focus_row.get("title", "") or "Untitled focus block")
+        supports = project_supporting_actions_for_parent(support_rows, focus_id)
+        st.markdown("<div class='focus-block-shell'>", unsafe_allow_html=True)
+        _render_action_list(sheet_id, pd.DataFrame([focus_row.to_dict()]), goal_id=goal_id, default_area=default_area)
+        st.markdown("<div class='support-block-group'>", unsafe_allow_html=True)
+        st.markdown("<div class='support-block-group-label'>Supporting time blocks inside this focus block</div>", unsafe_allow_html=True)
+        if supports.empty:
+            st.caption("No supporting time blocks yet.")
+        else:
+            _render_action_list(sheet_id, supports, goal_id=goal_id, default_area=default_area)
+        with st.expander(f"Add supporting time block for {title}", expanded=False):
+            st.caption("This will sit under the focus block, sync to Google Calendar and Google Tasks, and stay out of the project completion percentage.")
+            _action_form(
+                sheet_id,
+                goal_id=goal_id,
+                default_area=default_area,
+                form_key=f"goal_{goal_id}_support_{focus_id}",
+                action={"item_type": "supporting_time", "contributes_to_progress": "0", "parent_progress_item_id": focus_id},
+            )
+        st.markdown("</div></div>", unsafe_allow_html=True)
+    unassigned = support_rows.copy()
+    if not unassigned.empty and "parent_progress_item_id" in unassigned.columns:
+        unassigned = unassigned[unassigned["parent_progress_item_id"].fillna("").astype(str).str.strip() == ""].copy()
+    if not unassigned.empty:
+        with st.expander("Supporting time blocks without a focus block", expanded=False):
+            st.caption("Edit these and choose the focus block they support so Pathmark can nest them clearly.")
+            _render_action_list(sheet_id, unassigned, goal_id=goal_id, default_area=default_area)
+
+
 def render_goal_manager(sheet_id: str) -> None:
     st.subheader("Projects")
     st.markdown("""
@@ -4301,13 +4470,15 @@ def render_goal_manager(sheet_id: str) -> None:
             st.info("No projects yet.")
             selected_id = ""
         else:
-            labels = {f"{row.get('title','Untitled')} ({row.get('status','')})": str(row.get("goal_id", "")) for _, row in goals.iterrows()}
+            labels = {f"{row.get('title','Untitled')} ({row.get('status','')}) — {project_due_sort_label(row)}": str(row.get("goal_id", "")) for _, row in goals.iterrows()}
             selected_label = st.radio("Select a project", list(labels.keys()), label_visibility="collapsed", key="online_goal_select")
             selected_id = labels.get(selected_label, "")
+            render_project_visibility_cards(goals, selected_id)
     with col_main:
         if selected_id:
             g = goals[goals["goal_id"] == selected_id].iloc[0].to_dict()
             st.markdown(f"### {g.get('title','Project')}")
+            st.markdown(project_due_summary_html(g), unsafe_allow_html=True)
             project_items = project_task_items(sheet_id, selected_id)
             project_done, project_total = completion_counts(project_items)
             if project_total:
@@ -4353,18 +4524,16 @@ def render_goal_manager(sheet_id: str) -> None:
                                 st.rerun()
             with tabs[1]:
                 linked = actions[actions["goal_id"].fillna("") == selected_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
-                _render_action_list(sheet_id, linked, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""))
                 planning_mode = str(g.get("planning_mode", "Task-based") or "Task-based")
+                default_area_for_project = str(g.get("area_name", "") or "")
                 if planning_mode == "Focus-based":
-                    st.caption("This project is focus-based. Progress items are the milestones/focuses that count toward completion. Supporting time blocks are calendar/task sessions that help you work on a focus, but do not count toward project progress.")
+                    st.caption("This project is focus-based. Focus blocks count toward completion. Supporting time blocks sit under the focus block they support, sync to Calendar and Google Tasks, and do not change project progress.")
+                    render_focus_based_project_work(sheet_id, linked, goal_id=selected_id, default_area=default_area_for_project)
                 else:
-                    st.caption("Project steps are one-off steps toward this project. Calendar time, tasklist rows and Google Tasks checklist items are created automatically. Supporting time blocks can be added later if you need flexible work sessions that do not count toward progress.")
+                    _render_action_list(sheet_id, linked, goal_id=selected_id, default_area=default_area_for_project)
+                    st.caption("Project steps are one-off steps toward this project. Calendar time, tasklist rows and Google Tasks checklist items are created automatically.")
                 with st.expander("Add focus block" if planning_mode == "Focus-based" else "Add project step", expanded=linked.empty):
-                    _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_progress")
-                if planning_mode == "Focus-based":
-                    with st.expander("Add supporting time block", expanded=False):
-                        st.caption("Use this for practice/work sessions that should appear in Calendar and Google Tasks but should not change project progress directly.")
-                        _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_support", action={"item_type": "supporting_time", "contributes_to_progress": "0"})
+                    _action_form(sheet_id, goal_id=selected_id, default_area=default_area_for_project, form_key=f"goal_{selected_id}_progress")
             with tabs[2]:
                 st.markdown("""
                 **Active** projects appear in the workspace and count toward progress.  
@@ -5271,9 +5440,9 @@ def render_spending_income_form(sheet_id: str) -> None:
             "Notes": row.get("notes", ""),
             "Active": True,
         })
-    edit_df = pd.DataFrame(editor_rows)
+    edit_df = pd.DataFrame(editor_rows, columns=["_record_id", "Income source", "Amount", "Frequency", "Notes", "Active"])
     with st.form("spending_income_editor", clear_on_submit=False):
-        edited = st.data_editor(
+        edited = safe_data_editor(
             edit_df,
             hide_index=True,
             use_container_width=True,
@@ -5513,7 +5682,7 @@ def render_spending_expense_form(sheet_id: str) -> None:
             st.caption("Enter or adjust amounts. Leave an amount as $0.00 if the item does not apply. Untick Active to remove a row from the current assessment.")
             edit_df = spending_editor_dataframe(section_df, section_name)
             with st.form(f"spending_editor_{kind}_{section_name}".replace(" ", "_").replace("/", "_").lower(), clear_on_submit=False):
-                edited = st.data_editor(
+                edited = safe_data_editor(
                     edit_df,
                     hide_index=True,
                     use_container_width=True,
@@ -6484,7 +6653,15 @@ def render_spending_records(sheet_id: str) -> None:
 
 
 def render_spending_plan_manager(sheet_id: str) -> None:
-    ensure_spending_plan_default_rows(sheet_id)
+    try:
+        ensure_spending_plan_default_rows(sheet_id)
+    except Exception as exc:
+        st.warning("Pathmark could not check Spending Plan starter rows just now, but the Spending Plan can still open.")
+        user = current_user() if 'current_user' in globals() else {}
+        role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
+        if role_can_develop(role, status):
+            with st.expander("Developer details", expanded=False):
+                st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
     if st.session_state.get("spending_notice"):
         st.success(st.session_state.pop("spending_notice"))
 
@@ -6505,32 +6682,109 @@ def render_spending_plan_manager(sheet_id: str) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-    tabs = st.tabs(section_options)
+    try:
+        tabs = st.tabs(section_options)
+    except Exception:
+        tabs = []
+
+    def _spending_piece(label: str, body_func, *, summary: bool = True) -> None:
+        try:
+            if summary:
+                _render_spending_summary_strip()
+            body_func(sheet_id)
+        except Exception as exc:
+            st.warning(f"Pathmark could not open the {label} part of Spending Plan just now. The other tabs should still work.")
+            user = current_user() if 'current_user' in globals() else {}
+            role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
+            if role_can_develop(role, status):
+                with st.expander("Developer details", expanded=False):
+                    st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
+
+    if not tabs:
+        choice = st.radio("Spending Plan section", section_options, horizontal=True)
+        dispatch = {
+            "Assessment": (render_spending_assessment, False),
+            "Income": (render_spending_income_form, True),
+            "Spending": (render_spending_expense_form, True),
+            "APs": (render_spending_account_form, True),
+            "Projections": (render_spending_projections, True),
+            "Template": (render_spending_template_tools, True),
+            "Records": (render_spending_records, True),
+        }
+        body_func, show_summary = dispatch.get(choice, (render_spending_assessment, False))
+        _spending_piece(choice, body_func, summary=show_summary)
+        return
+
     with tabs[0]:
-        render_spending_assessment(sheet_id)
+        _spending_piece("Assessment", render_spending_assessment, summary=False)
     with tabs[1]:
-        _render_spending_summary_strip()
-        render_spending_income_form(sheet_id)
+        _spending_piece("Income", render_spending_income_form)
     with tabs[2]:
-        _render_spending_summary_strip()
-        render_spending_expense_form(sheet_id)
+        _spending_piece("Spending", render_spending_expense_form)
     with tabs[3]:
-        _render_spending_summary_strip()
-        render_spending_account_form(sheet_id)
+        _spending_piece("APs", render_spending_account_form)
     with tabs[4]:
-        _render_spending_summary_strip()
-        render_spending_projections(sheet_id)
+        _spending_piece("Projections", render_spending_projections)
     with tabs[5]:
-        _render_spending_summary_strip()
-        render_spending_template_tools(sheet_id)
+        _spending_piece("Template", render_spending_template_tools)
     with tabs[6]:
-        _render_spending_summary_strip()
-        render_spending_records(sheet_id)
+        _spending_piece("Records", render_spending_records)
+
+def fallback_staged_tasklist(sheet_id: str) -> pd.DataFrame:
+    """Build a simple tasklist directly from actions if the richer tasklist builder fails."""
+    cols = ["action_id", "source_type", "title", "display_title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes", "item_type", "parent_progress_item_id", "parent_progress_title", "calendar_start_time", "calendar_end_time", "calendar_end_date", "notes", "priority"]
+    try:
+        actions = read_online_table(sheet_id, "actions")
+        if actions is None or actions.empty:
+            return pd.DataFrame(columns=cols)
+        rows = []
+        for _, a in actions.iterrows():
+            if not truthy_flag(a.get("include_tasklist", "1")):
+                continue
+            title = str(a.get("title", "") or "").strip()
+            if not title:
+                continue
+            item_type = str(a.get("item_type", "") or "")
+            is_support = is_supporting_project_action(a)
+            rows.append({
+                "action_id": str(a.get("action_id", "") or ""),
+                "source_type": "Routine activity" if str(a.get("routine_id", "") or "").strip() else "Goal action",
+                "title": title,
+                "display_title": (f"— {title}" if is_support else title),
+                "area_name": str(a.get("area_name", "") or ""),
+                "parent": str(a.get("goal_id", "") or a.get("routine_id", "") or "Unlinked"),
+                "status": str(a.get("status", "") or "Planned"),
+                "scheduled_date": str(a.get("scheduled_date", "") or ""),
+                "due_date": str(a.get("due_date", "") or ""),
+                "first_step": str(a.get("first_step", "") or ""),
+                "estimated_minutes": str(a.get("estimated_minutes", "") or ""),
+                "item_type": item_type,
+                "parent_progress_item_id": str(a.get("parent_progress_item_id", "") or ""),
+                "parent_progress_title": "",
+                "calendar_start_time": str(a.get("calendar_start_time", "") or ""),
+                "calendar_end_time": str(a.get("calendar_end_time", "") or ""),
+                "calendar_end_date": str(a.get("calendar_end_date", "") or ""),
+                "notes": str(a.get("notes", "") or a.get("description", "") or ""),
+                "priority": str(a.get("priority", "") or ""),
+            })
+        return pd.DataFrame(rows, columns=cols)
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
     st.write("Use this as a printable paper copy. Google Sync is the main working sync for Google Calendar and Google Tasks.")
-    tasklist = staged_tasklist(sheet_id)
+    try:
+        tasklist = staged_tasklist(sheet_id)
+    except Exception as exc:
+        tasklist = fallback_staged_tasklist(sheet_id)
+        st.warning("Pathmark had trouble building the full tasklist view, so it opened a simpler tasklist view instead.")
+        user = current_user() if 'current_user' in globals() else {}
+        role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
+        if role_can_develop(role, status):
+            with st.expander("Developer details", expanded=False):
+                st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
     if tasklist.empty:
         st.info("No tasklist rows yet. Add project steps or routine activities; Pathmark will stage tasklist rows automatically.")
         return
@@ -6538,8 +6792,9 @@ def render_tasklist_manager(sheet_id: str) -> None:
         title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
         notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
         selected_action_ids: list[str] = []
-        goal_actions = tasklist[tasklist.get("source_type", pd.Series(dtype=str)).fillna("").astype(str) == "Goal action"].copy()
-        routine_rows = tasklist[tasklist.get("source_type", pd.Series(dtype=str)).fillna("").astype(str) == "Routine activity"].copy()
+        source_series = tasklist["source_type"].fillna("").astype(str) if "source_type" in tasklist.columns else pd.Series([""] * len(tasklist), index=tasklist.index)
+        goal_actions = tasklist[source_series == "Goal action"].copy()
+        routine_rows = tasklist[source_series == "Routine activity"].copy()
         if not goal_actions.empty:
             st.markdown("#### Project work")
             for parent, group in goal_actions.groupby(goal_actions.get("parent", pd.Series("Unlinked project", index=goal_actions.index)).fillna("Unlinked project"), sort=False):
@@ -6567,7 +6822,11 @@ def render_tasklist_manager(sheet_id: str) -> None:
                     suffix = f" ({days})" if days else ""
                     if st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key):
                         selected_action_ids.append(str(row.get("action_id", "") or ""))
-    selected_rows = tasklist[tasklist.get("action_id", pd.Series(dtype=str)).fillna("").astype(str).isin(selected_action_ids)].copy() if selected_action_ids else pd.DataFrame(columns=tasklist.columns)
+    if selected_action_ids and "action_id" in tasklist.columns:
+        action_series = tasklist["action_id"].fillna("").astype(str)
+        selected_rows = tasklist[action_series.isin(selected_action_ids)].copy()
+    else:
+        selected_rows = pd.DataFrame(columns=tasklist.columns)
     if selected_rows.empty and not st.session_state.get("tasklist_notes_has_content", False):
         st.info("Tick at least one action or activity before downloading the tasklist.")
     if not selected_rows.empty:
@@ -6575,7 +6834,10 @@ def render_tasklist_manager(sheet_id: str) -> None:
         preview = selected_rows.copy()
         preview["notes_preview"] = preview.apply(tasklist_notes_text, axis=1).str.replace("<br/>", " · ", regex=False)
         dataframe_preview(preview, ["source_type", "display_title", "notes_preview", "status"])
-    pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes)
+    try:
+        pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes)
+    except Exception:
+        pdf_bytes = build_printable_tasklist_from_rows(selected_rows)
     st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
     if not selected_rows.empty:
         with st.expander("After printing or saving"):
@@ -7635,6 +7897,8 @@ def _normalise_status_for_chip(label: str) -> str:
         return "done"
     if "pending" in text or "synced" in text or "linked" in text or "needsaction" in text:
         return "pending"
+    if "overdue" in text:
+        return "overdue"
     if "missing" in text or "review" in text or "changed" in text:
         return "review"
     return "muted"
@@ -9952,8 +10216,8 @@ def render_online_overview(sheet_id: str) -> None:
 def download_tab() -> None:
     version = load_version()
     windows_package = find_windows_package(version.get("windows_package", ""))
-    if ICON_PATH.exists():
-        st.image(str(ICON_PATH), width=54)
+    # The large Pathmark wordmark now carries the Home page brand.
+    # Keep the icon for browser/app identity rather than repeating it above the hero.
     render_seasonal_banner(compact=True, force=True, season=current_southern_hemisphere_season())
     st.markdown("""
     <div class="hero">

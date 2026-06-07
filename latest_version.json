@@ -1,23 +1,24 @@
 {
-  "version": "0.6.95",
+  "version": "0.6.96",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_95.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_95.zip",
-  "release": "v0.6.95 Seasonal banner refinement",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_95.zip",
-  "label": "Seasonal banner refinement",
-  "release_notes": "Refines seasonal banners so they are quieter, textless on working pages, and no longer render an empty panel, while retaining labelled previews on the Theme page.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_96.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_96.zip",
+  "release": "v0.6.96 Project due dates and section fallback fixes",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_96.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_96.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_96.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_96.zip",
+  "label": "Project due dates and section fallback fixes",
+  "release_notes": "Improves project due-date visibility, clarifies focus-block support structure, and adds safer fallbacks for Tasklist and Spending Plan section failures.",
   "notes": [
-    "Seasonal banners are now quieter and shallower on Home, Pathmark Planner, Spending Plan and Meal Plan.",
-    "Plain seasonal banners no longer render the glass label panel, preventing the stray text/box issue seen on the Home page.",
-    "The Theme page still shows the labelled banner preview, where the seasonal context is useful.",
-    "Top page padding has been increased slightly to avoid clipping the signed-in/access cards.",
-    "The v0.6.94 section compatibility patch is retained."
+    "Home now lets the Pathmark wordmark carry the brand; the standalone logo is no longer inserted above the seasonal banner.",
+    "Projects now show due-date visibility cards so overdue, due-soon and undated projects are easier to spot at a glance.",
+    "Focus-based projects show focus blocks with supporting time blocks nested directly beneath the block they support.",
+    "Supporting time blocks remain excluded from project completion while still syncing to Google Calendar and Google Tasks.",
+    "Tasklist now falls back to a simpler view if the richer hierarchy builder fails, rather than closing the whole section.",
+    "Spending Plan now opens even if starter-row checks or tabs fail, with developer diagnostics for the failing sub-section."
   ],
-  "release_name": "Seasonal banner refinement",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip"
+  "release_name": "Project due dates and section fallback fixes",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_96.zip"
 }
