@@ -1,25 +1,23 @@
 {
-  "version": "0.6.89",
+  "version": "0.6.90",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_89.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_89.zip",
-  "release": "v0.6.89 Project mode UX simplification",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_89.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_89.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_89.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_89.zip",
-  "label": "Project mode UX simplification",
-  "release_notes": "Simplifies project planning modes so task-based projects and focus-based projects have distinct, low-friction rules.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_90.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_90.zip",
+  "release": "v0.6.90 Consolidated Meal Plan starter-pack imports",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_90.zip",
+  "label": "Consolidated Meal Plan starter-pack imports",
+  "release_notes": "Adds importer support for the consolidated Supabase starter packs: Recipes, Ingredients and Nutrition.",
   "notes": [
-    "Removed Mixed project planning mode from the user-facing flow.",
-    "Task-based projects now treat each project step as progress-tracked automatically.",
-    "Focus-based projects now use focus blocks as the progress-tracked items.",
-    "Focus blocks can span one or more days and sync to Google Calendar as all-day events.",
-    "Supporting time blocks sit underneath focus blocks and create Calendar/Google Tasks items without counting toward project completion.",
-    "Helper checklist items are no longer offered for focus blocks, but remain available for supporting time blocks and task-based project steps.",
-    "Projects tab and Creation Wizard wording now change based on the selected project planning style."
+    "Starter Packs now recognises Recipes, Ingredients and Nutrition as separate Supabase-backed Meal Plan packs.",
+    "The Ingredients pack imports into grocery inventory while keeping the user-facing label as Ingredients / pantry.",
+    "Default section choices now adapt to the selected starter pack so users do not need to know the internal table names.",
+    "Updated Supabase README guidance for the consolidated starter-pack CSV import and access-code secret keys.",
+    "Curated starter-pack data remains outside the public GitHub repository; the app imports rows from Supabase into the user's own Pathmark Sync sheet."
   ],
-  "release_name": "Project mode UX simplification",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_89.zip"
+  "release_name": "Consolidated Meal Plan starter-pack imports",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip"
 }

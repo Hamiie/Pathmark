@@ -10864,16 +10864,46 @@ def import_grocery_template(sheet_id: str, mode: str = "merge") -> tuple[bool, s
 STARTER_PACK_TABLES = {
     "nutrition": "grocery_nutrition",
     "inventory": "grocery_inventory",
+    "ingredients": "grocery_inventory",
+    "ingredient": "grocery_inventory",
+    "produce": "grocery_inventory",
+    "pantry": "grocery_inventory",
     "recipes": "recipes",
+    "recipe": "recipes",
     "recipe ingredients": "recipe_ingredients",
     "recipe_ingredients": "recipe_ingredients",
 }
 STARTER_PACK_SECTION_LABELS = {
     "nutrition": "Nutrition",
-    "inventory": "Inventory / produce",
+    "inventory": "Ingredients / pantry",
+    "ingredients": "Ingredients / pantry",
     "recipes": "Recipes",
     "recipe ingredients": "Recipe ingredients",
 }
+
+STARTER_PACK_SECTION_PRESETS = {
+    "recipes": ["recipes"],
+    "seasonal-recipe-library": ["recipes"],
+    "ingredients": ["inventory"],
+    "pantry-starter-pack": ["inventory"],
+    "nutrition": ["nutrition"],
+    "nz-seasonal-produce": ["inventory"],
+}
+
+def starter_pack_section_choices(slug: str) -> list[str]:
+    clean_slug = str(slug or "").strip().lower()
+    preset = STARTER_PACK_SECTION_PRESETS.get(clean_slug)
+    if preset:
+        return list(preset)
+    return ["inventory", "nutrition", "recipes", "recipe ingredients"]
+
+def starter_pack_default_sections(slug: str, choices: list[str]) -> list[str]:
+    clean_slug = str(slug or "").strip().lower()
+    preset = STARTER_PACK_SECTION_PRESETS.get(clean_slug)
+    if preset:
+        return [section for section in preset if section in choices]
+    defaults = [section for section in ["inventory", "nutrition"] if section in choices]
+    return defaults or list(choices[:1])
 
 
 def starter_pack_secret_config() -> dict[str, Any]:
@@ -11042,7 +11072,7 @@ def import_starter_pack_to_sync(sheet_id: str, slug: str, sections: list[str], m
 def render_grocery_starter_packs_tab(sheet_id: str) -> None:
     st.subheader("Starter Packs")
     st.write("Import optional grocery libraries into your own Pathmark Sync sheet. Purchased or supporter packs are copied into your sheet and can then be edited or deleted.")
-    st.info("The full curated starter library is not bundled in the public GitHub repository. Use an access code from the creator, for example through Patreon or a direct purchase, to import a pack when Supabase starter packs are configured.")
+    st.info("The full curated starter libraries are not bundled in the public GitHub repository. Supported Supabase starter packs include Recipes, Ingredients and Nutrition; each can be imported separately with an access code from the creator.")
     packs = list_starter_packs_from_supabase()
     fallback_pack = {
         "slug": "nz-seasonal-produce",
@@ -11065,13 +11095,13 @@ def render_grocery_starter_packs_tab(sheet_id: str) -> None:
         access_code = st.text_input("Access code", type="password", key="starter_pack_access_code")
     with c2:
         import_mode = st.radio("Import mode", ["Merge/update", "Clean import"], index=0, horizontal=False, key="starter_pack_mode")
-    section_choices = ["nutrition", "inventory", "recipes", "recipe ingredients"]
+    section_choices = starter_pack_section_choices(slug)
     selected_sections = st.multiselect(
         "Sections to import",
         section_choices,
-        default=["inventory", "nutrition"],
+        default=starter_pack_default_sections(slug, section_choices),
         format_func=lambda x: STARTER_PACK_SECTION_LABELS.get(x, x.title()),
-        key="starter_pack_sections",
+        key=f"starter_pack_sections_{slug}",
     )
     with st.expander("What happens when I import a pack?", expanded=False):
         st.markdown("""

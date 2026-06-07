@@ -74,3 +74,36 @@ nz_seasonal_produce_code_hash = "sha256_hex_of_access_code"
 ```
 
 Imported starter-pack rows are copied into the user's Pathmark Sync sheet and become editable user data. This is controlled distribution, not copy protection.
+
+## Consolidated Meal Plan starter packs
+
+The current Meal Plan import model expects three separate Supabase starter packs:
+
+- `recipes` — recipe metadata and classification rows only
+- `ingredients` — pantry/grocery/produce inventory rows, including supermarket category, preferred unit, and seasonality where available
+- `nutrition` — nutrition reference rows used for kcal and nutrient lookups
+
+Import the consolidated CSV bundle into Supabase in this order:
+
+1. `pathmark_starter_packs.csv` into `public.pathmark_starter_packs`
+2. `pathmark_starter_pack_rows.csv` into `public.pathmark_starter_pack_rows`
+
+The app intentionally does not bundle the curated dataset in the public GitHub repository. Supabase holds the starter-library rows, and Pathmark copies selected packs into the user's own Pathmark Sync sheet after access-code validation.
+
+Suggested access-code secrets:
+
+```toml
+[starter_packs]
+recipes_code_hash = "sha256_hex_of_recipes_access_code"
+ingredients_code_hash = "sha256_hex_of_ingredients_access_code"
+nutrition_code_hash = "sha256_hex_of_nutrition_access_code"
+```
+
+For local testing only, plain codes are also recognised:
+
+```toml
+[starter_packs]
+recipes_code = "TEST-RECIPES-CODE"
+ingredients_code = "TEST-INGREDIENTS-CODE"
+nutrition_code = "TEST-NUTRITION-CODE"
+```
