@@ -1,6 +1,6 @@
 # Pathmark Release Hub
 
-## v0.6.86 Navigation naming cleanup
+## v0.6.87 Navigation naming cleanup
 
 - Renames **Pathmark Online beta** to **Planner** in user-facing navigation and headings.
 - Renames **Spending Plan beta** to **Spending Plan**.

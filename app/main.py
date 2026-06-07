@@ -50,9 +50,9 @@ SYNC_COLUMNS = [
 ONLINE_TABLES = {
     "settings": ["key", "value", "updated_at", "source"],
     "areas": ["area_id", "area_name", "description", "colour", "status", "default_calendar", "default_task_list", "google_calendar_id", "google_calendar_name", "google_calendar_colour_id", "google_calendar_synced_at", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "goals": ["goal_id", "area_id", "area_name", "title", "description", "specific_area", "planning_mode", "status", "target_date", "purpose", "desired_outcome", "closure_criteria", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "routines": ["routine_id", "area_id", "area_name", "title", "description", "frequency", "preferred_days", "duration_minutes", "status", "purpose", "next_due", "checklist", "calendar_block", "reminder", "starting_prompt", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status", "google_calendar_id", "google_calendar_event_id", "google_calendar_status", "google_calendar_updated_at", "google_calendar_synced_at", "google_calendar_recurrence", "calendar_sync_status", "archived_at", "archived_reason", "restored_at"],
+    "actions": ["action_id", "goal_id", "routine_id", "area_id", "area_name", "title", "description", "item_type", "contributes_to_progress", "parent_progress_item_id", "status", "priority", "specific_area", "due_date", "scheduled_date", "activity_days", "estimated_minutes", "calendar_block", "reminder", "include_tasklist", "first_step", "task_reminder_time", "calendar_start_time", "calendar_end_time", "calendar_end_date", "calendar_location", "notes", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status", "google_calendar_id", "google_calendar_event_id", "google_calendar_status", "google_calendar_updated_at", "google_calendar_synced_at", "google_calendar_recurrence", "calendar_sync_status", "archived_at", "archived_reason", "restored_at"],
     "calendar_blocks": ["block_id", "area_name", "title", "description", "start", "end", "recurrence", "linked_record_id", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
     "task_prompts": ["prompt_id", "area_name", "title", "prompt_text", "due_date", "task_kind", "linked_record_id", "linked_record_type", "linked_parent_id", "linked_parent_type", "task_list", "notes", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id", "google_task_list_id", "google_task_id", "google_task_status", "google_task_completed_at", "google_task_updated_at", "google_task_synced_at", "sync_status"],
     "tasklists": ["tasklist_id", "date", "title", "items", "status", "created_at", "updated_at", "source", "exported_at", "export_type", "export_batch_id"],
@@ -3612,6 +3612,51 @@ def _minutes_between_calendar_bounds(start_date: str, start_time: str, end_date:
         return ""
 
 
+
+
+def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bool:
+    """Return whether a project action should count toward project completion.
+
+    Older Pathmark rows do not have these fields, so project actions count by
+    default. New supporting time blocks explicitly store contributes_to_progress
+    as 0/No and are excluded from project progress.
+    """
+    if row is None:
+        return True
+    item_type = str(row.get("item_type", "") or "").strip().lower()
+    flag = str(row.get("contributes_to_progress", "") or "").strip().lower()
+    if item_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}:
+        return False
+    if flag in {"0", "no", "false", "n", "support", "supporting", "not counted"}:
+        return False
+    return True
+
+
+def project_action_type_label(row: pd.Series | dict[str, Any]) -> str:
+    return "Progress item" if project_action_counts_toward_progress(row) else "Supporting time block"
+
+
+def project_progress_action_ids(sheet_id: str, project_id: str) -> set[str]:
+    actions = active_online_df(read_online_table(sheet_id, "actions"))
+    if actions.empty or "goal_id" not in actions.columns:
+        return set()
+    project_actions = actions[actions["goal_id"].fillna("").astype(str) == str(project_id)]
+    ids = set()
+    for _, row in project_actions.iterrows():
+        if project_action_counts_toward_progress(row):
+            aid = str(row.get("action_id", "") or "").strip()
+            if aid:
+                ids.add(aid)
+    return ids
+
+
+def project_supporting_actions_for_parent(actions: pd.DataFrame, parent_action_id: str) -> pd.DataFrame:
+    if actions is None or actions.empty:
+        return pd.DataFrame(columns=ONLINE_TABLES["actions"])
+    if "parent_progress_item_id" not in actions.columns:
+        return pd.DataFrame(columns=actions.columns)
+    return actions[actions["parent_progress_item_id"].fillna("").astype(str) == str(parent_action_id)].copy()
+
 def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "", routine_id: str = "", default_area: str = "") -> None:
     """Render saved project steps or routine activities in a user-facing way."""
     kind = "routine activities" if routine_id else "project steps"
@@ -3626,6 +3671,15 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
         rid = str(data.get("action_id", "") or "")
         title = str(data.get("title", "") or "Untitled activity")
         outputs = "Calendar time · weekly tasklist · Google Tasks checklist item"
+        progress_label = ""
+        if goal_id or str(data.get("goal_id", "") or "").strip():
+            progress_label = project_action_type_label(data)
+            if not project_action_counts_toward_progress(data):
+                parent_id = str(data.get("parent_progress_item_id", "") or "").strip()
+                if parent_id and "action_id" in linked.columns:
+                    parent_match = linked[linked["action_id"].fillna("").astype(str) == parent_id]
+                    if not parent_match.empty:
+                        progress_label += f" · supports {parent_match.iloc[0].get('title', 'progress item')}"
         date_bits: list[str] = []
         if str(data.get("scheduled_date", "") or "").strip():
             date_bits.append(f"Starts {human_calendar_datetime(data.get('scheduled_date'))}")
@@ -3659,6 +3713,7 @@ def _render_action_list(sheet_id: str, linked: pd.DataFrame, *, goal_id: str = "
             <div class='step-card'>
               <h3>{html.escape(title)}</h3>
               <p>{html.escape(outputs)}</p>
+              {f"<p><strong>{html.escape(progress_label)}</strong></p>" if progress_label else ""}
               <p>{html.escape(detail)}</p>
               {task_status_line}
               {helper_line}
@@ -3735,6 +3790,44 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         current_priority = str(action.get("priority", "Medium") or "Medium")
         priority = c2.selectbox("Priority", priority_options, index=priority_options.index(current_priority) if current_priority in priority_options else 1)
 
+        item_type = "routine_activity" if is_routine_activity else "project_progress"
+        contributes_to_progress = "1"
+        parent_progress_item_id = str(action.get("parent_progress_item_id", "") or "")
+        if not is_routine_activity:
+            st.markdown("#### Project tracking")
+            current_kind = "Supporting time block" if not project_action_counts_toward_progress(action) else "Progress item"
+            kind_choice = st.radio(
+                "How should this be tracked?",
+                ["Progress item", "Supporting time block"],
+                index=0 if current_kind == "Progress item" else 1,
+                horizontal=True,
+                help="Progress items count toward project completion. Supporting time blocks create calendar/task time, but do not count toward project progress.",
+            )
+            if kind_choice == "Supporting time block":
+                item_type = "supporting_time"
+                contributes_to_progress = "0"
+                all_actions = active_online_df(read_online_table(sheet_id, "actions"))
+                parent_options = []
+                if not all_actions.empty and goal_id:
+                    project_actions = all_actions[all_actions.get("goal_id", pd.Series(dtype=str)).fillna("").astype(str) == str(goal_id)]
+                    for _, pa in project_actions.iterrows():
+                        pa_id = str(pa.get("action_id", "") or "").strip()
+                        if pa_id and pa_id != record_id and project_action_counts_toward_progress(pa):
+                            parent_options.append((pa_id, str(pa.get("title", "") or "Progress item")))
+                labels = ["No parent focus item"] + [label for _pid, label in parent_options]
+                current_label = "No parent focus item"
+                for pid, label in parent_options:
+                    if pid == parent_progress_item_id:
+                        current_label = label
+                chosen_parent = st.selectbox("Which progress item does this support?", labels, index=labels.index(current_label) if current_label in labels else 0)
+                parent_progress_item_id = next((pid for pid, label in parent_options if label == chosen_parent), "") if chosen_parent != "No parent focus item" else ""
+                st.caption("This will create calendar time and a Google Tasks item, but it will not increase the project completion percentage.")
+            else:
+                item_type = "project_progress"
+                contributes_to_progress = "1"
+                parent_progress_item_id = ""
+                st.caption("This item counts toward project progress when its Google Task is completed.")
+
         st.markdown("#### 2. Make time in your calendar")
         st.markdown("<div class='pathmark-note'>Calendar time, the weekly tasklist row and the Google Tasks checklist item are created automatically for every saved project step or routine activity.</div>", unsafe_allow_html=True)
         c3, c4 = st.columns(2)
@@ -3800,6 +3893,9 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     "area_name": default_area or str(action.get("area_name", "") or ""),
                     "title": title.strip(),
                     "description": description.strip(),
+                    "item_type": item_type,
+                    "contributes_to_progress": contributes_to_progress,
+                    "parent_progress_item_id": parent_progress_item_id,
                     "status": status,
                     "priority": priority,
                     "due_date": start_date_norm,
@@ -3860,6 +3956,7 @@ def render_goal_manager(sheet_id: str) -> None:
                 area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
                 title = st.text_input("Title")
                 specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
+                planning_mode = st.selectbox("Planning style", ["Task-based", "Focus-based", "Mixed"], index=0, help="Task-based uses discrete completion steps. Focus-based uses larger focus items with optional supporting time blocks. Mixed allows both.")
                 status = st.selectbox("Status", ["Captured", "Active", "On hold", "Closed", "Abandoned"], index=1)
                 target_date = st.text_input("Target date", placeholder="Optional, DD/MM/YYYY")
                 purpose = st.text_area("Why this matters", height=75)
@@ -3877,7 +3974,7 @@ def render_goal_manager(sheet_id: str) -> None:
                     else:
                         ok, message = append_online_record(sheet_id, "goals", {
                             "goal_id": f"goal-{uuid.uuid4().hex}", "area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(),
-                            "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status,
+                            "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "planning_mode": planning_mode, "status": status,
                             "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip(),
                         })
                         if ok:
@@ -3909,6 +4006,9 @@ def render_goal_manager(sheet_id: str) -> None:
                     area = st.selectbox("Area", options=[""] + areas, index=([""] + areas).index(str(g.get("area_name", ""))) if str(g.get("area_name", "")) in areas else 0) if areas else st.text_input("Area", value=str(g.get("area_name", "")))
                     title = st.text_input("Title", value=str(g.get("title", "")))
                     specific = st.text_input("Specific area", value=str(g.get("specific_area", "")))
+                    planning_options = ["Task-based", "Focus-based", "Mixed"]
+                    cur_planning = str(g.get("planning_mode", "Task-based") or "Task-based")
+                    planning_mode = st.selectbox("Planning style", planning_options, index=planning_options.index(cur_planning) if cur_planning in planning_options else 0, help="Task-based uses discrete steps. Focus-based uses larger milestones with supporting time blocks. Mixed allows both.")
                     status_options = ["Captured", "Active", "On hold", "Closed", "Abandoned"]
                     cur_status = str(g.get("status", "Active") or "Active")
                     status = st.selectbox("Status", status_options, index=status_options.index(cur_status) if cur_status in status_options else 1)
@@ -3924,7 +4024,7 @@ def render_goal_manager(sheet_id: str) -> None:
                         elif not valid_online_date(target_date):
                             st.error("Target date must be blank or a real date. Use DD/MM/YYYY, for example 30/06/2026.")
                         else:
-                            ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
+                            ok, message = update_online_record(sheet_id, "goals", selected_id, {"area_id": find_area_id(sheet_id, str(area)), "area_name": str(area).strip(), "title": title.strip(), "description": desired.strip() or purpose.strip(), "specific_area": specific.strip(), "planning_mode": planning_mode, "status": status, "target_date": normalise_online_date(target_date) if target_date.strip() else "", "purpose": purpose.strip(), "desired_outcome": desired.strip(), "closure_criteria": closure.strip(), "notes": notes.strip()})
                             if ok:
                                 st.success(message)
                             else:
@@ -3934,9 +4034,19 @@ def render_goal_manager(sheet_id: str) -> None:
             with tabs[1]:
                 linked = actions[actions["goal_id"].fillna("") == selected_id] if not actions.empty else pd.DataFrame(columns=ONLINE_TABLES["actions"])
                 _render_action_list(sheet_id, linked, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""))
-                st.caption("Project steps are one-off steps toward this project. Recurring work belongs under Routines. Calendar time, tasklist rows and Google Tasks checklist items are created automatically.")
-                with st.expander("Add project step", expanded=linked.empty):
-                    _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}")
+                planning_mode = str(g.get("planning_mode", "Task-based") or "Task-based")
+                if planning_mode == "Focus-based":
+                    st.caption("This project is focus-based. Progress items are the milestones/focuses that count toward completion. Supporting time blocks are calendar/task sessions that help you work on a focus, but do not count toward project progress.")
+                elif planning_mode == "Mixed":
+                    st.caption("This project can use both progress items and supporting time blocks. Only progress items count toward project completion.")
+                else:
+                    st.caption("Project steps are one-off steps toward this project. Calendar time, tasklist rows and Google Tasks checklist items are created automatically. Supporting time blocks can be added later if you need flexible work sessions that do not count toward progress.")
+                with st.expander("Add progress item" if planning_mode in {"Focus-based", "Mixed"} else "Add project step", expanded=linked.empty):
+                    _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_progress")
+                if planning_mode in {"Focus-based", "Mixed"}:
+                    with st.expander("Add supporting time block", expanded=False):
+                        st.caption("Use this for practice/work sessions that should appear in Calendar and Google Tasks but should not change project progress directly.")
+                        _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_support", action={"item_type": "supporting_time", "contributes_to_progress": "0"})
             with tabs[2]:
                 st.markdown("""
                 **Active** projects appear in the workspace and count toward progress.  
@@ -7274,7 +7384,20 @@ def project_task_items(sheet_id: str, project_id: str) -> pd.DataFrame:
     prompts = staged_task_prompts(sheet_id)
     if prompts.empty:
         return prompts
-    mask = prompts.apply(lambda r: task_prompt_matches_parent(r, project_id, "project"), axis=1)
+    progress_action_ids = project_progress_action_ids(sheet_id, project_id)
+    def _project_progress_prompt(row: pd.Series) -> bool:
+        if not task_prompt_matches_parent(row, project_id, "project"):
+            return False
+        source_id = str(row.get("source_id", "") or row.get("linked_record_id", "") or "").strip()
+        task_kind = str(row.get("task_kind", "") or row.get("source_record_type", "") or "").strip().lower()
+        # Project progress is measured from progress items/focus milestones, not
+        # from helper prompts or supporting practice/work sessions.
+        if source_id and progress_action_ids and source_id not in progress_action_ids:
+            return False
+        if "helper" in task_kind:
+            return False
+        return True
+    mask = prompts.apply(_project_progress_prompt, axis=1)
     return prompts[mask].copy()
 
 
@@ -7943,7 +8066,7 @@ def _new_wizard_draft(wizard_type: str | None = None) -> dict[str, Any]:
         "wizard_type": wizard_type or "",
         "current_step_key": "choose_type",
         "area": {"mode": "existing", "area_id": "", "area_name": "", "calendar_colour_id": "2", "calendar_colour_name": "Sage"},
-        "project": {"title": "", "reason": "", "definition_of_done": "", "target_date": "", "target_label": ""},
+        "project": {"title": "", "reason": "", "definition_of_done": "", "target_date": "", "target_label": "", "planning_mode": "Task-based"},
         "project_steps": [],
         "routine": {"title": "", "purpose": "", "frequency": "Daily", "preferred_days": [], "start_date": date.today().isoformat()},
         "routine_activities": [],
@@ -8080,6 +8203,9 @@ def _append_project_step(draft: dict[str, Any]) -> dict[str, Any]:
         "calendar_end_date": date.today().isoformat(),
         "ends_next_day": False,
         "include_on_tasklist": True,
+        "item_type": "project_progress",
+        "contributes_to_progress": "1",
+        "parent_progress_item_id": "",
         "has_helper_tasks": False,
         "helper_tasks": [],
     }
@@ -8102,6 +8228,9 @@ def _append_routine_activity(draft: dict[str, Any]) -> dict[str, Any]:
         "ends_next_day": False,
         "location": "",
         "include_on_tasklist": True,
+        "item_type": "project_progress",
+        "contributes_to_progress": "1",
+        "parent_progress_item_id": "",
         "has_helper_tasks": False,
         "helper_tasks": [],
     }
@@ -8195,7 +8324,7 @@ def _wizard_next_step(draft: dict[str, Any], current: str, answer: Any = None) -
     if current == "area_review":
         return "project_title" if wt == "project" else "routine_title"
     if wt == "project":
-        order = ["project_title", "project_reason", "project_done", "project_target", "project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice"]
+        order = ["project_title", "project_reason", "project_done", "project_target", "project_planning_mode", "project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice"]
         if current in order:
             if current == "project_helper_task_choice":
                 return "project_helper_task_item" if answer else "project_add_step"
@@ -8299,7 +8428,7 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
             if problems:
                 return False, " ".join(problems)
         goal_id = f"goal-{uuid.uuid4().hex}"
-        records["goals"].append({"goal_id": goal_id, "area_id": area_id, "area_name": area_name, "title": str(project.get("title", "")).strip(), "description": str(project.get("reason", "")).strip(), "specific_area": "", "status": "Active", "target_date": _date_to_text(project.get("target_date")), "purpose": str(project.get("reason", "")).strip(), "desired_outcome": str(project.get("definition_of_done", "")).strip(), "closure_criteria": str(project.get("definition_of_done", "")).strip(), "notes": "Created from the Pathmark creation wizard."})
+        records["goals"].append({"goal_id": goal_id, "area_id": area_id, "area_name": area_name, "title": str(project.get("title", "")).strip(), "description": str(project.get("reason", "")).strip(), "specific_area": "", "planning_mode": str(project.get("planning_mode", "Task-based") or "Task-based"), "status": "Active", "target_date": _date_to_text(project.get("target_date")), "purpose": str(project.get("reason", "")).strip(), "desired_outcome": str(project.get("definition_of_done", "")).strip(), "closure_criteria": str(project.get("definition_of_done", "")).strip(), "notes": "Created from the Pathmark creation wizard."})
         for idx, step in enumerate(steps, start=1):
             action_id = f"action-{uuid.uuid4().hex}"
             scheduled = _date_to_text(step.get("calendar_date"))
@@ -8313,7 +8442,7 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
                 notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
             title = str(step.get("title", "")).strip()
             records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": title, "prompt_text": title, "due_date": scheduled, "task_kind": "activity", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Automatic checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
-            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": "", "notes": notes})
+            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "item_type": "project_progress", "contributes_to_progress": "1", "parent_progress_item_id": "", "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": "", "notes": notes})
             for task in step.get("helper_tasks", []) or []:
                 if str(task.get("title", "")).strip():
                     records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or scheduled, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Helper checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
@@ -8489,7 +8618,7 @@ def _wizard_progress_context(draft: dict[str, Any], step: str) -> tuple[list[str
         return stages, "Choose type", "Step 1"
     if step in {"choose_area", "area_name", "area_colour", "area_review"}:
         return stages, "Area", "Area setup"
-    if step in {"project_title", "project_reason", "project_done", "project_target", "routine_title", "routine_purpose", "routine_frequency", "routine_days", "routine_start_date"}:
+    if step in {"project_title", "project_reason", "project_done", "project_target", "project_planning_mode", "routine_title", "routine_purpose", "routine_frequency", "routine_days", "routine_start_date"}:
         return stages, "Details", "Project details" if wt == "project" else "Routine details"
     if step in {"project_review", "routine_review"}:
         return stages, "Review", "Review and save"
@@ -8688,19 +8817,49 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         project["target_date"] = date_input_nz("Target date", value=_text_to_date(project.get("target_date"))).isoformat()
         project["target_label"] = ""
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
+    elif step == "project_planning_mode":
+        st.subheader("How would you like to plan this project?")
+        _wizard_info_button("What counts toward progress?", "Task-based projects count each discrete project step. Focus-based projects count larger milestones or weekly focuses; supporting time blocks can be added later and do not change completion percentage.")
+        options = ["Task-based", "Focus-based", "Mixed"]
+        current = str(project.get("planning_mode", "Task-based") or "Task-based")
+        choice = st.radio(
+            "Planning style",
+            options,
+            index=options.index(current) if current in options else 0,
+            captions=[
+                "Create discrete steps. Each step counts toward completion.",
+                "Create focus milestones, then schedule supporting time around them.",
+                "Use both progress items and supporting time blocks.",
+            ],
+        )
+        project["planning_mode"] = choice
+        if choice == "Task-based":
+            st.markdown("<div class='pathmark-note'>Use this when the project is best tracked by ticking off concrete actions.</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='pathmark-note'>Use progress items for the outcomes that count. Supporting time blocks can be added in the Projects tab to make time for practice or flexible work without changing the completion percentage.</div>", unsafe_allow_html=True)
+        _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
     elif step in {"project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice", "project_helper_task_item", "project_helper_task_due", "project_add_helper_task_item", "project_add_step"}:
         if not draft.get("current_step_id") or _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) is None:
             _append_project_step(draft)
         current = _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) or draft["project_steps"][-1]
         if step == "project_step_title":
-            st.subheader("What is the first or next step in your project?")
-            st.caption("Project steps are distinct one-off actions. If something needs to repeat, create it as a routine instead.")
+            planning_mode = str(project.get("planning_mode", "Task-based") or "Task-based")
+            if planning_mode == "Focus-based":
+                st.subheader("What is the first or next focus milestone?")
+                st.caption("This is the outcome that counts toward project completion. You can add supporting time blocks from the Projects tab after saving.")
+                step_label = "Focus milestone"
+                placeholder = "Learn Tune 1"
+            else:
+                st.subheader("What is the first or next step in your project?")
+                st.caption("Project steps are distinct actions or progress items. Supporting time blocks can be added later if you want flexible work sessions that do not count toward progress.")
+                step_label = "Project step"
+                placeholder = "Choose a beginner sketching guide"
             text, go_back, go_next = _wizard_required_text_form(
                 draft=draft,
                 step_key=f"project_step_title_{current.get('step_id','')}",
-                label="Project step",
+                label=step_label,
                 value=str(current.get("title", "")),
-                placeholder="Choose a beginner sketching guide",
+                placeholder=placeholder,
             )
             if go_back:
                 _wizard_back(sheet_id, draft)

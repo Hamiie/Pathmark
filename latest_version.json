@@ -1,23 +1,24 @@
 {
-  "version": "0.6.86",
+  "version": "0.6.87",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_86.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_86.zip",
-  "release": "v0.6.86 Navigation naming cleanup",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_86.zip",
-  "label": "Navigation naming cleanup",
-  "release_notes": "Renames the signed-in modules to Planner, Spending Plan and Meal Plan, removing Beta from user-facing navigation while keeping beta access controls behind the scenes.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_87.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_87.zip",
+  "release": "v0.6.87 Project planning modes foundation",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_87.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_87.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_87.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_87.zip",
+  "label": "Project planning modes foundation",
+  "release_notes": "Adds task-based, focus-based and mixed project planning styles, with progress items separated from supporting time blocks.",
   "notes": [
-    "Renamed Pathmark Online beta to Planner in the top-level navigation and main headings.",
-    "Renamed Spending Plan beta to Spending Plan in user-facing navigation and headings.",
-    "Renamed Shopping List beta to Meal Plan while keeping Shopping Lists as a tab within that module.",
-    "Kept beta-tester role/access logic unchanged behind the scenes.",
-    "Preserved the v0.6.85 Starter Packs foundation and Supabase-backed NZ Seasonal Produce import model."
+    "Added project planning styles: Task-based, Focus-based and Mixed.",
+    "Added project item tracking fields so progress items count toward completion while supporting time blocks do not.",
+    "Updated the Creation Wizard to ask how the project should be planned before creating project items.",
+    "Updated project manual entry so supporting time blocks can be linked to a parent progress item.",
+    "Project progress now excludes helper checklist items and supporting time blocks, while both can still sync to Calendar and Google Tasks.",
+    "Added user-facing labels in project cards to distinguish progress items from supporting time blocks."
   ],
-  "release_name": "Navigation naming cleanup",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip"
+  "release_name": "Project planning modes foundation",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_87.zip"
 }
