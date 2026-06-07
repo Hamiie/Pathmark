@@ -1,23 +1,23 @@
 {
-  "version": "0.6.90",
+  "version": "0.6.91",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_90.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_90.zip",
-  "release": "v0.6.90 Consolidated Meal Plan starter-pack imports",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_90.zip",
-  "label": "Consolidated Meal Plan starter-pack imports",
-  "release_notes": "Adds importer support for the consolidated Supabase starter packs: Recipes, Ingredients and Nutrition.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_91.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_91.zip",
+  "release": "v0.6.91 Area defaults and focus-project progress rules",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_91.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_91.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_91.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_91.zip",
+  "label": "Area defaults and focus-project progress rules",
+  "release_notes": "Preloads the revised default Areas, locks focus-based projects from switching back to task-based while focus blocks exist, and excludes supporting/helper checklist items from project progress.",
   "notes": [
-    "Starter Packs now recognises Recipes, Ingredients and Nutrition as separate Supabase-backed Meal Plan packs.",
-    "The Ingredients pack imports into grocery inventory while keeping the user-facing label as Ingredients / pantry.",
-    "Default section choices now adapt to the selected starter pack so users do not need to know the internal table names.",
-    "Updated Supabase README guidance for the consolidated starter-pack CSV import and access-code secret keys.",
-    "Curated starter-pack data remains outside the public GitHub repository; the app imports rows from Supabase into the user's own Pathmark Sync sheet."
+    "Fresh Pathmark Sync sheets now preload the user\u2019s revised default Areas: Body And Stability; Home, Relationships, and Admin; Making And Craft; Expression And Culture; Skills And Tools; Rest And Play.",
+    "Project setup and editing continue to support Task-based and Focus-based planning styles, with the project steps panel adapting to the chosen planning style.",
+    "Focus-based projects cannot be switched back to Task-based while focus blocks remain in the project.",
+    "Project progress now counts only primary project progress items/focus blocks and excludes supporting time blocks and helper checklist items, even when those supporting items are exported to Google Tasks.",
+    "Dashboard project progress wording now refers to project progress items rather than treating all Google Tasks checklist rows as project steps."
   ],
-  "release_name": "Consolidated Meal Plan starter-pack imports",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_90.zip"
+  "release_name": "Area defaults and focus-project progress rules",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_91.zip"
 }

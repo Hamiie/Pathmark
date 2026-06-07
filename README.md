@@ -1,10 +1,10 @@
 # Pathmark Release Hub
 
-## v0.6.90 Consolidated Meal Plan starter-pack imports
+## v0.6.91 Area defaults and focus-project progress rules
 
-- Adds import support for three consolidated Supabase starter packs: **Recipes**, **Ingredients**, and **Nutrition**.
-- Keeps the curated starter-pack data outside the public GitHub repository.
-- Updates Starter Packs so the selectable sections adapt to the selected pack.
-- The **Ingredients** pack imports into grocery inventory while remaining labelled as Ingredients / pantry in the UI.
-- Updates Supabase documentation with access-code secret keys and CSV import order.
-- Preserves v0.6.89 project planning mode simplification.
+- Preloads the revised default Areas for fresh Pathmark Sync sheets.
+- Keeps Project planning style as **Task-based** or **Focus-based**, with the project steps panel adapting to the selected mode.
+- Prevents a focus-based project being switched back to task-based while focus blocks exist.
+- Excludes supporting time blocks and helper checklist items from project completion/progress while still allowing them to create Google Tasks checklist items.
+- Updates Dashboard and Projects progress wording to refer to project progress items.
+- Preserves v0.6.90 consolidated Meal Plan starter-pack import support.

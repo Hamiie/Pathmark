@@ -3100,7 +3100,11 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 "status": str(action.get("google_task_status", "") or "needsAction"),
                 "source_table": "actions",
                 "source_id": aid,
-                "source_record_type": "routine_activity" if routine_id else "project_step",
+                "linked_record_id": aid,
+                "linked_record_type": "routine_activity" if routine_id else str(action.get("item_type", "") or "project_progress"),
+                "linked_parent_id": routine_id or goal_id,
+                "linked_parent_type": "routine" if routine_id else "project" if goal_id else "",
+                "source_record_type": "routine_activity" if routine_id else str(action.get("item_type", "") or "project_progress"),
                 "google_task_list_id": str(action.get("google_task_list_id", "") or ""),
                 "google_task_id": str(action.get("google_task_id", "") or ""),
                 "google_task_status": str(action.get("google_task_status", "") or ""),
@@ -3151,6 +3155,11 @@ def staged_task_prompts(sheet_id: str) -> pd.DataFrame:
                 "status": str(prompt.get("google_task_status", "") or prompt.get("status", "") or "needsAction"),
                 "source_table": "task_prompts",
                 "source_id": pid,
+                "linked_record_id": linked_id,
+                "linked_record_type": str(prompt.get("linked_record_type", "") or ""),
+                "linked_parent_id": str(prompt.get("linked_parent_id", "") or ""),
+                "linked_parent_type": str(prompt.get("linked_parent_type", "") or ""),
+                "task_kind": str(prompt.get("task_kind", "") or ""),
                 "source_record_type": str(prompt.get("linked_record_type", "") or prompt.get("task_kind", "") or "task_prompt"),
                 "google_task_list_id": str(prompt.get("google_task_list_id", "") or ""),
                 "google_task_id": str(prompt.get("google_task_id", "") or ""),
@@ -3376,9 +3385,11 @@ def build_default_area_records() -> dict[str, list[dict[str, Any]]]:
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     default_areas = [
         ("Body And Stability", "Sleep, movement, strength, mobility, appointments and routines that support energy.", "Sage"),
-        ("Expression And Culture", "Creative practice, study, language, culture, reading and skills you want to develop.", "Grape"),
-        ("Home And Garden", "Meals, household reset, gardening, repairs and routines that support home life.", "Basil"),
+        ("Home, Relationships, and Admin", "Household reset, relationships, life admin, appointments, planning and everyday obligations.", "Basil"),
         ("Making And Craft", "Practical making, craft, tools, materials and hands-on projects.", "Tangerine"),
+        ("Expression And Culture", "Creative practice, language, culture, reading and artistic development.", "Grape"),
+        ("Skills And Tools", "Learning systems, software, techniques, equipment and practical capabilities you want to build.", "Teal"),
+        ("Rest And Play", "Rest, play, low-pressure enjoyment, hobbies, recovery and unstructured time.", "Sky"),
     ]
     areas = []
     for name, description, colour in default_areas:
@@ -3424,13 +3435,17 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     area_body = f"area-{uuid.uuid4().hex}"
     area_home = f"area-{uuid.uuid4().hex}"
-    area_expression = f"area-{uuid.uuid4().hex}"
     area_making = f"area-{uuid.uuid4().hex}"
+    area_expression = f"area-{uuid.uuid4().hex}"
+    area_skills = f"area-{uuid.uuid4().hex}"
+    area_rest = f"area-{uuid.uuid4().hex}"
     areas = [
         {"area_id": area_body, "area_name": "Body And Stability", "description": "Sleep, movement, strength, mobility, health appointments and routines that support energy.", "colour": "Sage", "status": "active", "default_calendar": "Body And Stability", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Body And Stability", "google_calendar_colour_id": "2", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
-        {"area_id": area_expression, "area_name": "Expression And Culture", "description": "Creative practice, study, language, culture, reading and skills you want to develop.", "colour": "Grape", "status": "active", "default_calendar": "Expression And Culture", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Expression And Culture", "google_calendar_colour_id": "3", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
-        {"area_id": area_home, "area_name": "Home And Garden", "description": "Meals, household reset, gardening, repairs and routines that support home life.", "colour": "Basil", "status": "active", "default_calendar": "Home And Garden", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Home And Garden", "google_calendar_colour_id": "10", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_home, "area_name": "Home, Relationships, and Admin", "description": "Household reset, relationships, life admin, appointments, planning and everyday obligations.", "colour": "Basil", "status": "active", "default_calendar": "Home, Relationships, and Admin", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Home, Relationships, and Admin", "google_calendar_colour_id": "10", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
         {"area_id": area_making, "area_name": "Making And Craft", "description": "Practical making, craft, tools, materials and hands-on projects.", "colour": "Tangerine", "status": "active", "default_calendar": "Making And Craft", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Making And Craft", "google_calendar_colour_id": "6", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_expression, "area_name": "Expression And Culture", "description": "Creative practice, language, culture, reading and artistic development.", "colour": "Grape", "status": "active", "default_calendar": "Expression And Culture", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Expression And Culture", "google_calendar_colour_id": "3", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_skills, "area_name": "Skills And Tools", "description": "Learning systems, software, techniques, equipment and practical capabilities you want to build.", "colour": "Teal", "status": "active", "default_calendar": "Skills And Tools", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Skills And Tools", "google_calendar_colour_id": "7", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
+        {"area_id": area_rest, "area_name": "Rest And Play", "description": "Rest, play, low-pressure enjoyment, hobbies, recovery and unstructured time.", "colour": "Sky", "status": "active", "default_calendar": "Rest And Play", "default_task_list": "Pathmark", "google_calendar_id": "", "google_calendar_name": "Rest And Play", "google_calendar_colour_id": "9", "google_calendar_synced_at": "", "notes": "Starter Area. Edit, rename, deactivate, or delete if it does not fit."},
     ]
 
     def routine(title: str, area_id: str, area_name: str, purpose: str, frequency: str, preferred_days: str, next_due: str, checklist: str = "") -> dict[str, Any]:
@@ -3445,9 +3460,9 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
     running_id = f"routine-{uuid.uuid4().hex}"
     routines = [
         {"routine_id": sleep_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Protect an 8-hour sleep block", "description": "Give tomorrow a better starting point by protecting enough time for sleep.", "frequency": "Daily", "preferred_days": "Every day", "duration_minutes": "480", "status": "Active", "purpose": "Protect sleep before adding more work to the system.", "next_due": date.today().isoformat(), "checklist": "Set wind-down time\nPut phone away\nPrepare tomorrow's first action", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
-        {"routine_id": cook_weeknight_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
-        {"routine_id": friday_takeaways_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
-        {"routine_id": sunday_meal_id, "area_id": area_home, "area_name": "Home And Garden", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": cook_weeknight_id, "area_id": area_home, "area_name": "Home, Relationships, and Admin", "title": "Cook weeknight dinner", "description": "Prepare simple dinners on planned weeknights so food choices are easier.", "frequency": "Weekly", "preferred_days": "Monday, Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Make ordinary meals easier to start after work.", "next_due": next_weekday_iso("Monday"), "checklist": "Choose meal\nCheck ingredients\nCook and clean down", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": friday_takeaways_id, "area_id": area_home, "area_name": "Home, Relationships, and Admin", "title": "Friday takeaway dinner", "description": "A deliberately planned low-effort meal slot rather than an accidental fallback.", "frequency": "Weekly", "preferred_days": "Friday", "duration_minutes": "30", "status": "Active", "purpose": "Give the week a simple food decision and avoid over-planning every evening.", "next_due": next_weekday_iso("Friday"), "checklist": "Choose option\nOrder or collect\nReset kitchen afterwards", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
+        {"routine_id": sunday_meal_id, "area_id": area_home, "area_name": "Home, Relationships, and Admin", "title": "Cook weekend meal", "description": "Cook a more relaxed weekend meal and optionally prepare leftovers.", "frequency": "Weekly", "preferred_days": "Sunday", "duration_minutes": "90", "status": "Active", "purpose": "Create a slower food routine that supports the coming week.", "next_due": next_weekday_iso("Sunday"), "checklist": "Choose recipe\nShop ingredients\nCook\nPack leftovers", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
         {"routine_id": strength_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Strength training", "description": "A four-session weekly strength routine split into A, B, C and D activities.", "frequency": "Weekly", "preferred_days": "Monday, Tuesday, Thursday, Friday", "duration_minutes": "45", "status": "Active", "purpose": "Keep strength work visible and repeatable.", "next_due": next_weekday_iso("Monday"), "checklist": "Warm up\nMain lift\nAccessory work\nLog session", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
         {"routine_id": violin_id, "area_id": area_expression, "area_name": "Expression And Culture", "title": "Practice violin", "description": "A weekly creative practice block.", "frequency": "Weekly", "preferred_days": "Wednesday", "duration_minutes": "45", "status": "Active", "purpose": "Keep creative practice scheduled rather than only aspirational.", "next_due": next_weekday_iso("Wednesday"), "checklist": "Tune\nScales\nPiece work\nNote next focus", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
         {"routine_id": running_id, "area_id": area_body, "area_name": "Body And Stability", "title": "Run 30 minutes", "description": "A weekday running habit that can be reduced or paused if recovery needs it.", "frequency": "Weekdays", "preferred_days": "Monday, Tuesday, Wednesday, Thursday, Friday", "duration_minutes": "30", "status": "Active", "purpose": "Make regular cardiovascular work easy to see in the calendar.", "next_due": next_weekday_iso("Monday"), "checklist": "Shoes ready\nEasy pace\nLog how it felt", "notes": "Starter routine. Edit, pause, retire, or delete if it does not fit."},
@@ -3458,9 +3473,9 @@ def build_starter_example_records() -> dict[str, list[dict[str, Any]]]:
 
     actions = [
         activity(sleep_id, area_body, "Body And Stability", "Sleep block", "Every day", "22:30", "06:30", "480", "Start wind-down routine"),
-        activity(cook_weeknight_id, area_home, "Home And Garden", "Cook weeknight dinner", "Monday, Wednesday", "18:00", "18:45", "45", "Open the meal plan and start the first prep step"),
-        activity(friday_takeaways_id, area_home, "Home And Garden", "Takeaway dinner", "Friday", "18:30", "19:00", "30", "Choose takeaway option"),
-        activity(sunday_meal_id, area_home, "Home And Garden", "Cook weekend meal", "Sunday", "17:00", "18:30", "90", "Open the recipe and check ingredients"),
+        activity(cook_weeknight_id, area_home, "Home, Relationships, and Admin", "Cook weeknight dinner", "Monday, Wednesday", "18:00", "18:45", "45", "Open the meal plan and start the first prep step"),
+        activity(friday_takeaways_id, area_home, "Home, Relationships, and Admin", "Takeaway dinner", "Friday", "18:30", "19:00", "30", "Choose takeaway option"),
+        activity(sunday_meal_id, area_home, "Home, Relationships, and Admin", "Cook weekend meal", "Sunday", "17:00", "18:30", "90", "Open the recipe and check ingredients"),
         activity(strength_id, area_body, "Body And Stability", "Strength training A", "Monday", "07:00", "07:45", "45", "Start warm-up for strength A"),
         activity(strength_id, area_body, "Body And Stability", "Strength training B", "Tuesday", "07:00", "07:45", "45", "Start warm-up for strength B"),
         activity(strength_id, area_body, "Body And Stability", "Strength training C", "Thursday", "07:00", "07:45", "45", "Start warm-up for strength C"),
@@ -3496,7 +3511,7 @@ def render_area_manager(sheet_id: str) -> None:
     st.subheader("Areas")
     st.markdown("""
     <div class='guide-box'><strong>Areas become your Google subcalendars.</strong><br>
-    Create broad Areas such as Body And Stability, Expression And Culture, Home And Garden, or Making And Craft. Pathmark uses each Area to group related routines and projects, and to place synced calendar time into the matching Google calendar.</div>
+    Create broad Areas such as Body And Stability, Expression And Culture, Home, Relationships, and Admin, or Making And Craft. Pathmark uses each Area to group related routines and projects, and to place synced calendar time into the matching Google calendar.</div>
     """, unsafe_allow_html=True)
     df = active_online_df(read_online_table(sheet_id, "areas"))
     col_list, col_main = st.columns([0.34, 0.66])
@@ -3635,6 +3650,20 @@ def is_focus_project_action(row: pd.Series | dict[str, Any]) -> bool:
     return item_type in {"project_focus", "focus_block", "focus block"}
 
 
+def is_supporting_project_action(row: pd.Series | dict[str, Any]) -> bool:
+    item_type = str(row.get("item_type", "") or "").strip().lower() if row is not None else ""
+    return item_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}
+
+
+def project_has_focus_blocks(actions: pd.DataFrame, project_id: str) -> bool:
+    if actions is None or actions.empty or "goal_id" not in actions.columns:
+        return False
+    project_rows = actions[actions["goal_id"].fillna("").astype(str) == str(project_id)]
+    if project_rows.empty:
+        return False
+    return any(is_focus_project_action(row) for _, row in project_rows.iterrows())
+
+
 def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bool:
     """Return whether a project action should count toward project completion.
 
@@ -3646,7 +3675,7 @@ def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bo
         return True
     item_type = str(row.get("item_type", "") or "").strip().lower()
     flag = str(row.get("contributes_to_progress", "") or "").strip().lower()
-    if item_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}:
+    if is_supporting_project_action(row):
         return False
     if flag in {"0", "no", "false", "n", "support", "supporting", "not counted"}:
         return False
@@ -4069,10 +4098,12 @@ def render_goal_manager(sheet_id: str) -> None:
             project_items = project_task_items(sheet_id, selected_id)
             project_done, project_total = completion_counts(project_items)
             if project_total:
-                render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project steps / checklist items complete")
+                render_completion_summary(project_done, project_total, f"{project_done} of {project_total} project progress items complete")
             else:
                 st.caption("No Google Tasks checklist items are linked to this project yet.")
-            tabs = st.tabs(["Project details", "Project steps", "Manage"])
+            planning_mode_for_tabs = str(g.get("planning_mode", "Task-based") or "Task-based")
+            steps_tab_label = "Focus blocks & supporting time" if planning_mode_for_tabs == "Focus-based" else "Project steps"
+            tabs = st.tabs(["Project details", steps_tab_label, "Manage"])
             with tabs[0]:
                 with st.form(f"online_edit_goal_{selected_id}"):
                     area = st.selectbox("Area", options=[""] + areas, index=([""] + areas).index(str(g.get("area_name", ""))) if str(g.get("area_name", "")) in areas else 0) if areas else st.text_input("Area", value=str(g.get("area_name", "")))
@@ -4080,6 +4111,10 @@ def render_goal_manager(sheet_id: str) -> None:
                     specific = st.text_input("Specific area", value=str(g.get("specific_area", "")))
                     planning_options = ["Task-based", "Focus-based"]
                     cur_planning = str(g.get("planning_mode", "Task-based") or "Task-based")
+                    has_focus_blocks = project_has_focus_blocks(actions, selected_id)
+                    if has_focus_blocks and cur_planning == "Focus-based":
+                        planning_options = ["Focus-based"]
+                        st.caption("This project already has focus blocks. Remove those focus blocks before switching it back to task-based planning.")
                     planning_mode = st.selectbox("Planning style", planning_options, index=planning_options.index(cur_planning) if cur_planning in planning_options else 0, help="Task-based uses discrete steps. Focus-based uses larger focus blocks with supporting time blocks.")
                     status_options = ["Captured", "Active", "On hold", "Closed", "Abandoned"]
                     cur_status = str(g.get("status", "Active") or "Active")
@@ -7483,15 +7518,18 @@ def project_task_items(sheet_id: str, project_id: str) -> pd.DataFrame:
     def _project_progress_prompt(row: pd.Series) -> bool:
         if not task_prompt_matches_parent(row, project_id, "project"):
             return False
-        source_id = str(row.get("source_id", "") or row.get("linked_record_id", "") or "").strip()
-        task_kind = str(row.get("task_kind", "") or row.get("source_record_type", "") or "").strip().lower()
+        source_id = str(row.get("linked_record_id", "") or row.get("source_id", "") or "").strip()
+        task_kind = str(row.get("task_kind", "") or "").strip().lower()
+        source_type = str(row.get("source_record_type", "") or row.get("linked_record_type", "") or "").strip().lower()
         # Project progress is measured from progress items/focus milestones, not
         # from helper prompts or supporting practice/work sessions.
+        if "helper" in task_kind or "helper" in source_type:
+            return False
+        if source_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}:
+            return False
         if source_id and progress_action_ids and source_id not in progress_action_ids:
             return False
-        if "helper" in task_kind:
-            return False
-        return True
+        return source_type in {"project_progress", "project_step", "project_focus", "focus_block", "focus block", ""}
     mask = prompts.apply(_project_progress_prompt, axis=1)
     return prompts[mask].copy()
 
@@ -7543,15 +7581,20 @@ def routine_weekly_completion_summary(sheet_id: str) -> tuple[int, int, str]:
 
 
 def project_overall_completion_summary(sheet_id: str) -> tuple[int, int]:
-    prompts = staged_task_prompts(sheet_id)
-    if prompts.empty:
+    goals = active_online_df(read_online_table(sheet_id, "goals"))
+    if goals.empty or "goal_id" not in goals.columns:
         return 0, 0
-    def _project_row(row: pd.Series) -> bool:
-        source_type = str(row.get("source_record_type", "") or row.get("linked_record_type", "") or "").lower()
-        parent_type = str(row.get("linked_parent_type", "") or "").lower()
-        return "project" in source_type or "project" in parent_type or "goal" in parent_type
-    project_items = prompts[prompts.apply(_project_row, axis=1)].copy()
-    return completion_counts(project_items)
+    done_total = 0
+    item_total = 0
+    for _, goal in goals.iterrows():
+        status = str(goal.get("status", "") or "").strip().lower()
+        if status in {"on hold", "paused", "closed", "abandoned", "archived"}:
+            continue
+        items = project_task_items(sheet_id, str(goal.get("goal_id", "") or ""))
+        done, total = completion_counts(items)
+        done_total += done
+        item_total += total
+    return done_total, item_total
 
 def render_google_tasks_export_manager(sheet_id: str) -> None:
     st.subheader("Google Tasks Sync")
@@ -9389,6 +9432,8 @@ def render_online_overview(sheet_id: str) -> None:
     if not actions.empty:
         if "goal_id" in actions.columns:
             project_actions = actions[actions["goal_id"].fillna("").astype(str).str.strip().ne("")].copy()
+            if not project_actions.empty:
+                project_actions = project_actions[project_actions.apply(project_action_counts_toward_progress, axis=1)].copy()
         if "routine_id" in actions.columns:
             routine_actions = actions[actions["routine_id"].fillna("").astype(str).str.strip().ne("")].copy()
 
@@ -9400,7 +9445,7 @@ def render_online_overview(sheet_id: str) -> None:
         routine_progress_label = "No routine activities planned this week" if routine_count else "routine activities set up"
     project_action_count = len(project_actions) if not project_actions.empty else 0
     project_completed, project_count = project_overall_completion_summary(sheet_id)
-    project_progress_label = f"{project_completed} of {project_count} project steps complete" if project_count else "No project steps linked to Google Tasks yet" if project_action_count else "project steps set up"
+    project_progress_label = f"{project_completed} of {project_count} project progress items complete" if project_count else "No project progress items linked to Google Tasks yet" if project_action_count else "project progress items set up"
     routine_progress_html = progress_bar_html(routine_done_week, routine_total_week, routine_progress_label, show_label=False) if routine_total_week else ""
     project_progress_html = progress_bar_html(project_completed, project_count, project_progress_label, show_label=False) if project_count else ""
     surplus = float(money.get("surplus_weekly", 0.0) or 0.0)
@@ -11159,7 +11204,7 @@ def render_grocery_template_tab(sheet_id: str) -> None:
 
 def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple[bool, str]:
     areas = active_online_df(read_online_table(sheet_id, "areas"))
-    area_options = [str(x).strip() for x in areas.get("area_name", pd.Series(dtype=str)).tolist() if str(x).strip()] or ["Body And Stability", "Expression And Culture", "Home And Garden", "Making And Craft"]
+    area_options = [str(x).strip() for x in areas.get("area_name", pd.Series(dtype=str)).tolist() if str(x).strip()] or ["Body And Stability", "Home, Relationships, and Admin", "Making And Craft", "Expression And Culture", "Skills And Tools", "Rest And Play"]
     with st.form(f"export_recipe_project_{recipe_row.get('recipe_id', '')}"):
         area = st.selectbox("Area", area_options, key=f"recipe_export_area_{recipe_row.get('recipe_id', '')}")
         c1, c2, c3 = st.columns(3)
