@@ -1,25 +1,22 @@
 {
-  "version": "0.6.92",
+  "version": "0.6.93",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_92.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_92.zip",
-  "release": "v0.6.92 Google Sync and printable tasklist hierarchy",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_92.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_92.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_92.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_92.zip",
-  "label": "Google Sync and printable tasklist hierarchy",
-  "release_notes": "Combines Google Calendar and Google Tasks into one sync flow, renames the hosted planner to Pathmark Planner, and improves printable tasklists so supporting time blocks sit underneath focus blocks without counting as project progress.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_93.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_93.zip",
+  "release": "v0.6.93 Seasonal landscape banners",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_93.zip",
+  "label": "Seasonal landscape banners",
+  "release_notes": "Adds soft AI-generated New Zealand seasonal landscape banners to the hosted experience when using Seasonal or an explicit seasonal theme, with a preview on the Theme page.",
   "notes": [
-    "Top-level navigation now uses Pathmark Planner rather than Planner.",
-    "Google Calendar and Google Tasks syncing are brought together under a combined Google Sync tab so planned time and checklist items are created or updated as a pair.",
-    "Combined sync treats Pathmark as the source of truth: existing linked Google Calendar events and Google Tasks are updated from Pathmark, while new items are created only when no stored Google ID exists.",
-    "The printable tasklist is presented as a paper fallback rather than the main working sync surface.",
-    "Supporting time blocks are indented below their focus block in tasklist selection and printable PDFs.",
-    "Printable tasklists now use Task and Notes columns, with notes showing cleaner area, parent, schedule, due date and time/duration context instead of duplicating the checklist title.",
-    "Dashboard week-at-a-glance now distinguishes Google Tasks items from printable tasklist rows."
+    "Seasonal, Spring, Summer, Autumn and Winter themes can now display a soft AI-generated New Zealand landscape banner.",
+    "Banners use The Remarkables for winter, Paihia for summer, Arrowtown for autumn, and the Waikato for spring.",
+    "Theme page now previews the seasonal banner treatment and explains that non-seasonal accent themes keep a cleaner card-only look.",
+    "Home, Pathmark Planner, Spending Plan and Meal Plan now use a restrained compact banner treatment when a seasonal theme is active."
   ],
-  "release_name": "Google Sync and printable tasklist hierarchy",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_92.zip"
+  "release_name": "Seasonal landscape banners",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip"
 }

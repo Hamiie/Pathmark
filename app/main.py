@@ -38,6 +38,20 @@ ROOT = Path(__file__).resolve().parents[1]
 DOWNLOADS = ROOT / "downloads"
 VERSION_FILE = ROOT / "latest_version.json"
 ICON_PATH = ROOT / "app" / "assets" / "pathmark.png"
+ASSETS_DIR = ROOT / "app" / "assets"
+SEASONAL_BANNER_DIR = ASSETS_DIR / "seasonal_banners"
+SEASONAL_BANNER_LOCATIONS = {
+    "Summer": "Paihia",
+    "Autumn": "Arrowtown",
+    "Winter": "The Remarkables",
+    "Spring": "The Waikato",
+}
+SEASONAL_BANNER_FILES = {
+    "Summer": SEASONAL_BANNER_DIR / "summer.jpg",
+    "Autumn": SEASONAL_BANNER_DIR / "autumn.jpg",
+    "Winter": SEASONAL_BANNER_DIR / "winter.jpg",
+    "Spring": SEASONAL_BANNER_DIR / "spring.jpg",
+}
 ROOT_STATIC = ROOT / "static"
 FAVICON_PATH = ROOT_STATIC / "favicon.ico"
 THEME_CONFIG_PATH = ROOT / "app" / "config" / "themes.yaml"
@@ -317,6 +331,68 @@ def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
     return ""
 
 
+@st.cache_data(show_spinner=False)
+def _local_file_data_uri(path_text: str, mime_type: str) -> str:
+    path = Path(path_text)
+    try:
+        if path.exists():
+            return f"data:{mime_type};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+    except Exception:
+        return ""
+    return ""
+
+
+def seasonal_banner_data_uri(season: str) -> str:
+    label = season if season in SEASONAL_BANNER_FILES else current_southern_hemisphere_season()
+    banner_path = SEASONAL_BANNER_FILES.get(label)
+    if not banner_path:
+        return ""
+    return _local_file_data_uri(str(banner_path), "image/jpeg")
+
+
+def seasonal_banner_season(theme_name: str | None = None) -> str:
+    choice = normalise_online_theme(theme_name or st.session_state.get("hosted_theme_preference", "Seasonal"))
+    if choice == "Seasonal":
+        return current_southern_hemisphere_season()
+    if choice in SEASONAL_BANNER_FILES:
+        return choice
+    return current_southern_hemisphere_season()
+
+
+def theme_uses_seasonal_banner(theme_name: str | None = None) -> bool:
+    choice = normalise_online_theme(theme_name or st.session_state.get("hosted_theme_preference", "Seasonal"))
+    return choice == "Seasonal" or choice in SEASONAL_BANNER_FILES
+
+
+def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | None = None, compact: bool = False, force: bool = False, theme_name: str | None = None) -> None:
+    if not force and not theme_uses_seasonal_banner(theme_name):
+        return
+    active_season = season or seasonal_banner_season(theme_name)
+    image_uri = seasonal_banner_data_uri(active_season)
+    if not image_uri:
+        return
+    location = SEASONAL_BANNER_LOCATIONS.get(active_season, "")
+    classes = "seasonal-banner seasonal-banner-compact" if compact else "seasonal-banner"
+    title_html = f"<h3>{html.escape(title)}</h3>" if title else ""
+    subtitle_html = f"<p>{html.escape(subtitle)}</p>" if subtitle else ""
+    label = html.escape(f"{active_season} · {location}" if location else active_season)
+    st.markdown(
+        f"""
+        <div class="{classes}" style="background-image:url('{image_uri}');">
+          <div class="seasonal-banner-overlay"></div>
+          <div class="seasonal-banner-content">
+            <div class="seasonal-banner-panel">
+              <div class="seasonal-banner-label">{label}</div>
+              {title_html}
+              {subtitle_html}
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def inject_pwa_metadata() -> None:
     """Best-effort PWA metadata hook.
 
@@ -429,6 +505,14 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   color: var(--ink);
   font-weight: 760;
 }}
+.seasonal-banner {{ position: relative; overflow: hidden; border-radius: 1.35rem; min-height: 180px; margin: .45rem 0 1.15rem; border: 1px solid var(--line); background-size: cover; background-position: center center; box-shadow: 0 12px 28px color-mix(in srgb, #000000 10%, transparent); }}
+.seasonal-banner-compact {{ min-height: 118px; margin: .35rem 0 1rem; }}
+.seasonal-banner-overlay {{ position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--background-color, #F7F6F2) 26%, transparent) 0%, color-mix(in srgb, var(--background-color, #F7F6F2) 34%, transparent) 24%, rgba(255,255,255,0.06) 100%); }}
+.seasonal-banner-content {{ position: relative; z-index: 1; padding: 1rem 1.05rem; min-height: inherit; display: flex; align-items: flex-end; }}
+.seasonal-banner-panel {{ display: inline-flex; flex-direction: column; gap: .38rem; max-width: 760px; background: color-mix(in srgb, var(--surface) 84%, transparent); border: 1px solid color-mix(in srgb, var(--line) 74%, transparent); border-radius: 1rem; padding: .78rem .95rem; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 22px color-mix(in srgb, #000000 12%, transparent); }}
+.seasonal-banner-label {{ display: inline-flex; width: fit-content; align-items: center; gap: .35rem; padding: .34rem .62rem; border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 90%, transparent); color: var(--muted); font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }}
+.seasonal-banner h3 {{ margin: 0; font-size: clamp(1.15rem, 2vw, 1.55rem); line-height: 1.12; letter-spacing: -.035em; color: var(--ink); }}
+.seasonal-banner p {{ margin: 0; color: var(--muted); font-size: .96rem; line-height: 1.42; }}
 .hero h1 {{ font-size: clamp(3.7rem, 8.2vw, 7.2rem); line-height: .84; margin: 0 0 1rem 0; letter-spacing: -.085em; }}
 .lead {{ font-size: clamp(1.28rem, 2.4vw, 1.9rem); line-height: 1.22; max-width: 920px; font-weight: 680; margin: 0; }}
 .sublead {{ color: var(--muted); font-size: 1.12rem; max-width: 850px; margin-top: 1rem; }}
@@ -9826,6 +9910,7 @@ def download_tab() -> None:
     windows_package = find_windows_package(version.get("windows_package", ""))
     if ICON_PATH.exists():
         st.image(str(ICON_PATH), width=54)
+    render_seasonal_banner(compact=True, force=True, season=current_southern_hemisphere_season())
     st.markdown("""
     <div class="hero">
       <div class="eyebrow">Stability. Progress. Resources.</div>
@@ -9909,6 +9994,7 @@ def download_tab() -> None:
 def theme_tab() -> None:
     st.header("Theme")
     st.caption("Use Streamlit’s top-right menu for Light, Dark or System. Pathmark only changes the accent colour.")
+    st.caption("Seasonal, Spring, Summer, Autumn and Winter can also show a soft New Zealand landscape banner. Non-seasonal accent themes keep the cleaner card-only treatment.")
 
     user = current_user()
     sheet_id = st.session_state.get("sync_sheet_id", "")
@@ -9932,6 +10018,15 @@ def theme_tab() -> None:
     if theme_name == "Custom":
         st.session_state["hosted_custom_accent"] = picked_custom
     inject_theme_css(theme_name)
+
+    preview_season = seasonal_banner_season(theme_name)
+    render_seasonal_banner(
+        title=f"{preview_season} banner preview",
+        subtitle="Seasonal, or an explicit Spring / Summer / Autumn / Winter theme, now uses a soft AI-generated New Zealand landscape banner as a subtle backdrop.",
+        season=preview_season,
+        force=True,
+        theme_name=theme_name,
+    )
 
     current_display, _theme_tokens = resolved_accent_theme(theme_name)
     current_season = current_southern_hemisphere_season()
@@ -10206,6 +10301,7 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
     st.header("Pathmark Planner")
+    render_seasonal_banner(compact=True)
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12051,6 +12147,7 @@ def render_shopping_list_manager(sheet_id: str) -> None:
 def shopping_list_beta_tab() -> None:
     handle_google_oauth_redirect()
     st.header("Meal Plan")
+    render_seasonal_banner(compact=True)
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12088,6 +12185,7 @@ def shopping_list_beta_tab() -> None:
 def spending_plan_beta_tab() -> None:
     handle_google_oauth_redirect()
     st.header("Spending Plan")
+    render_seasonal_banner(compact=True)
     st.write("Use this space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
 
     auth_ready = web_oauth_available()

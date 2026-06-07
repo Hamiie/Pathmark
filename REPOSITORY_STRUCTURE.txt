@@ -9,6 +9,11 @@ app/
     themes.yaml
   assets/
     pathmark.png
+    seasonal_banners/
+      autumn.jpg
+      spring.jpg
+      summer.jpg
+      winter.jpg
   static/
     apple-touch-icon.png
     favicon.ico
@@ -21,7 +26,7 @@ app/
     pathmark-icon-192.png
     pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_92.zip
+  Pathmark_Local_App_Windows_v0_6_93.zip
 .streamlit/
   config.toml
 static/
