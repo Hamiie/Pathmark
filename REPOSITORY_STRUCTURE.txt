@@ -21,7 +21,7 @@ app/
     pathmark-icon-192.png
     pathmark-icon-512.png
 downloads/
-  Pathmark_Local_App_Windows_v0_6_91.zip
+  Pathmark_Local_App_Windows_v0_6_92.zip
 .streamlit/
   config.toml
 static/

@@ -3315,11 +3315,84 @@ def replace_helper_prompts_for_action(
         append_many_online_records(sheet_id, {"task_prompts": rows})
 
 
+
+def _tasklist_is_supporting_row(row: pd.Series | dict[str, Any]) -> bool:
+    item_type = str(row.get("item_type", "") or row.get("source_record_type", "") or "").strip().lower()
+    return item_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}
+
+
+def _tasklist_human_date(value: Any) -> str:
+    parsed = parse_online_date(value)
+    if parsed is not None:
+        return parsed.strftime("%d/%m/%Y")
+    return str(value or "").strip()
+
+
+def _tasklist_duration_label(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        minutes = int(float(raw))
+        if minutes >= 1440:
+            days = max(1, round(minutes / 1440))
+            return "All day" if days == 1 else f"{days} days"
+        if minutes >= 60 and minutes % 60 == 0:
+            return f"{minutes // 60} hr" if minutes == 60 else f"{minutes // 60} hrs"
+        return f"{minutes} min"
+    except Exception:
+        return raw
+
+
+def tasklist_notes_text(row: pd.Series | dict[str, Any]) -> str:
+    area = str(row.get("area_name", "") or "").strip()
+    parent = str(row.get("parent", "") or "").strip()
+    parent_focus = str(row.get("parent_progress_title", "") or "").strip()
+    scheduled = _tasklist_human_date(row.get("scheduled_date", ""))
+    due = _tasklist_human_date(row.get("due_date", ""))
+    start_time = str(row.get("calendar_start_time", "") or "").strip()
+    end_time = str(row.get("calendar_end_time", "") or "").strip()
+    end_date = _tasklist_human_date(row.get("calendar_end_date", ""))
+    duration = _tasklist_duration_label(row.get("estimated_minutes", ""))
+    lines: list[str] = []
+    top = " · ".join([bit for bit in [area, parent] if bit])
+    if top:
+        lines.append(top)
+    if _tasklist_is_supporting_row(row) and parent_focus:
+        lines.append(f"Supports: {parent_focus}")
+    timing_bits = []
+    if scheduled:
+        timing_bits.append(f"Scheduled: {scheduled}")
+    if due and due != scheduled:
+        timing_bits.append(f"Due: {due}")
+    elif due and not scheduled:
+        timing_bits.append(f"Due: {due}")
+    if timing_bits:
+        lines.append(" · ".join(timing_bits))
+    time_bits = []
+    if start_time and end_time:
+        finish = end_time if not end_date or end_date == scheduled else f"{end_date} {end_time}"
+        time_bits.append(f"Time: {start_time}–{finish}")
+    elif duration:
+        time_bits.append(f"Time: {duration}")
+    if duration and start_time and end_time:
+        time_bits.append(f"Duration: {duration}")
+    if time_bits:
+        lines.append(" · ".join(time_bits))
+    return "<br/>".join(lines)
+
 def staged_tasklist(sheet_id: str) -> pd.DataFrame:
     actions = read_online_table(sheet_id, "actions")
+    base_columns = ["action_id", "source_type", "title", "display_title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes", "item_type", "parent_progress_item_id", "parent_progress_title", "calendar_start_time", "calendar_end_time", "calendar_end_date", "notes", "priority"]
     if actions.empty:
-        return pd.DataFrame(columns=["action_id", "source_type", "title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+        return pd.DataFrame(columns=base_columns)
     goals, routines = parent_lookup(sheet_id)
+    action_title_lookup: dict[str, str] = {}
+    if "action_id" in actions.columns:
+        for _, arow in actions.iterrows():
+            aid = str(arow.get("action_id", "") or "").strip()
+            if aid:
+                action_title_lookup[aid] = str(arow.get("title", "") or "").strip()
     rows = []
     for _, action in actions.iterrows():
         if not truthy_flag(action.get("include_tasklist", "1")):
@@ -3332,11 +3405,17 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
         routine_parent = routines.get(routine_id, {})
         if str(routine_parent.get("status", "")).lower() == "paused":
             continue
+        item_type = str(action.get("item_type", "") or "").strip()
+        parent_progress_id = str(action.get("parent_progress_item_id", "") or "").strip()
+        parent_progress_title = action_title_lookup.get(parent_progress_id, "")
+        is_support = item_type.strip().lower() in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"}
+        title = str(action.get("title", "") or "").strip()
         parent = routine_parent.get("title") or goals.get(goal_id, {}).get("title") or ""
         rows.append({
             "action_id": action.get("action_id", ""),
             "source_type": "Routine activity" if routine_id else "Goal action",
-            "title": action.get("title", ""),
+            "title": title,
+            "display_title": (f"— {title}" if is_support else title),
             "area_name": action.get("area_name", "") or routines.get(routine_id, {}).get("area_name", "") or goals.get(goal_id, {}).get("area_name", ""),
             "parent": parent,
             "status": status or ("Included" if routine_id else "Planned"),
@@ -3344,12 +3423,21 @@ def staged_tasklist(sheet_id: str) -> pd.DataFrame:
             "due_date": action.get("due_date", ""),
             "first_step": action.get("first_step", ""),
             "estimated_minutes": action.get("estimated_minutes", ""),
+            "item_type": item_type,
+            "parent_progress_item_id": parent_progress_id,
+            "parent_progress_title": parent_progress_title,
+            "calendar_start_time": action.get("calendar_start_time", ""),
+            "calendar_end_time": action.get("calendar_end_time", ""),
+            "calendar_end_date": action.get("calendar_end_date", ""),
+            "notes": action.get("notes", ""),
             "priority": action.get("priority", ""),
         })
     df = pd.DataFrame(rows)
     if not df.empty:
         df["sort_status"] = df["status"].map({"Next": 1, "Scheduled": 2, "Planned": 3, "Included": 4}).fillna(5)
-        df = df.sort_values(["source_type", "sort_status", "scheduled_date", "due_date", "title"], na_position="last").drop(columns=["sort_status"])
+        df["is_supporting_time_block"] = df.apply(_tasklist_is_supporting_row, axis=1)
+        df["support_sort_anchor"] = df.apply(lambda r: str(r.get("parent_progress_item_id", "") or r.get("action_id", "") or ""), axis=1)
+        df = df.sort_values(["source_type", "parent", "scheduled_date", "support_sort_anchor", "is_supporting_time_block", "sort_status", "due_date", "title"], na_position="last").drop(columns=["sort_status", "support_sort_anchor"])
     return df.reset_index(drop=True)
 
 
@@ -6316,7 +6404,7 @@ def render_spending_plan_manager(sheet_id: str) -> None:
 
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
-    st.write("Use a printed tasklist as the paper alternative to Google Tasks checklist items. Choose the routine activities and project steps you want to tick off by hand.")
+    st.write("Use this as a printable paper copy. Google Sync is the main working sync for Google Calendar and Google Tasks.")
     tasklist = staged_tasklist(sheet_id)
     if tasklist.empty:
         st.info("No tasklist rows yet. Add project steps or routine activities; Pathmark will stage tasklist rows automatically.")
@@ -6324,40 +6412,44 @@ def render_tasklist_manager(sheet_id: str) -> None:
     with st.expander("Choose what goes on the tasklist", expanded=True):
         title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
         notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
-        selected_indices: list[int] = []
-        goal_actions = tasklist[tasklist["source_type"] == "Goal action"].reset_index(drop=True)
-        routine_rows = tasklist[tasklist["source_type"] == "Routine activity"].reset_index(drop=True)
+        selected_action_ids: list[str] = []
+        goal_actions = tasklist[tasklist["source_type"] == "Goal action"].copy()
+        routine_rows = tasklist[tasklist["source_type"] == "Routine activity"].copy()
         if not goal_actions.empty:
-            st.markdown("#### Goal actions")
-            for parent, group in goal_actions.groupby(goal_actions["parent"].fillna("Unlinked goal"), sort=False):
-                st.markdown(f"**{parent or 'Unlinked goal'}**")
+            st.markdown("#### Project work")
+            for parent, group in goal_actions.groupby(goal_actions["parent"].fillna("Unlinked project"), sort=False):
+                st.markdown(f"**{parent or 'Unlinked project'}**")
                 for _, row in group.iterrows():
-                    key = f"tasklist_goal_{row.get('action_id') or row.get('id') or row.name}_{row.get('title')}"
+                    key = f"tasklist_goal_{row.get('action_id') or row.name}_{row.get('title')}"
+                    label_title = str(row.get("display_title", "") or row.get("title", "Untitled"))
+                    if _tasklist_is_supporting_row(row):
+                        label_title = "    " + label_title
                     label_bits = []
                     if str(row.get("scheduled_date", "") or "").strip():
-                        label_bits.append(f"scheduled {row.get('scheduled_date')}")
-                    if str(row.get("due_date", "") or "").strip():
-                        label_bits.append(f"due {row.get('due_date')}")
+                        label_bits.append(f"scheduled {_tasklist_human_date(row.get('scheduled_date'))}")
+                    if str(row.get("due_date", "") or "").strip() and str(row.get("due_date", "")) != str(row.get("scheduled_date", "")):
+                        label_bits.append(f"due {_tasklist_human_date(row.get('due_date'))}")
                     suffix = f" ({'; '.join(label_bits)})" if label_bits else ""
-                    if st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key):
-                        selected_indices.append(int(row.name))
+                    if st.checkbox(f"{label_title}{suffix}", value=False, key=key):
+                        selected_action_ids.append(str(row.get("action_id", "") or ""))
         if not routine_rows.empty:
             st.markdown("#### Routine activities")
-            routine_offset = len(goal_actions)
             for parent, group in routine_rows.groupby(routine_rows["parent"].fillna("Unlinked routine"), sort=False):
                 st.markdown(f"**{parent or 'Unlinked routine'}**")
                 for _, row in group.iterrows():
-                    key = f"tasklist_routine_{row.get('action_id') or row.get('id') or row.name}_{row.get('title')}"
+                    key = f"tasklist_routine_{row.get('action_id') or row.name}_{row.get('title')}"
                     days = str(row.get("activity_days", "") or "").strip()
                     suffix = f" ({days})" if days else ""
                     if st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key):
-                        selected_indices.append(routine_offset + int(row.name))
-    selected_rows = tasklist.iloc[selected_indices] if selected_indices else pd.DataFrame(columns=tasklist.columns)
+                        selected_action_ids.append(str(row.get("action_id", "") or ""))
+    selected_rows = tasklist[tasklist.get("action_id", pd.Series(dtype=str)).fillna("").astype(str).isin(selected_action_ids)].copy() if selected_action_ids else pd.DataFrame(columns=tasklist.columns)
     if selected_rows.empty and not st.session_state.get("tasklist_notes_has_content", False):
         st.info("Tick at least one action or activity before downloading the tasklist.")
     if not selected_rows.empty:
         st.markdown("### Preview")
-        dataframe_preview(selected_rows, ["source_type", "title", "area_name", "parent", "scheduled_date", "due_date", "first_step", "estimated_minutes"])
+        preview = selected_rows.copy()
+        preview["notes_preview"] = preview.apply(tasklist_notes_text, axis=1).str.replace("<br/>", " · ", regex=False)
+        dataframe_preview(preview, ["source_type", "display_title", "notes_preview", "status"])
     pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes)
     st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
     if not selected_rows.empty:
@@ -7707,6 +7799,134 @@ def render_google_tasks_export_manager(sheet_id: str) -> None:
                 st.warning(safe_user_message(message))
             st.rerun()
 
+
+def sync_pathmark_calendar_and_tasks(sheet_id: str, *, create_backup: bool = False) -> tuple[bool, str]:
+    """Push Pathmark's current plan to Google Calendar and Google Tasks together.
+
+    Pathmark is treated as the planning source of truth: if stored Google IDs
+    exist, the matching Calendar event or Task is patched with the current
+    Pathmark title/date/notes. If no ID is stored, Pathmark creates the missing
+    Google item and writes the returned ID back to Pathmark Sync.
+    """
+    messages: list[str] = []
+    overall_ok = True
+    if create_backup:
+        backup_ok, _backup_url, backup_msg = create_pathmark_sync_backup(sheet_id)
+        messages.append(backup_msg)
+        if not backup_ok:
+            return False, "Could not create the requested backup, so sync was not run. " + safe_user_message(backup_msg)
+    blocks = staged_calendar_blocks(sheet_id)
+    prompts = staged_task_prompts(sheet_id)
+    if blocks.empty and prompts.empty:
+        return False, "No calendar time or Google Tasks checklist items are staged yet."
+    if blocks.empty:
+        messages.append("No Google Calendar items were staged.")
+    else:
+        ok_cal, msg_cal = push_pathmark_calendar_to_google(sheet_id, blocks)
+        overall_ok = overall_ok and ok_cal
+        messages.append(msg_cal)
+    # Refresh after calendar sync so Google Task notes can include any updated calendar reference.
+    prompts = staged_task_prompts(sheet_id)
+    if prompts.empty:
+        messages.append("No Google Tasks checklist items were staged.")
+    else:
+        ok_tasks, msg_tasks = push_pathmark_tasks_to_google(sheet_id, prompts)
+        overall_ok = overall_ok and ok_tasks
+        messages.append(msg_tasks)
+    clear_online_cache(sheet_id)
+    return overall_ok, " ".join([m for m in messages if str(m).strip()])
+
+
+def pull_google_sync_status_to_pathmark(sheet_id: str, *, pull_calendar: bool = True, pull_tasks: bool = True) -> tuple[bool, str]:
+    messages: list[str] = []
+    overall_ok = True
+    if pull_calendar:
+        ok_cal, msg_cal = pull_google_calendar_status_to_pathmark(sheet_id)
+        overall_ok = overall_ok and ok_cal
+        messages.append(msg_cal)
+    if pull_tasks:
+        ok_tasks, msg_tasks = pull_google_task_status_to_pathmark(sheet_id)
+        overall_ok = overall_ok and ok_tasks
+        messages.append(msg_tasks)
+    clear_online_cache(sheet_id)
+    return overall_ok, " ".join([m for m in messages if str(m).strip()])
+
+
+def render_google_sync_manager(sheet_id: str) -> None:
+    st.subheader("Google Sync")
+    st.write("Sync Google Calendar and Google Tasks together so the planned time and checklist item stay paired. Pathmark is the planning source of truth; existing linked Google items are updated from Pathmark rather than duplicated.")
+
+    calendar_ready = google_calendar_scope_ready()
+    tasks_ready = google_tasks_scope_ready()
+    if not calendar_ready or not tasks_ready:
+        st.warning("Google Calendar and Google Tasks permissions are both needed for combined sync.")
+        needed_scopes: list[str] = []
+        if not calendar_ready:
+            needed_scopes += GOOGLE_CALENDAR_SCOPES
+        if not tasks_ready:
+            needed_scopes += GOOGLE_TASKS_SCOPES
+        auth_url = google_auth_url(needed_scopes, return_hint="combined_sync")
+        if auth_url:
+            st.link_button("Reconnect Google and enable Calendar + Tasks sync", auth_url, use_container_width=True)
+        st.caption("Pathmark only creates or updates Google Calendar events and Google Tasks when you run a sync action.")
+
+    blocks = staged_calendar_blocks(sheet_id)
+    prompts = staged_task_prompts(sheet_id)
+    cal_stats = google_calendar_sync_summary(sheet_id)
+    task_stats = google_tasks_sync_summary(sheet_id)
+    st.markdown(f"""
+    <div class="metric-strip">
+      <div class="metric-tile"><div class="metric-label">Calendar items</div><div class="metric-value">{len(blocks) if not blocks.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Calendar linked</div><div class="metric-value">{cal_stats.get('linked', 0)}</div></div>
+      <div class="metric-tile"><div class="metric-label">Task items</div><div class="metric-value">{len(prompts) if not prompts.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Tasks linked</div><div class="metric-value">{task_stats.get('linked', 0)}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    backup_before_sync = st.checkbox("Create a safety backup before combined sync", value=False, key="backup_before_combined_sync")
+    disabled = (blocks.empty and prompts.empty) or not (calendar_ready and tasks_ready)
+    if st.button("Sync Google Calendar and Google Tasks", use_container_width=True, disabled=disabled):
+        ok, message = sync_pathmark_calendar_and_tasks(sheet_id, create_backup=backup_before_sync)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+
+    st.caption("If a Pathmark row already has a stored Google Calendar event ID or Google Task ID, Pathmark updates that matched Google item. If no ID is stored, Pathmark creates the item and saves the returned ID for next time.")
+
+    c1, c2 = st.columns(2)
+    if c1.button("Pull Google status", use_container_width=True, disabled=not (calendar_ready and tasks_ready)):
+        ok, message = pull_google_sync_status_to_pathmark(sheet_id)
+        if ok:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+    if c2.button("Repair missing Google links", use_container_width=True, disabled=not (calendar_ready and tasks_ready)):
+        repaired_cal, cal_msg = repair_google_calendar_links_by_title_time(sheet_id, blocks)
+        repaired_tasks, task_msg = repair_google_task_links_by_title_due(sheet_id, prompts)
+        message = f"{cal_msg} {task_msg}"
+        if repaired_cal or repaired_tasks:
+            st.success(message)
+        else:
+            st.warning(safe_user_message(message))
+        st.rerun()
+
+    with st.expander("Calendar details", expanded=False):
+        if blocks.empty:
+            st.info("No Google Calendar items are staged yet.")
+        else:
+            dataframe_preview(blocks, ["title", "area_name", "start", "end", "recurrence", "linked_record_id", "all_day"])
+    with st.expander("Google Tasks details", expanded=False):
+        if prompts.empty:
+            st.info("No Google Tasks checklist items are staged yet.")
+        else:
+            dataframe_preview(prompts, ["title", "area_name", "due_date", "source_record_type", "google_task_id", "google_task_status", "sync_status"])
+    with st.expander("Printable tasklist", expanded=False):
+        render_tasklist_manager(sheet_id)
+
+
 def render_archive_manager(sheet_id: str) -> None:
     st.subheader("Archive")
     st.write("Archive is for completed or retired projects, routines and activities that you no longer want in the active tabs. Paused items stay in their original tabs so they can be restarted later, and exports do not move anything here automatically.")
@@ -7923,6 +8143,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
     sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=8)
     h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=8, spaceAfter=4, textColor=colors.HexColor("#334E68"))
     body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
+    body_indent = ParagraphStyle("PathmarkBodyIndent", parent=body, leftIndent=7*mm)
     small = ParagraphStyle("PathmarkSmall", parent=styles["BodyText"], fontSize=8.4, leading=11, textColor=colors.HexColor("#626966"))
 
     story = [
@@ -7938,25 +8159,21 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
             if subset.empty:
                 continue
-            heading = "Goal activities" if source_type == "Goal action" else "Routine activities"
+            heading = "Project work" if source_type == "Goal action" else "Routine activities"
             story.append(Paragraph(clean_text(heading), h_style))
-            data = [["", "Task", "When / context", "Checklist item"]]
+            data = [["", "Task", "Notes"]]
+            supporting_rows: list[int] = []
             for _, row in subset.iterrows():
-                context_bits = []
-                for label, col in [("Area", "area_name"), ("Parent", "parent"), ("Scheduled", "scheduled_date"), ("Due", "due_date"), ("Time", "estimated_minutes")]:
-                    val = str(row.get(col, "") or "").strip()
-                    if val:
-                        if col == "estimated_minutes":
-                            val = f"{val} min"
-                        context_bits.append(f"{label}: {val}")
-                first = str(row.get("first_step", "") or "").strip()
+                row_is_support = _tasklist_is_supporting_row(row)
+                task_style = body_indent if row_is_support else body
+                if row_is_support:
+                    supporting_rows.append(len(data))
                 data.append([
                     checkbox_box(),
-                    Paragraph(clean_text(row.get("title", "Untitled") or "Untitled"), body),
-                    Paragraph(clean_text(" · ".join(context_bits)), small),
-                    Paragraph(clean_text(first), body),
+                    Paragraph(clean_text(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled"), task_style),
+                    Paragraph(clean_text(tasklist_notes_text(row)), small),
                 ])
-            table = Table(data, colWidths=[8*mm, 60*mm, 52*mm, 58*mm], repeatRows=1)
+            table = Table(data, colWidths=[8*mm, 70*mm, 100*mm], repeatRows=1)
             table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EEF4")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2221")),
@@ -7970,7 +8187,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]))
+            ] + [("LEFTPADDING", (1, r), (1, r), 14) for r in supporting_rows]))
             story.append(table)
             story.append(Spacer(1, 8))
 
@@ -8051,25 +8268,18 @@ def build_printable_tasklist_from_rows(rows: pd.DataFrame) -> bytes:
         subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
         if subset.empty:
             continue
-        lines.append(source_type + "s")
+        lines.append("Project work" if source_type == "Goal action" else "Routine activities")
         current_parent = None
         for _, row in subset.iterrows():
             parent = str(row.get("parent", "") or "").strip()
             if parent and parent != current_parent:
                 lines.append(f"\n{parent}")
                 current_parent = parent
-            bits = []
-            if str(row.get("scheduled_date", "") or "").strip():
-                bits.append(f"scheduled {row.get('scheduled_date')}")
-            if str(row.get("due_date", "") or "").strip():
-                bits.append(f"due {row.get('due_date')}")
-            if str(row.get("estimated_minutes", "") or "").strip():
-                bits.append(f"{row.get('estimated_minutes')} min")
-            suffix = f" ({'; '.join(bits)})" if bits else ""
-            lines.append(f"☐ {row.get('title','Untitled')}{suffix}")
-            first = str(row.get("first_step", "") or "").strip()
-            if first:
-                lines.append(f"    First action: {first}")
+            indent = "    " if _tasklist_is_supporting_row(row) else ""
+            lines.append(f"{indent}☐ {row.get('display_title') or row.get('title','Untitled')}")
+            notes = re.sub(r"<br\s*/?>", " | ", tasklist_notes_text(row))
+            if notes:
+                lines.append(f"{indent}   {notes}")
         lines.append("")
     return "\n".join(lines).encode("utf-8")
 
@@ -9523,8 +9733,8 @@ def render_online_overview(sheet_id: str) -> None:
     st.markdown(f"""
     <div class="metric-strip">
       <div class="metric-tile"><div class="metric-label">Calendar time</div><div class="metric-value">{len(calendar_rows) if not calendar_rows.empty else 0}</div></div>
-      <div class="metric-tile"><div class="metric-label">Tasklist items</div><div class="metric-value">{len(task_rows) if not task_rows.empty else 0}</div></div>
-      <div class="metric-tile"><div class="metric-label">Checklist items</div><div class="metric-value">{len(task_prompts) if not task_prompts.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Google Tasks items</div><div class="metric-value">{len(task_prompts) if not task_prompts.empty else 0}</div></div>
+      <div class="metric-tile"><div class="metric-label">Printable tasklist rows</div><div class="metric-value">{len(task_rows) if not task_rows.empty else 0}</div></div>
       <div class="metric-tile"><div class="metric-label">Unallocated / week</div><div class="metric-value">{html.escape(money_text(surplus))}</div></div>
     </div>
     """, unsafe_allow_html=True)
@@ -9588,7 +9798,7 @@ def render_online_overview(sheet_id: str) -> None:
         elif "irregular" in first:
             next_action = "Open Spending Plan and add planned irregular costs."
     elif not task_rows.empty:
-        next_action = "Open Tasklist to choose what you want to print or use this week."
+        next_action = "Open Google Sync to send this week to Google Calendar and Google Tasks. Use Tasklist only if you want a printable paper copy."
 
     st.markdown(f"""
     <div class="next-action-card">
@@ -9634,7 +9844,7 @@ def download_tab() -> None:
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Planner</h3><p>Sign in to manage routines, projects, tasklists, calendar sync and task sync from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
+      <div class="card"><h3>Pathmark Planner</h3><p>Sign in to manage routines, projects, tasklists, calendar sync and task sync from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
       <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown records, backups, and desktop publishing/export workflows.</p></div>
     </div>
     """, unsafe_allow_html=True)
@@ -9921,8 +10131,8 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
     """
     recovery_message = st.session_state.get("sync_sheet_recovery_message", "Pathmark could not find a Pathmark Sync sheet in Google Drive.")
 
-    st.markdown("## Welcome to Planner")
-    st.markdown("Planner saves your routines, projects, tasklist, sync links and Spending Plan records in a Google Sheet called **Pathmark Sync**.")
+    st.markdown("## Welcome to Pathmark Planner")
+    st.markdown("Pathmark Planner saves your routines, projects, tasklist, sync links and Spending Plan records in a Google Sheet called **Pathmark Sync**.")
     st.info("No Pathmark Sync sheet was found for this Google account. You can start fresh with default Areas, load starter examples, restore from a backup, or check Google Drive Trash if you deleted the sheet recently.")
 
     with st.expander("Why am I seeing this?", expanded=False):
@@ -9989,13 +10199,13 @@ def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool)
     elif credentials:
         st.info("Google access is ready. Pathmark is preparing your sync sheet.")
     elif auth_ready:
-        st.info("Sign in with Google to use Planner.")
+        st.info("Sign in with Google to use Pathmark Planner.")
     else:
         st.warning("Google access is not configured for this deployment.")
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Planner")
+    st.header("Pathmark Planner")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -10025,7 +10235,7 @@ def on_the_go_tab() -> None:
     service = sheets_service()
     if service is not None:
         try:
-            with st.spinner("Loading your Planner workspace from Google Sheets..."):
+            with st.spinner("Loading your Pathmark Planner workspace from Google Sheets..."):
                 ensure_pathmark_online_schema(service, sheet_id)
                 load_online_tables(sheet_id)
         except Exception:
@@ -10039,9 +10249,8 @@ def on_the_go_tab() -> None:
         "Areas",
         "Routines",
         "Projects",
+        "Google Sync",
         "Tasklist",
-        "Google Calendar Sync",
-        "Google Tasks Sync",
         "Archive",
         "Settings",
     ])
@@ -10058,14 +10267,12 @@ def on_the_go_tab() -> None:
     with sections[5]:
         render_safe_section("Projects", render_goal_manager, sheet_id)
     with sections[6]:
-        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
+        render_safe_section("Google Sync", render_google_sync_manager, sheet_id)
     with sections[7]:
-        render_safe_section("Google Calendar Sync", render_google_calendar_export_manager, sheet_id)
+        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
     with sections[8]:
-        render_safe_section("Google Tasks Sync", render_google_tasks_export_manager, sheet_id)
-    with sections[9]:
         render_safe_section("Archive", render_archive_manager, sheet_id)
-    with sections[10]:
+    with sections[9]:
         render_safe_section("Settings", render_online_settings, sheet_id)
 
 
@@ -12171,7 +12378,7 @@ def render_app() -> None:
     # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
     post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
     if post_login_landing:
-        tabs = ["Planner", "Home", "Theme", "About & Privacy", "Spending Plan", "Meal Plan"]
+        tabs = ["Pathmark Planner", "Home", "Theme", "About & Privacy", "Spending Plan", "Meal Plan"]
     else:
         tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
@@ -12186,7 +12393,7 @@ def render_app() -> None:
                 theme_tab()
             elif tab_name == "About & Privacy":
                 about_privacy_tab()
-            elif tab_name == "Planner":
+            elif tab_name == "Pathmark Planner":
                 on_the_go_tab()
             elif tab_name == "Spending Plan":
                 spending_plan_beta_tab()
