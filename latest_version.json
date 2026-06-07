@@ -1,24 +1,23 @@
 {
-  "version": "0.6.85",
+  "version": "0.6.86",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_85.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_85.zip",
-  "release": "v0.6.85 Starter Packs foundation",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_85.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_85.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_85.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_85.zip",
-  "label": "Starter Packs foundation",
-  "release_notes": "Adds a password-gated Shopping List Starter Packs workflow backed by Supabase starter-pack tables, and removes the full curated grocery library from the public app code.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_86.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_86.zip",
+  "release": "v0.6.86 Navigation naming cleanup",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_86.zip",
+  "label": "Navigation naming cleanup",
+  "release_notes": "Renames the signed-in modules to Planner, Spending Plan and Meal Plan, removing Beta from user-facing navigation while keeping beta access controls behind the scenes.",
   "notes": [
-    "Added Shopping List beta > Starter Packs with an NZ Seasonal Produce starter-pack card.",
-    "Added access-code validation using Streamlit secrets, with support for hashed starter-pack codes.",
-    "Added Supabase starter-pack tables for curated read-only library rows outside the public GitHub repo.",
-    "Starter-pack imports copy selected sections into the user's own Pathmark Sync sheet using merge/update or clean import.",
-    "Removed automatic import of the full nutrition/produce starter library from the public app code; fresh sheets now get grocery categories only.",
-    "Updated Terms & Privacy and About & Privacy wording to explain optional starter-pack library storage and imports."
+    "Renamed Pathmark Online beta to Planner in the top-level navigation and main headings.",
+    "Renamed Spending Plan beta to Spending Plan in user-facing navigation and headings.",
+    "Renamed Shopping List beta to Meal Plan while keeping Shopping Lists as a tab within that module.",
+    "Kept beta-tester role/access logic unchanged behind the scenes.",
+    "Preserved the v0.6.85 Starter Packs foundation and Supabase-backed NZ Seasonal Produce import model."
   ],
-  "release_name": "Starter Packs foundation",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_85.zip"
+  "release_name": "Navigation naming cleanup",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_86.zip"
 }

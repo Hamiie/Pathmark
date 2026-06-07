@@ -2115,7 +2115,7 @@ def _values_to_dataframe(values: list[list[str]], expected_columns: list[str]) -
 
 
 def load_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataFrame]:
-    """Read all Pathmark Online tables with a single batch request.
+    """Read all Planner tables with a single batch request.
 
     This avoids hitting the Google Sheets per-user read limit when Streamlit
     reruns and several tabs ask for Areas, Goals, Routines, Actions and exports.
@@ -5281,7 +5281,7 @@ def create_pathmark_sync_backup(sheet_id: str) -> tuple[bool, str, str]:
             ["Pathmark backup"],
             ["Created", stamp],
             ["Source sheet", sheet_id],
-            ["Note", "This file is a user-owned backup of Pathmark Sync. Restore from Pathmark Online Settings if needed."],
+            ["Note", "This file is a user-owned backup of Pathmark Sync. Restore from Planner Settings if needed."],
         ]
         service.spreadsheets().values().update(
             spreadsheetId=backup_id,
@@ -7578,7 +7578,7 @@ def render_online_settings(sheet_id: str) -> None:
                 st.warning(safe_user_message(msg))
 
     with st.expander("Creation wizard", expanded=False):
-        st.write("The creation wizard now has its own Pathmark Online tab beside Home.")
+        st.write("The creation wizard now has its own Planner tab beside Home.")
         latest = _latest_wizard_draft(sheet_id)
         if latest:
             label = latest.get("project", {}).get("title") if latest.get("wizard_type") == "project" else latest.get("routine", {}).get("title")
@@ -9211,7 +9211,7 @@ def render_online_overview(sheet_id: str) -> None:
 
     next_action = "Open the Creation Wizard to create a routine or project."
     if attention_high:
-        next_action = "Open Spending Plan beta and resolve the high-priority money-flow issue first."
+        next_action = "Open Spending Plan and resolve the high-priority money-flow issue first."
     elif attention_medium:
         first = attention_medium[0].lower()
         if "routine" in first:
@@ -9223,7 +9223,7 @@ def render_online_overview(sheet_id: str) -> None:
         elif "calendar" in first:
             next_action = "Open Projects or Routines and add calendar time to the next step or activity."
         elif "irregular" in first:
-            next_action = "Open Spending Plan beta and add planned irregular costs."
+            next_action = "Open Spending Plan and add planned irregular costs."
     elif not task_rows.empty:
         next_action = "Open Tasklist to choose what you want to print or use this week."
 
@@ -9271,7 +9271,7 @@ def download_tab() -> None:
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Pathmark Online</h3><p>Sign in to manage routines, projects, spending plans, tasklists, and exports from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
+      <div class="card"><h3>Planner</h3><p>Sign in to manage routines, projects, tasklists, calendar sync and task sync from a browser. Your planning records are saved in a Google Sheet that belongs to you.</p></div>
       <div class="card"><h3>Pathmark Desktop</h3><p>Use the Windows app when you want local Workspace folders, Markdown records, backups, and desktop publishing/export workflows.</p></div>
     </div>
     """, unsafe_allow_html=True)
@@ -9428,7 +9428,7 @@ def about_privacy_tab() -> None:
     st.subheader("The short version")
     st.markdown("""
     <div class="grid-2">
-      <div class="card"><h3>Your planning records</h3><p>Pathmark Online saves your Areas, routines, goals, actions, spending plan records, setup progress, tasklists, export records and archive status in your <strong>Pathmark Sync</strong> Google Sheet.</p></div>
+      <div class="card"><h3>Your planning records</h3><p>Planner saves your Areas, routines, goals, actions, spending plan records, setup progress, tasklists, export records and archive status in your <strong>Pathmark Sync</strong> Google Sheet.</p></div>
       <div class="card"><h3>Your Google Drive</h3><p>Pathmark uses Google's limited <strong>drive.file</strong> permission. It can create and update Pathmark files you use with the app, including Pathmark Sync, Pathmark Finance Template, and Pathmark backup sheets.</p></div>
       <div class="card"><h3>Optional Google sync</h3><p>Google Tasks and Google Calendar sync are optional. If enabled, Pathmark can create Pathmark checklist items and create/update events in calendars named after your Areas, then read linked completion or event status back into Pathmark.</p></div>
       <div class="card"><h3>Your access profile</h3><p>Supabase stores only small access/profile details: email, role, account status, feature flags, theme preference and audit records.</p></div>
@@ -9514,8 +9514,8 @@ def about_privacy_tab() -> None:
 
     st.subheader("Disconnecting or deleting")
     st.markdown("""
-    - You can create backups, restore from backup, or restore Pathmark Sync to default from **Pathmark Online → Settings → Backup & restore**.
-    - You can disconnect Google access from **Pathmark Online → Settings**. This revokes the current Google token and stops Pathmark from writing to your Pathmark Sync sheet, Google Tasks, or Google Calendar until you sign in again.
+    - You can create backups, restore from backup, or restore Pathmark Sync to default from **Planner → Settings → Backup & restore**.
+    - You can disconnect Google access from **Planner → Settings**. This revokes the current Google token and stops Pathmark from writing to your Pathmark Sync sheet, Google Tasks, or Google Calendar until you sign in again.
     - You can also remove Pathmark from your Google Account permissions.
     - Pathmark Online includes a deletion option in **Settings** for users who want to remove their online Pathmark data from Google Drive and disconnect access.
     - That deletion workflow only lists files Pathmark can identify as Pathmark files available to this app, such as the connected **Pathmark Sync** sheet or app-tagged Pathmark files. Pathmark does not delete Drive folders simply because they are named Pathmark.
@@ -9558,8 +9558,8 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
     """
     recovery_message = st.session_state.get("sync_sheet_recovery_message", "Pathmark could not find a Pathmark Sync sheet in Google Drive.")
 
-    st.markdown("## Welcome to Pathmark Online")
-    st.markdown("Pathmark Online saves your routines, projects, tasklist, sync links and Spending Plan records in a Google Sheet called **Pathmark Sync**.")
+    st.markdown("## Welcome to Planner")
+    st.markdown("Planner saves your routines, projects, tasklist, sync links and Spending Plan records in a Google Sheet called **Pathmark Sync**.")
     st.info("No Pathmark Sync sheet was found for this Google account. You can start fresh with default Areas, load starter examples, restore from a backup, or check Google Drive Trash if you deleted the sheet recently.")
 
     with st.expander("Why am I seeing this?", expanded=False):
@@ -9622,17 +9622,17 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
     if credentials and sheet_id:
-        st.success("Pathmark Online is ready. Your planning records are saved to your Pathmark Sync sheet, and Google Sheets access is active for this session.")
+        st.success("Planner is ready. Your planning records are saved to your Pathmark Sync sheet, and Google Sheets access is active for this session.")
     elif credentials:
         st.info("Google access is ready. Pathmark is preparing your sync sheet.")
     elif auth_ready:
-        st.info("Sign in with Google to use Pathmark Online.")
+        st.info("Sign in with Google to use Planner.")
     else:
         st.warning("Google access is not configured for this deployment.")
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Pathmark Online beta")
+    st.header("Planner")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -9662,13 +9662,13 @@ def on_the_go_tab() -> None:
     service = sheets_service()
     if service is not None:
         try:
-            with st.spinner("Loading your Pathmark Online workspace from Google Sheets..."):
+            with st.spinner("Loading your Planner workspace from Google Sheets..."):
                 ensure_pathmark_online_schema(service, sheet_id)
                 load_online_tables(sheet_id)
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
-    # The Creation Wizard now has its own Pathmark Online tab beside Home.
+    # The Creation Wizard now has its own Planner tab beside Home.
     sections = st.tabs([
         "Dashboard",
         "Creation Wizard",
@@ -10036,7 +10036,7 @@ def _add_inventory_item_if_needed(sheet_id: str, ingredient: str, category: str,
         "months": "",
         "notes": notes or "Added while creating a recipe or shopping-list item.",
         "status": "active",
-        "source": "Shopping List beta",
+        "source": "Meal Plan",
     }
     ok, _msg = append_online_record(sheet_id, "grocery_inventory", record)
     return record["inventory_id"] if ok else ""
@@ -10185,7 +10185,7 @@ def render_grocery_nutrition_tab(sheet_id: str) -> None:
                 "protein": protein.strip(),
                 "notes": notes.strip(),
                 "status": "active",
-                "source": "Shopping List beta nutrition entry",
+                "source": "Meal Plan nutrition entry",
             }
             if existing:
                 ok, msg = update_online_record(sheet_id, "grocery_nutrition", str(existing.get("nutrition_id", "")), record)
@@ -10698,7 +10698,7 @@ def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple
             "area_id": area_id,
             "area_name": area,
             "title": title,
-            "description": "Recipe exported from Shopping List beta.",
+            "description": "Recipe exported from Meal Plan.",
             "specific_area": area,
             "status": "active",
             "target_date": str(cook_date),
@@ -10706,7 +10706,7 @@ def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple
             "desired_outcome": title,
             "closure_criteria": "Recipe cooked.",
             "notes": str(recipe_row.get("notes", "") or ""),
-            "source": "Shopping List beta recipe export",
+            "source": "Meal Plan recipe export",
         }],
         "actions": [{
             "action_id": action_id,
@@ -10728,7 +10728,7 @@ def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple
             "calendar_end_time": end_dt.strftime("%H:%M"),
             "calendar_end_date": str(end_dt.date()),
             "notes": f"Recipe: {recipe_row.get('recipe_name', '')}",
-            "source": "Shopping List beta recipe export",
+            "source": "Meal Plan recipe export",
         }],
     }
     ok, msg = append_many_online_records(sheet_id, records)
@@ -10764,7 +10764,7 @@ def render_grocery_categories_tab(sheet_id: str) -> None:
                 "colour": colour,
                 "sort_order": str(len(categories) + 1 if not categories.empty else 1),
                 "status": "active",
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             ok, msg = append_online_record(sheet_id, "grocery_categories", record)
             if ok:
@@ -10842,7 +10842,7 @@ def render_grocery_inventory_tab(sheet_id: str) -> None:
                 "months": ", ".join(months),
                 "notes": notes.strip(),
                 "status": "active",
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             if existing:
                 ok, msg = update_online_record(sheet_id, "grocery_inventory", str(existing.get("inventory_id", "")), record)
@@ -10891,7 +10891,7 @@ def render_recipes_tab(sheet_id: str) -> None:
                 "source_url": source_url.strip(),
                 "notes": recipe_notes.strip(),
                 "status": "active",
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             ok, msg = append_online_record(sheet_id, "recipes", record)
             if ok:
@@ -10961,7 +10961,7 @@ def render_recipes_tab(sheet_id: str) -> None:
                 "nutrition_status": nutrition_status,
                 "notes": ing_notes.strip(),
                 "status": "active",
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             ok, msg = append_online_record(sheet_id, "recipe_ingredients", record)
             if ok:
@@ -11003,7 +11003,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                 "planned_date": str(planned_date),
                 "status": "active",
                 "notes": notes.strip(),
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             ok, msg = append_online_record(sheet_id, "shopping_lists", record)
             if ok:
@@ -11064,7 +11064,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                 "checked": "",
                 "notes": notes.strip(),
                 "status": "active",
-                "source": "Shopping List beta",
+                "source": "Meal Plan",
             }
             ok, msg = append_online_record(sheet_id, "shopping_items", record)
             if ok:
@@ -11098,7 +11098,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                         "checked": "",
                         "notes": str(row.get("notes", "") or ""),
                         "status": "active",
-                        "source": "Shopping List beta recipe add",
+                        "source": "Meal Plan recipe add",
                     })
                 if not records:
                     st.warning("This recipe has no ingredients yet.")
@@ -11113,7 +11113,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
 
 def render_shopping_list_manager(sheet_id: str) -> None:
     ensure_grocery_default_rows(sheet_id)
-    st.header("Shopping List beta")
+    st.header("Meal Plan")
     st.write("Plan groceries by category, keep an inventory with expiry and seasonality, and build recipes from ingredients.")
     tabs = st.tabs(["Shopping Lists", "Inventory", "Nutrition", "Recipes", "Starter Packs", "Templates", "Categories"])
     with tabs[0]:
@@ -11134,7 +11134,7 @@ def render_shopping_list_manager(sheet_id: str) -> None:
 
 def shopping_list_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Shopping List beta")
+    st.header("Meal Plan")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -11161,18 +11161,18 @@ def shopping_list_beta_tab() -> None:
     service = sheets_service()
     if service is not None:
         try:
-            with st.spinner("Loading your Shopping List from Google Sheets..."):
+            with st.spinner("Loading your Meal Plan from Google Sheets..."):
                 ensure_pathmark_online_schema(service, sheet_id)
                 load_online_tables(sheet_id)
         except Exception:
-            st.warning("Pathmark could not prepare your Shopping List just now. Please refresh online data or reconnect Google access, then try again.")
-    render_safe_section("Shopping List", render_shopping_list_manager, sheet_id)
+            st.warning("Pathmark could not prepare your Meal Plan just now. Please refresh online data or reconnect Google access, then try again.")
+    render_safe_section("Meal Plan", render_shopping_list_manager, sheet_id)
 
 
 def spending_plan_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Spending Plan beta")
-    st.write("Use this separate beta space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
+    st.header("Spending Plan")
+    st.write("Use this space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
 
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
@@ -11457,12 +11457,12 @@ def render_app() -> None:
         render_google_permissions_onboarding(compact=False)
         return
 
-    # After login, land the user in Pathmark Online by making it the first tab,
+    # After login, land the user in Planner by making it the first tab,
     # but keep the rest of the top-level navigation available. This avoids the
     # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
     post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
     if post_login_landing:
-        tabs = ["Pathmark Online beta", "Home", "Theme", "About & Privacy", "Spending Plan beta", "Shopping List beta"]
+        tabs = ["Planner", "Home", "Theme", "About & Privacy", "Spending Plan", "Meal Plan"]
     else:
         tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
@@ -11477,11 +11477,11 @@ def render_app() -> None:
                 theme_tab()
             elif tab_name == "About & Privacy":
                 about_privacy_tab()
-            elif tab_name == "Pathmark Online beta":
+            elif tab_name == "Planner":
                 on_the_go_tab()
-            elif tab_name == "Spending Plan beta":
+            elif tab_name == "Spending Plan":
                 spending_plan_beta_tab()
-            elif tab_name == "Shopping List beta":
+            elif tab_name == "Meal Plan":
                 shopping_list_beta_tab()
             elif tab_name == "Developer":
                 developer_tab()
@@ -11489,4 +11489,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Sign in to use Pathmark Online when it is enabled for your account.")
+st.caption("Pathmark release hub. Sign in to use Planner when it is enabled for your account.")

@@ -1,5 +1,15 @@
 # Pathmark Release Hub
 
+## v0.6.86 Navigation naming cleanup
+
+- Renames **Pathmark Online beta** to **Planner** in user-facing navigation and headings.
+- Renames **Spending Plan beta** to **Spending Plan**.
+- Renames **Shopping List beta** to **Meal Plan**, while keeping **Shopping Lists** as a tab inside Meal Plan.
+- Keeps beta-tester role/access controls unchanged behind the scenes.
+- Preserves the v0.6.85 Starter Packs foundation and Supabase-backed NZ Seasonal Produce import model.
+
+# Pathmark Release Hub
+
 ## v0.6.85 Starter Packs foundation
 
 - Adds a Shopping List Nutrition tab with kcal and nutrition values by ingredient/portion.
