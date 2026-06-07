@@ -1,23 +1,23 @@
 {
-  "version": "0.6.98",
+  "version": "0.6.99",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_98.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_98.zip",
-  "release": "v0.6.98 Organisation Finance Nutrition and robust Tasklist fallback",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_98.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_98.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_98.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_98.zip",
-  "label": "Organisation Finance Nutrition and robust Tasklist fallback",
-  "release_notes": "Renames the hosted work areas to Organisation, Finance and Nutrition, removes seasonal banners from working modules, quietens the account bar, and adds a deeper Tasklist fallback so the section remains usable when grouped rendering fails.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_99.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_99.zip",
+  "release": "v0.6.99 Planning naming and tasklist widget fix",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_99.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_99.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_99.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_99.zip",
+  "label": "Planning naming and tasklist widget fix",
+  "release_notes": "Renames Organisation to Planning, restores slim seasonal banners to the working modules in a consistent position, quietens the signed-in bar, and fixes Tasklist duplicate Streamlit widget IDs.",
   "notes": [
-    "Top-level hosted modules now use broader names: Organisation, Finance and Nutrition.",
-    "Home keeps the seasonal banner and cleaner wordmark-led branding, while working modules remove the banner so the page starts with the task context.",
-    "The signed-in/access controls have been made visually quieter so they do not dominate the working pages.",
-    "Tasklist rendering now has a deeper fallback path: if grouped tasklist rendering fails, Pathmark shows a simple selector instead of closing the whole section.",
-    "Printable tasklist downloads fall back to a text file if PDF generation fails, so the section remains usable."
+    "Renames Organisation to Planning across the hosted work area, while keeping Finance and Nutrition as the neighbouring modules.",
+    "Restores the soft seasonal banner to Planning, Finance and Nutrition in a consistent, slim position below the compact readiness status.",
+    "Makes the signed-in/access bar quieter by replacing large account cards with small chips.",
+    "Fixes Tasklist duplicate Streamlit widget IDs by adding explicit keys to the tasklist name, notes, download and export controls.",
+    "Adds explicit keys to Spending Plan Projections controls to reduce duplicate widget errors when Streamlit renders hidden tabs."
   ],
-  "release_name": "Organisation Finance Nutrition and robust Tasklist fallback",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_98.zip"
+  "release_name": "Planning naming and tasklist widget fix",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_99.zip"
 }

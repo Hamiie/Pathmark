@@ -516,7 +516,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   font-weight: 760;
 }}
 .seasonal-banner {{ position: relative; overflow: hidden; border-radius: 1.25rem; min-height: 156px; margin: .35rem 0 1.05rem; border: 1px solid var(--line); background-size: cover; background-position: center center; box-shadow: 0 10px 22px color-mix(in srgb, #000000 8%, transparent); }}
-.seasonal-banner-compact {{ min-height: 86px; margin: .25rem 0 .9rem; border-radius: 1.15rem; }}
+.seasonal-banner-compact {{ min-height: 58px; margin: .55rem 0 1rem; border-radius: 1rem; }}
 .seasonal-banner-overlay {{ position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--background-color, #F7F6F2) 20%, transparent) 0%, color-mix(in srgb, var(--background-color, #F7F6F2) 28%, transparent) 34%, rgba(255,255,255,0.04) 100%); }}
 .seasonal-banner-content {{ position: relative; z-index: 1; padding: .9rem .95rem; min-height: inherit; display: flex; align-items: flex-end; }}
 .seasonal-banner-panel {{ display: inline-flex; flex-direction: column; gap: .38rem; max-width: 760px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid color-mix(in srgb, var(--line) 74%, transparent); border-radius: .95rem; padding: .72rem .9rem; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 20px color-mix(in srgb, #000000 10%, transparent); }}
@@ -542,7 +542,16 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
 .meta-value {{ font-size: 1.9rem; line-height: 1.05; font-weight: 780; }}
 .download-panel {{ border-radius: 1.35rem; padding: 1.2rem; margin: 1.2rem 0 2rem; }}
-.account-card, .connection-card {{ border-radius: .9rem; padding: .62rem .82rem; }}
+.account-card, .connection-card {{ border-radius: .9rem; padding: .5rem .72rem; box-shadow:none !important; }}
+.account-card {{ background: transparent !important; border-color: transparent !important; padding: .15rem 0 !important; }}
+.account-title {{ color: var(--muted); font-size: .78rem; font-weight: 760; letter-spacing: .04em; text-transform: uppercase; }}
+.account-value {{ color: var(--muted); font-size: .9rem; }}
+.account-chip-row {{ display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; min-height:2.2rem; }}
+.account-chip {{ display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:.28rem .62rem; color:var(--muted); font-size:.86rem; box-shadow:none; }}
+.account-chip strong {{ color:var(--ink); font-weight:720; }}
+.connection-strip {{ display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:.34rem .7rem; color:var(--muted); font-size:.9rem; margin:.25rem 0 .7rem; }}
+.connection-strip strong {{ color:var(--ink); font-weight:720; }}
+.connection-strip.warn {{ border-color: color-mix(in srgb, #B45309 44%, var(--line)); }}
 .safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
 .profile-pill {{ display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }}
 .kicker {{ color: var(--accent); font-size: .82rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }}
@@ -1340,14 +1349,16 @@ def clear_hosted_login_session() -> None:
 
 
 def render_account_bar(role: str, user: dict[str, str]) -> None:
-    """Render compact signed-in controls for the hosted page."""
+    """Render quiet signed-in controls for the hosted page."""
     configured = login_configured()
-    cols = st.columns([4.2, 1.4, 1.2])
+    cols = st.columns([6.6, 1.25])
     with cols[0]:
         if user.get("email"):
             st.markdown(
-                f"<div class='account-card'><div class='account-title'>Signed in</div>"
-                f"<div class='account-value'>{html.escape(str(user.get('email')))}</div></div>",
+                f"<div class='account-chip-row'>"
+                f"<span class='account-chip'>Signed in <strong>{html.escape(str(user.get('email')))}</strong></span>"
+                f"<span class='account-chip'>Access <strong>{html.escape(role_label(role))}</strong></span>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
         elif configured:
@@ -1356,24 +1367,15 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
             st.caption("Login is not configured yet. Download Pathmark below.")
     with cols[1]:
         if user.get("email"):
-            st.markdown(
-                f"<div class='account-card'><div class='account-title'>Access level</div>"
-                f"<div class='account-value'>{html.escape(role_label(role))}</div></div>",
-                unsafe_allow_html=True,
-            )
-    with cols[2]:
-        if user.get("email"):
-            st.write("")
-            if st.button("Log out", use_container_width=True):
+            if st.button("Log out", use_container_width=True, key="hosted_logout_button"):
                 clear_hosted_login_session()
                 st.rerun()
         elif configured:
-            st.write("")
-            if st.button("Log in with Google", use_container_width=True):
+            if st.button("Log in with Google", use_container_width=True, key="hosted_login_button"):
                 st.session_state["show_login_terms"] = True
                 st.rerun()
         else:
-            st.button("Log in not configured", use_container_width=True, disabled=True)
+            st.button("Log in not configured", use_container_width=True, disabled=True, key="hosted_login_disabled")
 
 
 def render_google_permissions_onboarding(compact: bool = False) -> None:
@@ -6565,8 +6567,8 @@ def render_spending_projections(sheet_id: str) -> None:
     st.markdown("##### Pay timing")
     with st.form("spending_projection_payday_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
-        pay_frequency = c1.selectbox("Pay frequency", frequency_options, index=frequency_options.index(proj.get("pay_frequency", "Weekly")) if proj.get("pay_frequency", "Weekly") in frequency_options else 0)
-        pay_day = c2.selectbox("Pay day money arrives in the hub account", day_options, index=day_options.index(proj.get("pay_day", "Monday")) if proj.get("pay_day", "Monday") in day_options else 0)
+        pay_frequency = c1.selectbox("Pay frequency", frequency_options, index=frequency_options.index(proj.get("pay_frequency", "Weekly")) if proj.get("pay_frequency", "Weekly") in frequency_options else 0, key="spending_projection_pay_frequency")
+        pay_day = c2.selectbox("Pay day money arrives in the hub account", day_options, index=day_options.index(proj.get("pay_day", "Monday")) if proj.get("pay_day", "Monday") in day_options else 0, key="spending_projection_pay_day")
         save_payday = st.form_submit_button("Save pay timing", use_container_width=True)
     if save_payday:
         ok1, msg1 = save_online_setting(sheet_id, "spending_pay_frequency", pay_frequency, source="spending_projections")
@@ -6594,8 +6596,8 @@ def render_spending_projections(sheet_id: str) -> None:
         st.markdown("**Separate debt balance**")
         debt_row = accounts.get(DEBT_PROJECTION_NAME)
         d1, d2 = st.columns(2)
-        debt_balance = d1.number_input("Current debt balance", min_value=0.0, step=100.0, value=_projection_value(debt_row, "current_balance", 0.0), format="%.2f")
-        debt_weekly = d2.number_input("Weekly debt repayment from available money", min_value=0.0, step=10.0, value=_projection_value(debt_row, "transfer_per_week", 0.0), format="%.2f")
+        debt_balance = d1.number_input("Current debt balance", min_value=0.0, step=100.0, value=_projection_value(debt_row, "current_balance", 0.0), format="%.2f", key="spending_projection_debt_balance")
+        debt_weekly = d2.number_input("Weekly debt repayment from available money", min_value=0.0, step=10.0, value=_projection_value(debt_row, "transfer_per_week", 0.0), format="%.2f", key="spending_projection_debt_weekly")
         total_allocated = sum(transfer_values.values()) + debt_weekly
         st.caption(f"Weekly projection allocations: {money_text(total_allocated)}. Current available to allocate: {money_text(available)}.")
         save_balances = st.form_submit_button("Save balances and projection amounts", use_container_width=True)
@@ -6816,8 +6818,8 @@ def render_tasklist_manager(sheet_id: str) -> None:
 
     try:
         with st.expander("Choose what goes on the tasklist", expanded=True):
-            title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
-            notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
+            title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.", key="tasklist_print_title")
+            notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.", key="tasklist_print_notes")
             source_series = tasklist["source_type"].fillna("").astype(str) if "source_type" in tasklist.columns else pd.Series([""] * len(tasklist), index=tasklist.index)
             goal_actions = tasklist[source_series == "Goal action"].copy()
             routine_rows = tasklist[source_series == "Routine activity"].copy()
@@ -6893,12 +6895,12 @@ def render_tasklist_manager(sheet_id: str) -> None:
         mime = "text/plain"
         filename = "pathmark_tasklist.txt"
 
-    st.download_button("Download printable tasklist", data=pdf_bytes, file_name=filename, mime=mime, use_container_width=True, disabled=selected_rows.empty and not str(notes or "").strip())
+    st.download_button("Download printable tasklist", data=pdf_bytes, file_name=filename, mime=mime, use_container_width=True, disabled=selected_rows.empty and not str(notes or "").strip(), key="tasklist_print_download")
 
     if not selected_rows.empty:
         with st.expander("After printing or saving"):
             st.write("Printing or saving a tasklist does not move items to Archive. Project steps and routine activities remain in their Projects or Routines tabs until you pause or archive them deliberately.")
-            if st.button("Mark selected rows as exported", use_container_width=True):
+            if st.button("Mark selected rows as exported", use_container_width=True, key="tasklist_mark_selected_exported"):
                 ids = selected_rows.get("action_id", pd.Series(dtype=str)).dropna().astype(str).tolist()
                 ok, message = mark_actions_exported(sheet_id, ids, "paper_tasklist", archive=False)
                 if ok:
@@ -10591,8 +10593,8 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
     """
     recovery_message = st.session_state.get("sync_sheet_recovery_message", "Pathmark could not find a Pathmark Sync sheet in Google Drive.")
 
-    st.markdown("## Welcome to Organisation")
-    st.markdown("Organisation saves your routines, projects, tasklist, sync links and Finance records in a Google Sheet called **Pathmark Sync**.")
+    st.markdown("## Welcome to Planning")
+    st.markdown("Planning saves your routines, projects, tasklist, sync links and Finance records in a Google Sheet called **Pathmark Sync**.")
     st.info("No Pathmark Sync sheet was found for this Google account. You can start fresh with default Areas, load starter examples, restore from a backup, or check Google Drive Trash if you deleted the sheet recently.")
 
     with st.expander("Why am I seeing this?", expanded=False):
@@ -10655,17 +10657,17 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
     if credentials and sheet_id:
-        st.success("Pathmark is ready. Your records are saved to your Pathmark Sync sheet, and Google Sheets access is active for this session.")
+        st.markdown("<div class='connection-strip'><strong>Ready</strong> Records are saved to Pathmark Sync for this session.</div>", unsafe_allow_html=True)
     elif credentials:
-        st.info("Google access is ready. Pathmark is preparing your sync sheet.")
+        st.markdown("<div class='connection-strip'><strong>Google connected</strong> Preparing Pathmark Sync.</div>", unsafe_allow_html=True)
     elif auth_ready:
-        st.info("Sign in with Google to use Organisation, Finance and Nutrition.")
+        st.info("Sign in with Google to use Planning, Finance and Nutrition.")
     else:
         st.warning("Google access is not configured for this deployment.")
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Organisation")
+    st.header("Planning")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -10677,6 +10679,8 @@ def on_the_go_tab() -> None:
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
     render_connection_summary(credentials, sheet_id, auth_ready)
+    if credentials and sheet_id:
+        render_seasonal_banner(compact=True)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -12522,6 +12526,8 @@ def shopping_list_beta_tab() -> None:
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
     render_connection_summary(credentials, sheet_id, auth_ready)
+    if credentials and sheet_id:
+        render_seasonal_banner(compact=True)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -12561,6 +12567,8 @@ def spending_plan_beta_tab() -> None:
 
     sheet_id = st.session_state.get("sync_sheet_id", "")
     render_connection_summary(credentials, sheet_id, auth_ready)
+    if credentials and sheet_id:
+        render_seasonal_banner(compact=True)
 
     if not credentials and auth_ready:
         render_google_permissions_onboarding(compact=True)
@@ -12838,7 +12846,7 @@ def render_app() -> None:
     # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
     post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
     if post_login_landing:
-        tabs = ["Organisation", "Finance", "Nutrition", "Home", "Theme", "About & Privacy"]
+        tabs = ["Planning", "Finance", "Nutrition", "Home", "Theme", "About & Privacy"]
     else:
         tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
@@ -12853,7 +12861,7 @@ def render_app() -> None:
                 theme_tab()
             elif tab_name == "About & Privacy":
                 about_privacy_tab()
-            elif tab_name == "Organisation":
+            elif tab_name == "Planning":
                 on_the_go_tab()
             elif tab_name == "Finance":
                 spending_plan_beta_tab()
@@ -12865,4 +12873,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Sign in to use Organisation, Finance and Nutrition when enabled for your account.")
+st.caption("Pathmark release hub. Sign in to use Planning, Finance and Nutrition when enabled for your account.")
