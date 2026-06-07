@@ -757,6 +757,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .pathmark-terms-box {{ max-height: 420px; overflow-y: auto; padding: 1rem 1.1rem; border: 1px solid var(--pm-border); border-radius: 16px; background: var(--pm-card-bg); color: var(--pm-card-text); }}
 .pathmark-terms-box h3, .pathmark-terms-box h4 {{ color: var(--pm-card-text); margin-top: .7rem; margin-bottom: .35rem; }}
 .pathmark-terms-box p {{ color: var(--pm-card-muted); margin: 0 0 .65rem 0; line-height: 1.45; }}
+.policy-link-row {{ display:flex; flex-wrap:wrap; gap:.55rem; margin:1rem 0 1.2rem; }}
+.policy-link-row a {{ display:inline-flex; align-items:center; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:.42rem .72rem; color:var(--ink); text-decoration:none; font-weight:650; font-size:.92rem; }}
+.policy-link-row a:hover {{ border-color:var(--accent); color:var(--accent); text-decoration:none; }}
+.oauth-domain-card {{ border:1px solid var(--line); background:var(--surface); border-radius:1rem; padding:1rem 1.05rem; margin:.8rem 0; }}
+.oauth-domain-card code {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.35rem; padding:.08rem .25rem; }}
 .theme-config-preview {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }}
 
 </style>
@@ -10352,6 +10357,13 @@ def download_tab() -> None:
       <div class="card"><h3>Direct resources</h3><p>The Spending Plan helps you set up income, outflows, APs and safe-to-spend guidance so money supports the plan.</p></div>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="policy-link-row" aria-label="Pathmark public policy links">
+      <a href="?page=privacy">Privacy Policy</a>
+      <a href="?page=terms">Terms of Service</a>
+      <a href="?page=oauth">Google access explanation</a>
+    </div>
+    """, unsafe_allow_html=True)
     st.header("Two ways to use Pathmark")
     st.markdown("""
     <div class="grid-2">
@@ -10515,6 +10527,13 @@ def theme_tab() -> None:
 
 def about_privacy_tab() -> None:
     st.header("About & Privacy")
+    st.markdown("""
+    <div class="policy-link-row">
+      <a href="?page=privacy">Public Privacy Policy</a>
+      <a href="?page=terms">Public Terms of Service</a>
+      <a href="?page=oauth">Google access explanation</a>
+    </div>
+    """, unsafe_allow_html=True)
     st.write(
         "Pathmark uses a small number of services so the online app can run in a browser while keeping your planning records in a file you own. "
         "This page explains what Pathmark accesses and where each kind of information is stored."
@@ -12870,7 +12889,179 @@ def developer_tab() -> None:
         """)
 
 
+
+def _query_param_value(name: str) -> str:
+    try:
+        value = st.query_params.get(name, "")
+        if isinstance(value, list):
+            value = value[0] if value else ""
+        return str(value or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def public_page_from_query() -> str:
+    """Return the requested public OAuth/branding page, if any.
+
+    Google Auth Platform can use URLs such as:
+    - https://pathmark.streamlit.app/?page=privacy
+    - https://pathmark.streamlit.app/?page=terms
+    These pages must remain reachable without login.
+    """
+    page = _query_param_value("page") or _query_param_value("policy")
+    aliases = {
+        "privacy": "privacy",
+        "privacy-policy": "privacy",
+        "privacy_policy": "privacy",
+        "terms": "terms",
+        "terms-of-service": "terms",
+        "terms_of_service": "terms",
+        "tos": "terms",
+        "oauth": "oauth",
+        "google": "oauth",
+        "google-access": "oauth",
+    }
+    return aliases.get(page, "")
+
+
+def render_public_page_nav() -> None:
+    render_seasonal_banner(compact=True, force=True, season=current_southern_hemisphere_season())
+    st.markdown("""
+    <div class="policy-link-row" aria-label="Pathmark public navigation">
+      <a href="/">Home</a>
+      <a href="?page=privacy">Privacy Policy</a>
+      <a href="?page=terms">Terms of Service</a>
+      <a href="?page=oauth">Google access</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_public_privacy_policy() -> None:
+    inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
+    render_public_page_nav()
+    st.title("Pathmark Privacy Policy")
+    st.caption("Last updated: June 2026")
+    st.markdown("""
+    This page is public so it can be used on the Google OAuth consent screen.
+
+    ## Summary
+    Pathmark is designed so your private planning, Finance and Nutrition records stay in files owned by you, primarily a Google Sheet called **Pathmark Sync**. Pathmark uses Google sign-in and Google APIs only after you grant permission.
+
+    ## Information Pathmark uses
+    Pathmark may use:
+
+    - your Google account email address, to identify your Pathmark access level;
+    - Google Sheets and Drive access, to create and update Pathmark Sync, Pathmark backups and optional templates;
+    - Google Tasks access, when you choose to sync checklist items;
+    - Google Calendar access, when you choose to sync Pathmark calendar events;
+    - Supabase access/profile records, such as email, role, status, feature flags, theme preference and audit records;
+    - optional starter-pack library rows copied into your own Pathmark Sync sheet when you import them.
+
+    ## Where information is stored
+    Your active Pathmark records are stored in your own Google files, including Pathmark Sync, backup sheets and optional templates. Google Tasks and Google Calendar store synced items only when you run sync actions. Supabase stores access/profile metadata and optional starter-pack library data. GitHub stores the public app code and release files.
+
+    ## Google Drive scope
+    Pathmark is intended to use Google's limited Drive file access, so it works with Pathmark-created files or files you explicitly use with Pathmark. It is not intended to browse unrelated Drive content.
+
+    ## Google Tasks and Calendar
+    Google Tasks and Calendar permissions allow Pathmark to create, update and read linked Pathmark items. Pathmark stores task and event IDs in Pathmark Sync so future syncs can update matching items rather than creating duplicates.
+
+    ## What Pathmark does not do
+    Pathmark does not sell user data, does not use your planning or Finance content for advertising, does not store your Google password, and does not intentionally store OAuth tokens in Supabase, GitHub, logs or public files.
+
+    ## Revoking access
+    You can revoke Pathmark's Google access from your Google Account. You can also delete Pathmark Sync, backups or templates directly from Google Drive. Deleting online Pathmark data does not delete any local desktop Workspace files.
+
+    ## Active development
+    Pathmark is under active development. Features, wording and data structures may change. Backups are recommended before imports, reset actions or major sync changes.
+    """)
+
+
+def render_public_terms_of_service() -> None:
+    inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
+    render_public_page_nav()
+    st.title("Pathmark Terms of Service")
+    st.caption("Last updated: June 2026")
+    st.markdown("""
+    This page is public so it can be used on the Google OAuth consent screen.
+
+    ## What Pathmark is
+    Pathmark is a planning, wellbeing, project, calendar/task sync, Finance, Nutrition and starter-pack tool. It helps users organise routines, projects, tasks, calendar time, spending-plan records, recipes, ingredients and related information.
+
+    ## Beta status
+    Pathmark is in active development. Features may change, break, be renamed or be removed. You should keep backups before using import, sync, reset, restore or delete workflows.
+
+    ## Your responsibility
+    You are responsible for the accuracy of information you enter, the files you authorise Pathmark to use, the sync actions you run, and the decisions you make from Pathmark outputs.
+
+    ## Google services
+    Pathmark uses Google sign-in and Google APIs after you grant permission. Google may show a consent screen explaining the access requested. Pathmark cannot update your Google files, Tasks or Calendar unless the relevant access is available.
+
+    ## Finance disclaimer
+    Pathmark Finance is a budgeting and planning tool only. It does not provide financial, legal, tax, mortgage, insurance, KiwiSaver, investment or debt advice. If you are in financial hardship, consider seeking help from an appropriate support or budgeting service.
+
+    ## No warranty
+    Pathmark is provided as-is during development. It may contain bugs or incomplete features. You should review exports, sync results and generated records before relying on them.
+
+    ## Revoking access and deletion
+    You may revoke Google access from your Google Account. You may also delete Pathmark-created Google files directly from Google Drive. Some Pathmark deletion or reset workflows may create a backup first.
+
+    ## Changes
+    These terms may be updated as Pathmark develops. Continued use after updates means you accept the updated terms.
+    """)
+
+
+def render_google_oauth_public_explanation() -> None:
+    inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
+    render_public_page_nav()
+    st.title("Google access in Pathmark")
+    st.markdown("""
+    Pathmark uses Google access so your online records can live in your own Google files and services.
+
+    <div class="grid-2">
+      <div class="card"><h3>Home page</h3><p><code>https://pathmark.streamlit.app</code></p></div>
+      <div class="card"><h3>Privacy Policy</h3><p><code>https://pathmark.streamlit.app/?page=privacy</code></p></div>
+      <div class="card"><h3>Terms of Service</h3><p><code>https://pathmark.streamlit.app/?page=terms</code></p></div>
+      <div class="card"><h3>Google consent screen</h3><p>The logo and these public links should match the Google Auth Platform branding settings.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    ## Permission behaviour
+    Google may request access for Drive/Sheets, Tasks and Calendar during connection. In Pathmark, sync actions remain user-triggered:
+
+    - Pathmark Sync is created or updated in Google Sheets.
+    - Google Tasks items are created or updated when you run Google Sync.
+    - Google Calendar events are created or updated when you run Google Sync.
+    - Supabase stores access/profile metadata and optional starter-pack library rows, not your private planning records.
+
+    ## Google Auth Platform checklist
+    In Google Auth Platform, the Pathmark branding should use:
+
+    - Application home page: `https://pathmark.streamlit.app`
+    - Application privacy policy link: `https://pathmark.streamlit.app/?page=privacy`
+    - Application terms of service link: `https://pathmark.streamlit.app/?page=terms`
+    - App logo: the Pathmark logo you uploaded
+
+    If Google later requires verification, any domains used in these links and OAuth client settings need to satisfy Google's authorised-domain requirements.
+    """)
+
+
+def render_public_oauth_branding_page_if_requested() -> bool:
+    page = public_page_from_query()
+    if not page:
+        return False
+    if page == "privacy":
+        render_public_privacy_policy()
+    elif page == "terms":
+        render_public_terms_of_service()
+    elif page == "oauth":
+        render_google_oauth_public_explanation()
+    return True
+
+
 def render_app() -> None:
+    if render_public_oauth_branding_page_if_requested():
+        return
     # Complete Google login first. Handle Google Sheets OAuth immediately after,
     # before gated tabs are created, so a callback cannot fall back to the public
     # homepage if Streamlit starts a fresh session after Google's redirect.

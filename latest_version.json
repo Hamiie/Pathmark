@@ -1,24 +1,23 @@
 {
-  "version": "0.7.1",
+  "version": "0.7.2",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_1.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_1.zip",
-  "release": "v0.7.1 Mobile-first hosted UI",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_1.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_1.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_1.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_1.zip",
-  "label": "Mobile-first hosted UI",
-  "release_notes": "Refines the hosted web app for phone use with touch-friendly tab navigation, tighter mobile spacing, quieter account chips, and desktop-inspired accent presets.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_2.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_2.zip",
+  "release": "v0.7.2 Google OAuth public policy links",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_2.zip",
+  "label": "Google OAuth public policy links",
+  "release_notes": "Adds direct public Privacy Policy, Terms of Service, and Google access explanation pages suitable for Google Auth Platform app-domain links.",
   "notes": [
-    "Adds a mobile-first web UI pass for the hosted app.",
-    "Top-level and module tabs are styled as horizontally scrollable touch-friendly pills on smaller screens.",
-    "Cards, banners, metrics, and project/focus-block panels use smaller radii, spacing, and shadows on phones so the app feels less like a squeezed desktop page.",
-    "Signed-in/access chips are quieter and truncate long emails on narrow screens.",
-    "Adds desktop-inspired accent theme names from the local app: Moss, Lagoon, Persimmon, Marigold, Iris, and Rosewood.",
-    "Streamlit primary colour now uses the Moss desktop preset for a closer default connection to the local app palette."
+    "Adds public URL-routed Privacy Policy and Terms of Service pages for Google Auth Platform branding links.",
+    "Adds a public Google access explanation page summarising the intended OAuth consent-screen settings and Pathmark permission behaviour.",
+    "Adds visible Home and About & Privacy links to the public policy pages so the OAuth app domain pages are easy to find.",
+    "Keeps these pages accessible without signing in, so Google consent-screen review and users can open them directly.",
+    "Retains the mobile-first hosted UI from v0.7.1."
   ],
-  "release_name": "Mobile-first hosted UI",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_1.zip"
+  "release_name": "Google OAuth public policy links",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_2.zip"
 }
