@@ -531,7 +531,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .card, .meta-card, .download-panel, .account-card, .connection-card, .setup-shell, .guide-box, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card {{
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 10px 24px color-mix(in srgb, #000000 10%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, #000000 8%, transparent);
 }}
 .card {{ border-radius: 1.35rem; padding: 1.25rem; }}
 .card h3 {{ margin-top: 0; margin-bottom: .55rem; color: var(--ink); }}
@@ -542,7 +542,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .meta-label {{ color: var(--muted); font-size: .92rem; font-weight: 700; margin-bottom: .35rem; }}
 .meta-value {{ font-size: 1.9rem; line-height: 1.05; font-weight: 780; }}
 .download-panel {{ border-radius: 1.35rem; padding: 1.2rem; margin: 1.2rem 0 2rem; }}
-.account-card, .connection-card {{ border-radius: 1.2rem; padding: 1rem 1.15rem; }}
+.account-card, .connection-card {{ border-radius: .9rem; padding: .62rem .82rem; }}
 .safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
 .profile-pill {{ display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }}
 .kicker {{ color: var(--accent); font-size: .82rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }}
@@ -6775,70 +6775,126 @@ def fallback_staged_tasklist(sheet_id: str) -> pd.DataFrame:
 def render_tasklist_manager(sheet_id: str) -> None:
     st.subheader("Tasklist")
     st.write("Use this as a printable paper copy. Google Sync is the main working sync for Google Calendar and Google Tasks.")
+
+    base_columns = ["action_id", "source_type", "title", "display_title", "area_name", "parent", "status", "scheduled_date", "due_date", "first_step", "estimated_minutes", "item_type", "parent_progress_item_id", "parent_progress_title", "calendar_start_time", "calendar_end_time", "calendar_end_date", "notes", "priority"]
+
+    def _safe_tasklist_dataframe() -> pd.DataFrame:
+        try:
+            df = staged_tasklist(sheet_id)
+        except Exception as exc:
+            try:
+                df = fallback_staged_tasklist(sheet_id)
+            except Exception:
+                df = pd.DataFrame(columns=base_columns)
+            st.warning("Pathmark opened a simplified printable tasklist view because the richer tasklist builder could not be loaded.")
+            user = current_user() if 'current_user' in globals() else {}
+            role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
+            if role_can_develop(role, status):
+                with st.expander("Developer details", expanded=False):
+                    st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
+        if df is None:
+            df = pd.DataFrame(columns=base_columns)
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame(df)
+        for col in base_columns:
+            if col not in df.columns:
+                df[col] = ""
+        return df[base_columns + [c for c in df.columns if c not in base_columns]].copy()
+
     try:
-        tasklist = staged_tasklist(sheet_id)
+        tasklist = _safe_tasklist_dataframe()
+    except Exception:
+        tasklist = pd.DataFrame(columns=base_columns)
+
+    if tasklist.empty:
+        st.info("No tasklist rows yet. Add project steps or routine activities; Pathmark will stage printable tasklist rows automatically.")
+        return
+
+    title = "Weekly Tasklist"
+    notes = ""
+    selected_action_ids: list[str] = []
+
+    try:
+        with st.expander("Choose what goes on the tasklist", expanded=True):
+            title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
+            notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
+            source_series = tasklist["source_type"].fillna("").astype(str) if "source_type" in tasklist.columns else pd.Series([""] * len(tasklist), index=tasklist.index)
+            goal_actions = tasklist[source_series == "Goal action"].copy()
+            routine_rows = tasklist[source_series == "Routine activity"].copy()
+
+            def _render_checkbox_rows(rows_df: pd.DataFrame, prefix: str) -> None:
+                if rows_df.empty:
+                    return
+                try:
+                    groups = rows_df.groupby(rows_df.get("parent", pd.Series("Unlinked", index=rows_df.index)).fillna("Unlinked"), sort=False)
+                except Exception:
+                    groups = [("Unlinked", rows_df)]
+                for parent, group in groups:
+                    parent_label = str(parent or "Unlinked").strip() or "Unlinked"
+                    st.markdown(f"**{html.escape(parent_label)}**")
+                    for _, row in group.iterrows():
+                        action_id = str(row.get("action_id", "") or row.name)
+                        title_text = str(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled")
+                        if _tasklist_is_supporting_row(row) and not title_text.startswith("—"):
+                            title_text = f"— {title_text}"
+                        label_bits = []
+                        scheduled = str(row.get("scheduled_date", "") or "").strip()
+                        due = str(row.get("due_date", "") or "").strip()
+                        if scheduled:
+                            label_bits.append(f"scheduled {_tasklist_human_date(scheduled)}")
+                        if due and due != scheduled:
+                            label_bits.append(f"due {_tasklist_human_date(due)}")
+                        suffix = f" ({'; '.join(label_bits)})" if label_bits else ""
+                        if st.checkbox(f"{title_text}{suffix}", value=False, key=f"tasklist_{prefix}_{action_id}_{row.name}"):
+                            selected_action_ids.append(action_id)
+
+            if not goal_actions.empty:
+                st.markdown("#### Project work")
+                _render_checkbox_rows(goal_actions, "goal")
+            if not routine_rows.empty:
+                st.markdown("#### Routine activities")
+                _render_checkbox_rows(routine_rows, "routine")
     except Exception as exc:
-        tasklist = fallback_staged_tasklist(sheet_id)
-        st.warning("Pathmark had trouble building the full tasklist view, so it opened a simpler tasklist view instead.")
+        st.warning("Pathmark could not render the grouped selector, so it is showing a simple selector instead.")
         user = current_user() if 'current_user' in globals() else {}
         role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
         if role_can_develop(role, status):
             with st.expander("Developer details", expanded=False):
                 st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip())
-    if tasklist.empty:
-        st.info("No tasklist rows yet. Add project steps or routine activities; Pathmark will stage tasklist rows automatically.")
-        return
-    with st.expander("Choose what goes on the tasklist", expanded=True):
-        title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
-        notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
-        selected_action_ids: list[str] = []
-        source_series = tasklist["source_type"].fillna("").astype(str) if "source_type" in tasklist.columns else pd.Series([""] * len(tasklist), index=tasklist.index)
-        goal_actions = tasklist[source_series == "Goal action"].copy()
-        routine_rows = tasklist[source_series == "Routine activity"].copy()
-        if not goal_actions.empty:
-            st.markdown("#### Project work")
-            for parent, group in goal_actions.groupby(goal_actions.get("parent", pd.Series("Unlinked project", index=goal_actions.index)).fillna("Unlinked project"), sort=False):
-                st.markdown(f"**{parent or 'Unlinked project'}**")
-                for _, row in group.iterrows():
-                    key = f"tasklist_goal_{row.get('action_id') or row.name}_{row.get('title')}"
-                    label_title = str(row.get("display_title", "") or row.get("title", "Untitled"))
-                    if _tasklist_is_supporting_row(row):
-                        label_title = "    " + label_title
-                    label_bits = []
-                    if str(row.get("scheduled_date", "") or "").strip():
-                        label_bits.append(f"scheduled {_tasklist_human_date(row.get('scheduled_date'))}")
-                    if str(row.get("due_date", "") or "").strip() and str(row.get("due_date", "")) != str(row.get("scheduled_date", "")):
-                        label_bits.append(f"due {_tasklist_human_date(row.get('due_date'))}")
-                    suffix = f" ({'; '.join(label_bits)})" if label_bits else ""
-                    if st.checkbox(f"{label_title}{suffix}", value=False, key=key):
-                        selected_action_ids.append(str(row.get("action_id", "") or ""))
-        if not routine_rows.empty:
-            st.markdown("#### Routine activities")
-            for parent, group in routine_rows.groupby(routine_rows.get("parent", pd.Series("Unlinked routine", index=routine_rows.index)).fillna("Unlinked routine"), sort=False):
-                st.markdown(f"**{parent or 'Unlinked routine'}**")
-                for _, row in group.iterrows():
-                    key = f"tasklist_routine_{row.get('action_id') or row.name}_{row.get('title')}"
-                    days = str(row.get("activity_days", "") or "").strip()
-                    suffix = f" ({days})" if days else ""
-                    if st.checkbox(f"{row.get('title','Untitled')}{suffix}", value=False, key=key):
-                        selected_action_ids.append(str(row.get("action_id", "") or ""))
+        for _, row in tasklist.iterrows():
+            action_id = str(row.get("action_id", "") or row.name)
+            title_text = str(row.get("display_title", "") or row.get("title", "Untitled") or "Untitled")
+            if st.checkbox(title_text, value=False, key=f"tasklist_simple_{action_id}_{row.name}"):
+                selected_action_ids.append(action_id)
+
     if selected_action_ids and "action_id" in tasklist.columns:
         action_series = tasklist["action_id"].fillna("").astype(str)
         selected_rows = tasklist[action_series.isin(selected_action_ids)].copy()
     else:
         selected_rows = pd.DataFrame(columns=tasklist.columns)
-    if selected_rows.empty and not st.session_state.get("tasklist_notes_has_content", False):
+
+    if selected_rows.empty:
         st.info("Tick at least one action or activity before downloading the tasklist.")
-    if not selected_rows.empty:
+    else:
         st.markdown("### Preview")
-        preview = selected_rows.copy()
-        preview["notes_preview"] = preview.apply(tasklist_notes_text, axis=1).str.replace("<br/>", " · ", regex=False)
-        dataframe_preview(preview, ["source_type", "display_title", "notes_preview", "status"])
+        try:
+            preview = selected_rows.copy()
+            preview["notes_preview"] = preview.apply(tasklist_notes_text, axis=1).astype(str).str.replace("<br/>", " · ", regex=False)
+            dataframe_preview(preview, ["source_type", "display_title", "notes_preview", "status"])
+        except Exception:
+            st.dataframe(selected_rows[[c for c in ["source_type", "display_title", "title", "status"] if c in selected_rows.columns]], use_container_width=True, hide_index=True)
+
     try:
         pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes)
+        mime = "application/pdf"
+        filename = "pathmark_tasklist.pdf"
     except Exception:
         pdf_bytes = build_printable_tasklist_from_rows(selected_rows)
-    st.download_button("Download printable PDF tasklist", data=pdf_bytes, file_name="pathmark_tasklist.pdf", mime="application/pdf", use_container_width=True, disabled=selected_rows.empty and not notes.strip())
+        mime = "text/plain"
+        filename = "pathmark_tasklist.txt"
+
+    st.download_button("Download printable tasklist", data=pdf_bytes, file_name=filename, mime=mime, use_container_width=True, disabled=selected_rows.empty and not str(notes or "").strip())
+
     if not selected_rows.empty:
         with st.expander("After printing or saving"):
             st.write("Printing or saving a tasklist does not move items to Archive. Project steps and routine activities remain in their Projects or Routines tabs until you pause or archive them deliberately.")
@@ -10535,8 +10591,8 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
     """
     recovery_message = st.session_state.get("sync_sheet_recovery_message", "Pathmark could not find a Pathmark Sync sheet in Google Drive.")
 
-    st.markdown("## Welcome to Pathmark Planner")
-    st.markdown("Pathmark Planner saves your routines, projects, tasklist, sync links and Spending Plan records in a Google Sheet called **Pathmark Sync**.")
+    st.markdown("## Welcome to Organisation")
+    st.markdown("Organisation saves your routines, projects, tasklist, sync links and Finance records in a Google Sheet called **Pathmark Sync**.")
     st.info("No Pathmark Sync sheet was found for this Google account. You can start fresh with default Areas, load starter examples, restore from a backup, or check Google Drive Trash if you deleted the sheet recently.")
 
     with st.expander("Why am I seeing this?", expanded=False):
@@ -10599,18 +10655,17 @@ def render_missing_sync_sheet_recovery(context: str = "online") -> bool:
 def render_connection_summary(credentials: Any, sheet_id: str, auth_ready: bool) -> None:
     """Show a compact connection state without exposing OAuth plumbing."""
     if credentials and sheet_id:
-        st.success("Planner is ready. Your planning records are saved to your Pathmark Sync sheet, and Google Sheets access is active for this session.")
+        st.success("Pathmark is ready. Your records are saved to your Pathmark Sync sheet, and Google Sheets access is active for this session.")
     elif credentials:
         st.info("Google access is ready. Pathmark is preparing your sync sheet.")
     elif auth_ready:
-        st.info("Sign in with Google to use Pathmark Planner.")
+        st.info("Sign in with Google to use Organisation, Finance and Nutrition.")
     else:
         st.warning("Google access is not configured for this deployment.")
 
 def on_the_go_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Pathmark Planner")
-    render_seasonal_banner(compact=True)
+    st.header("Organisation")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12434,7 +12489,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
 
 def render_shopping_list_manager(sheet_id: str) -> None:
     ensure_grocery_default_rows(sheet_id)
-    st.header("Meal Plan")
+    st.header("Nutrition")
     st.write("Plan groceries by category, keep an inventory with expiry and seasonality, and build recipes from ingredients.")
     tabs = st.tabs(["Shopping Lists", "Inventory", "Nutrition", "Recipes", "Starter Packs", "Templates", "Categories"])
     with tabs[0]:
@@ -12455,8 +12510,7 @@ def render_shopping_list_manager(sheet_id: str) -> None:
 
 def shopping_list_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Meal Plan")
-    render_seasonal_banner(compact=True)
+    st.header("Nutrition")
     auth_ready = web_oauth_available()
     credentials = google_credentials_from_session()
     should_prepare_sheet = bool(credentials and not st.session_state.get("sync_sheet_id"))
@@ -12493,8 +12547,7 @@ def shopping_list_beta_tab() -> None:
 
 def spending_plan_beta_tab() -> None:
     handle_google_oauth_redirect()
-    st.header("Spending Plan")
-    render_seasonal_banner(compact=True)
+    st.header("Finance")
     st.write("Use this space to plan what comes in, what goes out, and how money should move between accounts. Spending Plan records are saved in the Spending Plan tabs of your Pathmark Sync sheet.")
 
     auth_ready = web_oauth_available()
@@ -12785,7 +12838,7 @@ def render_app() -> None:
     # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
     post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
     if post_login_landing:
-        tabs = ["Pathmark Planner", "Home", "Theme", "About & Privacy", "Spending Plan", "Meal Plan"]
+        tabs = ["Organisation", "Finance", "Nutrition", "Home", "Theme", "About & Privacy"]
     else:
         tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
@@ -12800,11 +12853,11 @@ def render_app() -> None:
                 theme_tab()
             elif tab_name == "About & Privacy":
                 about_privacy_tab()
-            elif tab_name == "Pathmark Planner":
+            elif tab_name == "Organisation":
                 on_the_go_tab()
-            elif tab_name == "Spending Plan":
+            elif tab_name == "Finance":
                 spending_plan_beta_tab()
-            elif tab_name == "Meal Plan":
+            elif tab_name == "Nutrition":
                 shopping_list_beta_tab()
             elif tab_name == "Developer":
                 developer_tab()
@@ -12812,4 +12865,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Sign in to use Planner when it is enabled for your account.")
+st.caption("Pathmark release hub. Sign in to use Organisation, Finance and Nutrition when enabled for your account.")
