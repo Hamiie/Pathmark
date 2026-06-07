@@ -2979,25 +2979,15 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
         if str(routine.get("status", "")).lower() == "paused":
             continue
         base_date = action.get("scheduled_date") or action.get("due_date") or routine.get("next_due") or ""
-        item_type = str(action.get("item_type", "") or "").strip().lower()
-        is_all_day_focus = item_type in {"project_focus", "focus_block", "focus block"}
+        start, end = online_event_bounds(base_date, action.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or "10:00")
         end_date_override = str(action.get("calendar_end_date", "") or "").strip()
-        if is_all_day_focus:
+        if end_date_override:
+            start_t = parse_online_time(action.get("calendar_start_time") or "09:00", "09:00")
+            end_t = parse_online_time(action.get("calendar_end_time") or "10:00", "10:00")
             start_d = parse_online_date(base_date) or date.today()
             end_d = parse_online_date(end_date_override) or start_d
-            if end_d < start_d:
-                end_d = start_d
-            start = start_d.isoformat()
-            end = end_d.isoformat()
-        else:
-            start, end = online_event_bounds(base_date, action.get("calendar_start_time") or "09:00", action.get("calendar_end_time") or "10:00")
-            if end_date_override:
-                start_t = parse_online_time(action.get("calendar_start_time") or "09:00", "09:00")
-                end_t = parse_online_time(action.get("calendar_end_time") or "10:00", "10:00")
-                start_d = parse_online_date(base_date) or date.today()
-                end_d = parse_online_date(end_date_override) or start_d
-                start = datetime.combine(start_d, start_t).strftime("%Y-%m-%d %H:%M")
-                end = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
+            start = datetime.combine(start_d, start_t).strftime("%Y-%m-%d %H:%M")
+            end = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
         recurrence = simple_rrule(routine.get("frequency"), routine.get("preferred_days") or action.get("activity_days")) if routine_id else ""
         routine_parent = routines.get(routine_id, {})
         if str(routine_parent.get("status", "")).lower() == "paused":
@@ -3014,7 +3004,6 @@ def staged_calendar_blocks(sheet_id: str) -> pd.DataFrame:
             "recurrence": recurrence,
             "linked_record_id": aid,
             "status": "Staged",
-            "all_day": "1" if is_all_day_focus else "0",
             "created_at": action.get("created_at", ""),
             "updated_at": action.get("updated_at", ""),
             "source": "derived_from_action",
@@ -3630,11 +3619,6 @@ def _minutes_between_calendar_bounds(start_date: str, start_time: str, end_date:
 
 
 
-def is_focus_project_action(row: pd.Series | dict[str, Any]) -> bool:
-    item_type = str(row.get("item_type", "") or "").strip().lower() if row is not None else ""
-    return item_type in {"project_focus", "focus_block", "focus block"}
-
-
 def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bool:
     """Return whether a project action should count toward project completion.
 
@@ -3654,8 +3638,6 @@ def project_action_counts_toward_progress(row: pd.Series | dict[str, Any]) -> bo
 
 
 def project_action_type_label(row: pd.Series | dict[str, Any]) -> str:
-    if is_focus_project_action(row):
-        return "Focus block"
     return "Progress item" if project_action_counts_toward_progress(row) else "Supporting time block"
 
 
@@ -3787,52 +3769,22 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
             if not match.empty:
                 routine = {k: str(match.iloc[0].get(k, "") or "") for k in routines_df.columns}
 
-    project_mode = "Task-based"
-    if goal_id and not is_routine_activity:
-        goals_df = read_online_table(sheet_id, "goals")
-        if not goals_df.empty and "goal_id" in goals_df.columns:
-            gm = goals_df[goals_df["goal_id"].fillna("").astype(str) == str(goal_id)]
-            if not gm.empty:
-                project_mode = str(gm.iloc[0].get("planning_mode", "Task-based") or "Task-based")
-    if project_mode not in {"Task-based", "Focus-based"}:
-        project_mode = "Task-based"
-    action_item_type = str(action.get("item_type", "") or "").strip().lower()
-    is_supporting_time_block = (action_item_type in {"supporting_time", "supporting time", "supporting time block", "time_block", "time block"})
-    is_focus_block = (not is_routine_activity and project_mode == "Focus-based" and not is_supporting_time_block)
-
     default_start_date = str(action.get("scheduled_date", "") or action.get("due_date", "") or routine.get("next_due", "") or "")
     default_end_date = str(action.get("calendar_end_date", "") or default_start_date or "")
     default_start_time = str(action.get("calendar_start_time", "") or "")
     default_end_time = str(action.get("calendar_end_time", "") or "")
     existing_helpers = helper_prompts_for_action(sheet_id, record_id) if record_id else pd.DataFrame(columns=ONLINE_TABLES["task_prompts"])
     helper_editor_default_due = default_start_date or date.today().isoformat()
-    if not is_routine_activity:
-        if project_mode == "Focus-based":
-            title_word = "Supporting time block" if is_supporting_time_block else "Focus block"
-        else:
-            title_word = "Project step"
 
     with st.form(form_id, clear_on_submit=not bool(record_id)):
         st.markdown(f"### {'Edit' if record_id else 'Add'} {title_word.lower()}")
         if is_routine_activity:
             st.caption("Routine activities repeat according to the routine's repeat settings. Pathmark will automatically make calendar time and create tasklist/Google Tasks checklist items for this activity.")
-        elif project_mode == "Focus-based" and is_supporting_time_block:
-            st.caption("Supporting time blocks make time to work on a focus block. They appear in Calendar and Google Tasks, but do not count toward project completion.")
-        elif project_mode == "Focus-based":
-            st.caption("Focus blocks are the progress-tracked milestones for this project. They can span several days and sync to Google Calendar as all-day events.")
         else:
-            st.caption("Project steps are one-off pieces of work. Each project step counts toward project progress automatically.")
+            st.caption("Project steps are one-off pieces of work. Pathmark will automatically make time for each step in your calendar and keep it available for your tasklist and Google Tasks export.")
 
         st.markdown("#### 1. What is this?")
-        if is_routine_activity:
-            title_placeholder = "For example, Sleep"
-        elif project_mode == "Focus-based" and is_supporting_time_block:
-            title_placeholder = "For example, Monday practice for Tune 1"
-        elif project_mode == "Focus-based":
-            title_placeholder = "For example, Learn Tune 1"
-        else:
-            title_placeholder = "For example, Choose a sketching guide"
-        title = st.text_input(title_word, value=str(action.get("title", "")), placeholder=title_placeholder)
+        title = st.text_input(title_word, value=str(action.get("title", "")), placeholder="For example, Choose a sketching guide" if not is_routine_activity else "For example, Sleep")
         description = st.text_area("Notes / description", value=str(action.get("description", action.get("notes", "")) or ""), height=80, placeholder="Optional context or notes.")
 
         c1, c2 = st.columns([0.5, 0.5])
@@ -3848,7 +3800,15 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
         parent_progress_item_id = str(action.get("parent_progress_item_id", "") or "")
         if not is_routine_activity:
             st.markdown("#### Project tracking")
-            if project_mode == "Focus-based" and is_supporting_time_block:
+            current_kind = "Supporting time block" if not project_action_counts_toward_progress(action) else "Progress item"
+            kind_choice = st.radio(
+                "How should this be tracked?",
+                ["Progress item", "Supporting time block"],
+                index=0 if current_kind == "Progress item" else 1,
+                horizontal=True,
+                help="Progress items count toward project completion. Supporting time blocks create calendar/task time, but do not count toward project progress.",
+            )
+            if kind_choice == "Supporting time block":
                 item_type = "supporting_time"
                 contributes_to_progress = "0"
                 all_actions = active_online_df(read_online_table(sheet_id, "actions"))
@@ -3858,64 +3818,48 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
                     for _, pa in project_actions.iterrows():
                         pa_id = str(pa.get("action_id", "") or "").strip()
                         if pa_id and pa_id != record_id and project_action_counts_toward_progress(pa):
-                            parent_options.append((pa_id, str(pa.get("title", "") or "Focus block")))
-                labels = ["No parent focus block"] + [label for _pid, label in parent_options]
-                current_label = "No parent focus block"
+                            parent_options.append((pa_id, str(pa.get("title", "") or "Progress item")))
+                labels = ["No parent focus item"] + [label for _pid, label in parent_options]
+                current_label = "No parent focus item"
                 for pid, label in parent_options:
                     if pid == parent_progress_item_id:
                         current_label = label
-                chosen_parent = st.selectbox("Which focus block does this support?", labels, index=labels.index(current_label) if current_label in labels else 0)
-                parent_progress_item_id = next((pid for pid, label in parent_options if label == chosen_parent), "") if chosen_parent != "No parent focus block" else ""
-                st.caption("Supporting time blocks create calendar/task time, but never change the project completion percentage.")
-            elif project_mode == "Focus-based":
-                item_type = "project_focus"
-                contributes_to_progress = "1"
-                parent_progress_item_id = ""
-                st.caption("This focus block counts toward project progress when its Google Task is completed. Pathmark will sync it as an all-day calendar item spanning the dates you choose.")
+                chosen_parent = st.selectbox("Which progress item does this support?", labels, index=labels.index(current_label) if current_label in labels else 0)
+                parent_progress_item_id = next((pid for pid, label in parent_options if label == chosen_parent), "") if chosen_parent != "No parent focus item" else ""
+                st.caption("This will create calendar time and a Google Tasks item, but it will not increase the project completion percentage.")
             else:
                 item_type = "project_progress"
                 contributes_to_progress = "1"
                 parent_progress_item_id = ""
-                st.caption("This project step counts toward project progress when its Google Task is completed.")
+                st.caption("This item counts toward project progress when its Google Task is completed.")
 
         st.markdown("#### 2. Make time in your calendar")
-        if is_focus_block:
-            st.markdown("<div class='pathmark-note'>Focus blocks span one or more days and sync to Google Calendar as all-day events. They count toward project progress.</div>", unsafe_allow_html=True)
-            c3, c4 = st.columns(2)
-            scheduled = c3.text_input("Focus starts", value=nz_date_text(default_start_date), placeholder="DD/MM/YYYY")
-            end_date = c4.text_input("Focus finishes", value=nz_date_text(default_end_date), placeholder="DD/MM/YYYY")
-            start_time = ""
-            end_time = ""
-            location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
-            helper_rows_input: list[dict[str, str]] = []
-            st.caption("Small action helpers belong on supporting time blocks, not on the focus block itself.")
-        else:
-            st.markdown("<div class='pathmark-note'>Calendar time, the weekly tasklist row and the Google Tasks checklist item are created automatically for every saved project step, supporting time block, or routine activity.</div>", unsafe_allow_html=True)
-            c3, c4 = st.columns(2)
-            scheduled = c3.text_input("Start date", value=nz_date_text(default_start_date), placeholder="DD/MM/YYYY")
-            start_time = c4.text_input("Start time", value=default_start_time, placeholder="HH:MM, for example 09:00")
-            c5, c6 = st.columns(2)
-            end_date = c5.text_input("Finish date", value=nz_date_text(default_end_date), placeholder="DD/MM/YYYY")
-            end_time = c6.text_input("Finish time", value=default_end_time, placeholder="HH:MM, for example 10:00")
-            location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
+        st.markdown("<div class='pathmark-note'>Calendar time, the weekly tasklist row and the Google Tasks checklist item are created automatically for every saved project step or routine activity.</div>", unsafe_allow_html=True)
+        c3, c4 = st.columns(2)
+        scheduled = c3.text_input("Start date", value=nz_date_text(default_start_date), placeholder="DD/MM/YYYY")
+        start_time = c4.text_input("Start time", value=default_start_time, placeholder="HH:MM, for example 09:00")
+        c5, c6 = st.columns(2)
+        end_date = c5.text_input("Finish date", value=nz_date_text(default_end_date), placeholder="DD/MM/YYYY")
+        end_time = c6.text_input("Finish time", value=default_end_time, placeholder="HH:MM, for example 10:00")
+        location = st.text_input("Calendar location", value=str(action.get("calendar_location", "") or ""), placeholder="Optional")
 
-            st.markdown("#### 3. Optional small action checklist items")
-            with st.popover("ⓘ Why add small actions?"):
-                st.write("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Extra small actions reduce activation energy, can each have their own date, and remain linked to this parent step or activity for future editing/export.")
-            helper_state_rows = helper_rows_state_for_form(form_id, existing_helpers, helper_editor_default_due)
-            helper_count_default = max(1, min(6, len(helper_state_rows)))
-            helper_count = st.selectbox("How many extra small checklist items?", [0, 1, 2, 3, 4, 5, 6], index=[0, 1, 2, 3, 4, 5, 6].index(helper_count_default if helper_state_rows and any((r.get("title") or "").strip() for r in helper_state_rows) else 0), help="Optional. Pathmark will still create the main Google Tasks checklist item automatically.")
-            while len(helper_state_rows) < helper_count:
-                helper_state_rows.append({"title": "", "due": nz_date_text(helper_editor_default_due)})
-            helper_rows_input: list[dict[str, str]] = []
-            for idx in range(helper_count):
-                row = helper_state_rows[idx] if idx < len(helper_state_rows) else {"title": "", "due": nz_date_text(helper_editor_default_due)}
-                st.markdown(f"<div class='helper-row-card'><p>Small action {idx + 1}</p></div>", unsafe_allow_html=True)
-                hc1, hc2 = st.columns([0.68, 0.32])
-                title_val = hc1.text_input("Checklist item", value=str(row.get("title", "")), placeholder="For example, put phone outside the bedroom", key=f"{form_id}_helper_title_{idx}")
-                due_val = hc2.text_input("Appears on", value=str(row.get("due", nz_date_text(helper_editor_default_due))), placeholder="DD/MM/YYYY", key=f"{form_id}_helper_due_{idx}")
-                helper_rows_input.append({"title": title_val, "due": due_val})
-            st.caption("Helper items export as separate Google Tasks rows and include the parent step/activity ID in the notes.")
+        st.markdown("#### 3. Optional small action checklist items")
+        with st.popover("ⓘ Why add small actions?"):
+            st.write("Pathmark already creates a Google Tasks checklist item for the step or activity itself. Extra small actions reduce activation energy, can each have their own date, and remain linked to this parent step or activity for future editing/export.")
+        helper_state_rows = helper_rows_state_for_form(form_id, existing_helpers, helper_editor_default_due)
+        helper_count_default = max(1, min(6, len(helper_state_rows)))
+        helper_count = st.selectbox("How many extra small checklist items?", [0, 1, 2, 3, 4, 5, 6], index=[0, 1, 2, 3, 4, 5, 6].index(helper_count_default if helper_state_rows and any((r.get("title") or "").strip() for r in helper_state_rows) else 0), help="Optional. Pathmark will still create the main Google Tasks checklist item automatically.")
+        while len(helper_state_rows) < helper_count:
+            helper_state_rows.append({"title": "", "due": nz_date_text(helper_editor_default_due)})
+        helper_rows_input: list[dict[str, str]] = []
+        for idx in range(helper_count):
+            row = helper_state_rows[idx] if idx < len(helper_state_rows) else {"title": "", "due": nz_date_text(helper_editor_default_due)}
+            st.markdown(f"<div class='helper-row-card'><p>Small action {idx + 1}</p></div>", unsafe_allow_html=True)
+            hc1, hc2 = st.columns([0.68, 0.32])
+            title_val = hc1.text_input("Checklist item", value=str(row.get("title", "")), placeholder="For example, put phone outside the bedroom", key=f"{form_id}_helper_title_{idx}")
+            due_val = hc2.text_input("Appears on", value=str(row.get("due", nz_date_text(helper_editor_default_due))), placeholder="DD/MM/YYYY", key=f"{form_id}_helper_due_{idx}")
+            helper_rows_input.append({"title": title_val, "due": due_val})
+        st.caption("Helper items export as separate Google Tasks rows and include the parent step/activity ID in the notes.")
 
         activity_days = ""
         if is_routine_activity:
@@ -3932,18 +3876,7 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
 
         submitted = st.form_submit_button("Save changes" if record_id else f"Save {title_word.lower()}", use_container_width=True)
         if submitted:
-            if is_focus_block:
-                problems = []
-                start_d = parse_online_date(normalise_online_date(scheduled) if scheduled else scheduled)
-                end_d = parse_online_date(normalise_online_date(end_date) if end_date else end_date)
-                if start_d is None:
-                    problems.append("Add a valid start date for the focus block.")
-                if end_d is None:
-                    problems.append("Add a valid finish date for the focus block.")
-                if start_d is not None and end_d is not None and end_d < start_d:
-                    problems.append("The focus block finish date must be on or after the start date.")
-            else:
-                problems = _calendar_finish_validation(start_date=scheduled, start_time=start_time, end_date=end_date, end_time=end_time)
+            problems = _calendar_finish_validation(start_date=scheduled, start_time=start_time, end_date=end_date, end_time=end_time)
             if not title.strip():
                 st.error(f"Add a {title_word.lower()} title before saving.")
             elif problems:
@@ -4028,7 +3961,7 @@ def render_goal_manager(sheet_id: str) -> None:
                 area = st.selectbox("Area", options=[""] + areas, format_func=lambda x: x or "Choose an Area") if areas else st.text_input("Area")
                 title = st.text_input("Title")
                 specific = st.text_input("Specific area", placeholder="Optional sub-area or project folder")
-                planning_mode = st.selectbox("Planning style", ["Task-based", "Focus-based"], index=0, help="Task-based uses discrete completion steps. Focus-based uses larger focus blocks with optional supporting time blocks.")
+                planning_mode = st.selectbox("Planning style", ["Task-based", "Focus-based", "Mixed"], index=0, help="Task-based uses discrete completion steps. Focus-based uses larger focus items with optional supporting time blocks. Mixed allows both.")
                 status = st.selectbox("Status", ["Captured", "Active", "On hold", "Closed", "Abandoned"], index=1)
                 target_date = st.text_input("Target date", placeholder="Optional, DD/MM/YYYY")
                 purpose = st.text_area("Why this matters", height=75)
@@ -4078,9 +4011,9 @@ def render_goal_manager(sheet_id: str) -> None:
                     area = st.selectbox("Area", options=[""] + areas, index=([""] + areas).index(str(g.get("area_name", ""))) if str(g.get("area_name", "")) in areas else 0) if areas else st.text_input("Area", value=str(g.get("area_name", "")))
                     title = st.text_input("Title", value=str(g.get("title", "")))
                     specific = st.text_input("Specific area", value=str(g.get("specific_area", "")))
-                    planning_options = ["Task-based", "Focus-based"]
+                    planning_options = ["Task-based", "Focus-based", "Mixed"]
                     cur_planning = str(g.get("planning_mode", "Task-based") or "Task-based")
-                    planning_mode = st.selectbox("Planning style", planning_options, index=planning_options.index(cur_planning) if cur_planning in planning_options else 0, help="Task-based uses discrete steps. Focus-based uses larger focus blocks with supporting time blocks.")
+                    planning_mode = st.selectbox("Planning style", planning_options, index=planning_options.index(cur_planning) if cur_planning in planning_options else 0, help="Task-based uses discrete steps. Focus-based uses larger milestones with supporting time blocks. Mixed allows both.")
                     status_options = ["Captured", "Active", "On hold", "Closed", "Abandoned"]
                     cur_status = str(g.get("status", "Active") or "Active")
                     status = st.selectbox("Status", status_options, index=status_options.index(cur_status) if cur_status in status_options else 1)
@@ -4109,11 +4042,13 @@ def render_goal_manager(sheet_id: str) -> None:
                 planning_mode = str(g.get("planning_mode", "Task-based") or "Task-based")
                 if planning_mode == "Focus-based":
                     st.caption("This project is focus-based. Progress items are the milestones/focuses that count toward completion. Supporting time blocks are calendar/task sessions that help you work on a focus, but do not count toward project progress.")
+                elif planning_mode == "Mixed":
+                    st.caption("This project can use both progress items and supporting time blocks. Only progress items count toward project completion.")
                 else:
                     st.caption("Project steps are one-off steps toward this project. Calendar time, tasklist rows and Google Tasks checklist items are created automatically. Supporting time blocks can be added later if you need flexible work sessions that do not count toward progress.")
-                with st.expander("Add focus block" if planning_mode == "Focus-based" else "Add project step", expanded=linked.empty):
+                with st.expander("Add progress item" if planning_mode in {"Focus-based", "Mixed"} else "Add project step", expanded=linked.empty):
                     _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_progress")
-                if planning_mode == "Focus-based":
+                if planning_mode in {"Focus-based", "Mixed"}:
                     with st.expander("Add supporting time block", expanded=False):
                         st.caption("Use this for practice/work sessions that should appear in Calendar and Google Tasks but should not change project progress directly.")
                         _action_form(sheet_id, goal_id=selected_id, default_area=str(g.get("area_name", "") or ""), form_key=f"goal_{selected_id}_support", action={"item_type": "supporting_time", "contributes_to_progress": "0"})
@@ -6542,24 +6477,12 @@ def _google_calendar_event_body(block: pd.Series) -> dict[str, Any]:
         notes.append(f"Area: {area}")
     if linked:
         notes.append(f"Pathmark linked record ID: {linked}")
-    if truthy_flag(block.get("all_day", "")):
-        start_d = parse_online_date(block.get("start")) or date.today()
-        end_d = parse_online_date(block.get("end")) or start_d
-        # Google Calendar all-day event end dates are exclusive. Pathmark stores
-        # the user's finish date inclusively, so add one day for Google.
-        body: dict[str, Any] = {
-            "summary": title,
-            "description": "\n\n".join([n for n in notes if n]),
-            "start": {"date": start_d.isoformat()},
-            "end": {"date": (end_d + timedelta(days=1)).isoformat()},
-        }
-    else:
-        body: dict[str, Any] = {
-            "summary": title,
-            "description": "\n\n".join([n for n in notes if n]),
-            "start": _google_calendar_datetime_body(block.get("start", "")),
-            "end": _google_calendar_datetime_body(block.get("end", "")),
-        }
+    body: dict[str, Any] = {
+        "summary": title,
+        "description": "\n\n".join([n for n in notes if n]),
+        "start": _google_calendar_datetime_body(block.get("start", "")),
+        "end": _google_calendar_datetime_body(block.get("end", "")),
+    }
     recurrence = str(block.get("recurrence", "") or "").strip()
     if recurrence:
         body["recurrence"] = [f"RRULE:{recurrence}" if not recurrence.upper().startswith("RRULE:") else recurrence]
@@ -6581,30 +6504,17 @@ def _calendar_block_validation_row(block: pd.Series) -> dict[str, str]:
     if not linked_id:
         reasons.append("Missing Pathmark record link")
         fixes.append("Re-save the step or activity")
-    if truthy_flag(block.get("all_day", "")):
-        start_d = parse_online_date(start_raw)
-        end_d = parse_online_date(end_raw)
-        if start_d is None:
-            reasons.append("Missing or invalid start")
-            fixes.append("Add a start date")
-        if end_d is None:
-            reasons.append("Missing or invalid finish")
-            fixes.append("Add a finish date")
-        if start_d is not None and end_d is not None and end_d < start_d:
-            reasons.append("Finish is before start")
-            fixes.append("Set the finish date on or after the start date")
-    else:
-        start_dt = _parse_calendar_block_datetime(start_raw)
-        end_dt = _parse_calendar_block_datetime(end_raw)
-        if start_dt is None:
-            reasons.append("Missing or invalid start")
-            fixes.append("Add a start date and time")
-        if end_dt is None:
-            reasons.append("Missing or invalid finish")
-            fixes.append("Add a finish date and time")
-        if start_dt is not None and end_dt is not None and end_dt <= start_dt:
-            reasons.append("Finish is not after start")
-            fixes.append("Set a finish time after the start time")
+    start_dt = _parse_calendar_block_datetime(start_raw)
+    end_dt = _parse_calendar_block_datetime(end_raw)
+    if start_dt is None:
+        reasons.append("Missing or invalid start")
+        fixes.append("Add a start date and time")
+    if end_dt is None:
+        reasons.append("Missing or invalid finish")
+        fixes.append("Add a finish date and time")
+    if start_dt is not None and end_dt is not None and end_dt <= start_dt:
+        reasons.append("Finish is not after start")
+        fixes.append("Set a finish time after the start time")
     if recurrence:
         rec_upper = recurrence.upper().replace("RRULE:", "")
         if "FREQ=" not in rec_upper:
@@ -8289,18 +8199,16 @@ def _find_step_by_id(items: list[dict[str, Any]], id_key: str, item_id: str) -> 
 
 
 def _append_project_step(draft: dict[str, Any]) -> dict[str, Any]:
-    planning_mode = str(draft.get("project", {}).get("planning_mode", "Task-based") or "Task-based")
-    is_focus = planning_mode == "Focus-based"
     step = {
         "step_id": f"step-{uuid.uuid4().hex}",
         "title": "",
         "calendar_date": date.today().isoformat(),
-        "calendar_start_time": "" if is_focus else "09:00",
-        "calendar_end_time": "" if is_focus else "10:00",
+        "calendar_start_time": "09:00",
+        "calendar_end_time": "10:00",
         "calendar_end_date": date.today().isoformat(),
         "ends_next_day": False,
         "include_on_tasklist": True,
-        "item_type": "project_focus" if is_focus else "project_progress",
+        "item_type": "project_progress",
         "contributes_to_progress": "1",
         "parent_progress_item_id": "",
         "has_helper_tasks": False,
@@ -8366,23 +8274,16 @@ def _routine_days_text(routine: dict[str, Any]) -> str:
 
 def _validate_project_step(step: dict[str, Any]) -> list[str]:
     problems = []
-    is_focus = str(step.get("item_type", "") or "").strip().lower() in {"project_focus", "focus_block", "focus block"}
     if not str(step.get("title", "")).strip():
-        problems.append("Add a focus block." if is_focus else "Add a project step.")
+        problems.append("Add a project step.")
     if not _date_to_text(step.get("calendar_date")):
-        problems.append("Choose the day this focus block starts." if is_focus else "Choose the day you will make time for this step.")
-    if not _date_to_text(step.get("calendar_end_date")):
-        problems.append("Choose the date this focus block finishes." if is_focus else "Choose the date this calendar time will finish.")
-    if is_focus:
-        start_d = _text_to_date(step.get("calendar_date"))
-        end_d = _text_to_date(step.get("calendar_end_date"), start_d)
-        if end_d < start_d:
-            problems.append("The focus block finish date must be on or after the start date.")
-        return problems
+        problems.append("Choose the day you will make time for this step.")
     if not _time_to_text(step.get("calendar_start_time")):
         problems.append("Choose a start time.")
     if not _time_to_text(step.get("calendar_end_time")):
         problems.append("Choose an end time.")
+    if not _date_to_text(step.get("calendar_end_date")):
+        problems.append("Choose the date this calendar time will finish.")
     if _calendar_minutes(step.get("calendar_date"), step.get("calendar_start_time", ""), step.get("calendar_end_date"), step.get("calendar_end_time", "")) <= 0:
         problems.append("The finish date and time must be after the start date and time.")
     return problems
@@ -8428,16 +8329,10 @@ def _wizard_next_step(draft: dict[str, Any], current: str, answer: Any = None) -
     if current == "area_review":
         return "project_title" if wt == "project" else "routine_title"
     if wt == "project":
-        planning_mode = str(draft.get("project", {}).get("planning_mode", "Task-based") or "Task-based")
-        if planning_mode == "Focus-based":
-            order = ["project_title", "project_reason", "project_done", "project_target", "project_planning_mode", "project_step_title", "project_calendar_date", "project_calendar_end_time", "project_add_step"]
-        else:
-            order = ["project_title", "project_reason", "project_done", "project_target", "project_planning_mode", "project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice"]
+        order = ["project_title", "project_reason", "project_done", "project_target", "project_planning_mode", "project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice"]
         if current in order:
             if current == "project_helper_task_choice":
                 return "project_helper_task_item" if answer else "project_add_step"
-            if current == "project_add_step":
-                return "project_step_title" if answer else "project_review"
             return order[order.index(current)+1]
         if current == "project_helper_task_item":
             return "project_helper_task_due"
@@ -8445,6 +8340,8 @@ def _wizard_next_step(draft: dict[str, Any], current: str, answer: Any = None) -
             return "project_add_helper_task_item"
         if current == "project_add_helper_task_item":
             return "project_helper_task_item" if answer else "project_add_step"
+        if current == "project_add_step":
+            return "project_step_title" if answer else "project_review"
     else:
         order = ["routine_title", "routine_purpose", "routine_frequency"]
         if current in order:
@@ -8541,21 +8438,16 @@ def _final_save_wizard(sheet_id: str, draft: dict[str, Any]) -> tuple[bool, str]
             action_id = f"action-{uuid.uuid4().hex}"
             scheduled = _date_to_text(step.get("calendar_date"))
             end_date = _date_to_text(step.get("calendar_end_date")) or scheduled
-            step_item_type = str(step.get("item_type", "project_progress") or "project_progress")
-            is_focus_step = step_item_type == "project_focus"
-            minutes = "" if is_focus_step else str(_calendar_minutes(scheduled, step.get("calendar_start_time"), end_date, step.get("calendar_end_time")))
-            helper_titles = [] if is_focus_step else [str(t.get("title", "")).strip() for t in step.get("helper_tasks", []) if str(t.get("title", "")).strip()]
+            minutes = str(_calendar_minutes(scheduled, step.get("calendar_start_time"), end_date, step.get("calendar_end_time")))
+            helper_titles = [str(t.get("title", "")).strip() for t in step.get("helper_tasks", []) if str(t.get("title", "")).strip()]
             notes = "Created from the Pathmark creation wizard."
-            if is_focus_step:
-                notes += " Focus block: all-day calendar item. Supporting time blocks can be added in the Projects tab."
             if end_date and end_date != scheduled:
                 notes += f" Ends on {end_date}."
             if helper_titles:
                 notes += "\nHelper checklist items:\n- " + "\n- ".join(helper_titles)
             title = str(step.get("title", "")).strip()
-            linked_type = "project_focus" if is_focus_step else "project_step"
-            records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": title, "prompt_text": title, "due_date": scheduled, "task_kind": "activity", "linked_record_id": action_id, "linked_record_type": linked_type, "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Automatic checklist item for {'focus block' if is_focus_step else 'project step'}: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
-            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "item_type": step_item_type, "contributes_to_progress": "1", "parent_progress_item_id": "", "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": "" if is_focus_step else _time_to_text(step.get("calendar_start_time")), "calendar_end_time": "" if is_focus_step else _time_to_text(step.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": "", "notes": notes})
+            records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": title, "prompt_text": title, "due_date": scheduled, "task_kind": "activity", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Automatic checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
+            records["actions"].append({"action_id": action_id, "goal_id": goal_id, "routine_id": "", "area_id": area_id, "area_name": area_name, "title": title, "description": title, "item_type": "project_progress", "contributes_to_progress": "1", "parent_progress_item_id": "", "status": "Scheduled", "priority": "Medium", "specific_area": "", "due_date": scheduled, "scheduled_date": scheduled, "activity_days": "", "estimated_minutes": minutes, "calendar_block": "1", "reminder": "1", "include_tasklist": "1", "first_step": title, "task_reminder_time": "", "calendar_start_time": _time_to_text(step.get("calendar_start_time")), "calendar_end_time": _time_to_text(step.get("calendar_end_time")), "calendar_end_date": end_date, "calendar_location": "", "notes": notes})
             for task in step.get("helper_tasks", []) or []:
                 if str(task.get("title", "")).strip():
                     records["task_prompts"].append({"prompt_id": f"prompt-{uuid.uuid4().hex}", "area_name": area_name, "title": str(task.get("title", "")).strip(), "prompt_text": str(task.get("title", "")).strip(), "due_date": _date_to_text(task.get("due")) or scheduled, "task_kind": "helper", "linked_record_id": action_id, "linked_record_type": "project_step", "linked_parent_id": goal_id, "linked_parent_type": "project", "task_list": "Pathmark", "notes": f"Helper checklist item for project step: {title}", "status": "Staged", "created_at": now, "updated_at": now, "source": "pathmark_creation_wizard"})
@@ -8933,24 +8825,23 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
     elif step == "project_planning_mode":
         st.subheader("How would you like to plan this project?")
         _wizard_info_button("What counts toward progress?", "Task-based projects count each discrete project step. Focus-based projects count larger milestones or weekly focuses; supporting time blocks can be added later and do not change completion percentage.")
-        options = ["Task-based", "Focus-based"]
+        options = ["Task-based", "Focus-based", "Mixed"]
         current = str(project.get("planning_mode", "Task-based") or "Task-based")
-        if current not in options:
-            current = "Task-based"
         choice = st.radio(
             "Planning style",
             options,
-            index=options.index(current),
+            index=options.index(current) if current in options else 0,
             captions=[
-                "Create discrete steps. Each step has calendar time and counts toward completion.",
-                "Create focus blocks that span one or more days, then schedule supporting work sessions underneath them.",
+                "Create discrete steps. Each step counts toward completion.",
+                "Create focus milestones, then schedule supporting time around them.",
+                "Use both progress items and supporting time blocks.",
             ],
         )
         project["planning_mode"] = choice
         if choice == "Task-based":
-            st.markdown("<div class='pathmark-note'>Use this when the project is best tracked by ticking off concrete actions. Each project step counts toward progress automatically.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='pathmark-note'>Use this when the project is best tracked by ticking off concrete actions.</div>", unsafe_allow_html=True)
         else:
-            st.markdown("<div class='pathmark-note'>Use this when progress is measured by completing larger focus outcomes. Focus blocks count toward progress; supporting time blocks help you work on them but do not count toward completion.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='pathmark-note'>Use progress items for the outcomes that count. Supporting time blocks can be added in the Projects tab to make time for practice or flexible work without changing the completion percentage.</div>", unsafe_allow_html=True)
         _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
     elif step in {"project_step_title", "project_calendar_date", "project_calendar_start_time", "project_calendar_end_time", "project_helper_task_choice", "project_helper_task_item", "project_helper_task_due", "project_add_helper_task_item", "project_add_step"}:
         if not draft.get("current_step_id") or _find_step_by_id(draft.get("project_steps", []), "step_id", draft.get("current_step_id")) is None:
@@ -8959,17 +8850,13 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         if step == "project_step_title":
             planning_mode = str(project.get("planning_mode", "Task-based") or "Task-based")
             if planning_mode == "Focus-based":
-                current["item_type"] = "project_focus"
-                current["contributes_to_progress"] = "1"
-                st.subheader("What is the first or next focus block?")
-                st.caption("This is the outcome that counts toward project completion. It can span several days as an all-day calendar block. Supporting time blocks can be added from the Projects tab after saving.")
-                step_label = "Focus block"
+                st.subheader("What is the first or next focus milestone?")
+                st.caption("This is the outcome that counts toward project completion. You can add supporting time blocks from the Projects tab after saving.")
+                step_label = "Focus milestone"
                 placeholder = "Learn Tune 1"
             else:
                 st.subheader("What is the first or next step in your project?")
-                current["item_type"] = "project_progress"
-                current["contributes_to_progress"] = "1"
-                st.caption("Project steps are distinct actions. Each step counts toward progress automatically.")
+                st.caption("Project steps are distinct actions or progress items. Supporting time blocks can be added later if you want flexible work sessions that do not count toward progress.")
                 step_label = "Project step"
                 placeholder = "Choose a beginner sketching guide"
             text, go_back, go_next = _wizard_required_text_form(
@@ -8989,18 +8876,8 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 else:
                     st.warning("Add a project step before continuing.")
         elif step == "project_calendar_date":
-            planning_mode = str(project.get("planning_mode", "Task-based") or "Task-based")
-            if planning_mode == "Focus-based":
-                st.subheader("When does this focus block start?")
-                st.caption("Focus blocks are all-day calendar items. Choose the first day this focus should be active.")
-                current["item_type"] = "project_focus"
-                current["contributes_to_progress"] = "1"
-                current["calendar_date"] = date_input_nz("Start date", value=_text_to_date(current.get("calendar_date"))).isoformat()
-                if not str(current.get("calendar_end_date", "") or "").strip():
-                    current["calendar_end_date"] = current["calendar_date"]
-            else:
-                st.subheader("What day will you make time for this step?")
-                current["calendar_date"] = date_input_nz("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
+            st.subheader("What day will you make time for this step?")
+            current["calendar_date"] = date_input_nz("Date", value=_text_to_date(current.get("calendar_date"))).isoformat()
             _set_wizard_state(draft); _render_wizard_nav(sheet_id, draft, True)
         elif step == "project_calendar_start_time":
             st.subheader("What time will you start?")
@@ -9025,62 +8902,33 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 else:
                     st.warning("Enter a valid start time, such as 09:00.")
         elif step == "project_calendar_end_time":
-            planning_mode = str(project.get("planning_mode", "Task-based") or "Task-based")
+            st.subheader("When will you finish?")
             start_date = _text_to_date(current.get("calendar_date"))
+            st.caption("Set the finish date and time. Dates are shown in New Zealand day/month/year format.")
             back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
-            if planning_mode == "Focus-based":
-                st.subheader("When does this focus block finish?")
-                st.caption("The focus block will appear in Google Calendar as an all-day event across these dates.")
-                with st.form(key=f"wiz_form_project_focus_finish_{current.get('step_id','')}"):
-                    end_date_value = date_input_nz("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_focus_end_date_{current.get('step_id','')}")
-                    c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
-                    with c1:
-                        go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
-                    with c2:
-                        st.markdown("<div class='wizard-nav-note'>Focus blocks are all-day calendar events.</div>", unsafe_allow_html=True)
-                    with c3:
-                        go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
-                if go_back:
-                    _wizard_back(sheet_id, draft)
-                if go_next:
-                    current["calendar_end_date"] = end_date_value.isoformat()
-                    current["calendar_start_time"] = ""
-                    current["calendar_end_time"] = ""
-                    current["item_type"] = "project_focus"
-                    current["contributes_to_progress"] = "1"
-                    problems = _validate_project_step(current)
-                    _set_wizard_state(draft)
-                    if problems:
-                        for p in problems:
-                            st.warning(p)
-                    else:
-                        _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
-            else:
-                st.subheader("When will you finish?")
-                st.caption("Set the finish date and time. Dates are shown in New Zealand day/month/year format.")
-                with st.form(key=f"wiz_form_project_finish_{current.get('step_id','')}"):
-                    end_date_value = date_input_nz("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}")
-                    end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00", key=f"project_finish_text_{current.get('step_id','')}")
-                    c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
-                    with c1:
-                        go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
-                    with c2:
-                        st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
-                    with c3:
-                        go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
-                if go_back:
-                    _wizard_back(sheet_id, draft)
-                if go_next:
-                    current["calendar_end_date"] = end_date_value.isoformat()
-                    current["calendar_end_time"] = _time_to_text(end_text) if _is_valid_time_text(end_text) else str(end_text or "").strip()
-                    current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(current.get("calendar_date"))
-                    problems = _validate_project_step(current)
-                    _set_wizard_state(draft)
-                    if problems:
-                        for p in problems:
-                            st.warning(p)
-                    else:
-                        _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
+            with st.form(key=f"wiz_form_project_finish_{current.get('step_id','')}"):
+                end_date_value = date_input_nz("Finish date", value=_calendar_end_date_default(current, start_date), key=f"project_end_date_{current.get('step_id','')}")
+                end_text = st.text_input("Finish time", value=str(current.get("calendar_end_time", "") or ""), placeholder="10:00", key=f"project_finish_text_{current.get('step_id','')}")
+                c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
+                with c1:
+                    go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
+                with c2:
+                    st.markdown("<div class='wizard-nav-note'>Required because this step will become calendar time.</div>", unsafe_allow_html=True)
+                with c3:
+                    go_next = st.form_submit_button("Next ›", use_container_width=True, type="primary")
+            if go_back:
+                _wizard_back(sheet_id, draft)
+            if go_next:
+                current["calendar_end_date"] = end_date_value.isoformat()
+                current["calendar_end_time"] = _time_to_text(end_text) if _is_valid_time_text(end_text) else str(end_text or "").strip()
+                current["ends_next_day"] = _date_to_text(current.get("calendar_end_date")) > _date_to_text(current.get("calendar_date"))
+                problems = _validate_project_step(current)
+                _set_wizard_state(draft)
+                if problems:
+                    for p in problems:
+                        st.warning(p)
+                else:
+                    _wizard_go(sheet_id, draft, _wizard_next_step(draft, step), push_current=True)
         elif step == "project_helper_task_choice":
             st.subheader("Would any extra Google Tasks checklist items help you begin or prepare?")
             _wizard_info_button("What is a helper checklist item?", "Pathmark will already add the project step itself to Google Tasks as a checklist item. Helper checklist items are extra small actions, such as ‘put sketchbook on desk’ or ‘open the course page’.")
@@ -9123,11 +8971,9 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             elif choice == "No":
                 _render_wizard_nav(sheet_id, draft, True, next_step="project_add_step", next_answer=False)
         elif step == "project_add_step":
-            planning_mode = str(project.get("planning_mode", "Task-based") or "Task-based")
-            label = "focus block" if planning_mode == "Focus-based" else "project step"
-            st.subheader(f"Would you like to add another {label}?")
-            choice = st.radio(f"Add another {label}?", ["No", "Yes"], horizontal=True)
-            if choice == "Yes" and st.button(f"Add another {label}", use_container_width=True):
+            st.subheader("Would you like to add another project step?")
+            choice = st.radio("Add another project step?", ["No", "Yes"], horizontal=True)
+            if choice == "Yes" and st.button("Add another project step", use_container_width=True):
                 _append_project_step(draft); _wizard_go(sheet_id, draft, "project_step_title")
             elif choice == "No":
                 _render_wizard_nav(sheet_id, draft, True, next_step="project_review", next_answer=False)

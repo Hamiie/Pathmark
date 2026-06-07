@@ -1,6 +1,6 @@
 # Pathmark Release Hub
 
-## v0.6.87 Navigation naming cleanup
+## v0.6.89 Navigation naming cleanup
 
 - Renames **Pathmark Online beta** to **Planner** in user-facing navigation and headings.
 - Renames **Spending Plan beta** to **Spending Plan**.
@@ -86,3 +86,10 @@ This release adds clearer Google security and consent guardrails: optional Tasks
 - Restore-to-default now rebuilds the default schema and reloads default Areas unless starter examples are selected.
 - The wizard can move from “+ Add a new area” into the area creation steps.
 
+
+
+## v0.6.89 Project mode UX simplification
+
+- Expands Meal Plan recipes with searchable recipe classification, seasonality, nutrition and costing fields.
+- Adds template support for bulk recipe and recipe-ingredient import.
+- Supports a separate Supabase-backed recipe starter pack without placing curated recipe data in the public repository.
