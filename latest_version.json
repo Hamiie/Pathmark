@@ -1,0 +1,21 @@
+{
+  "version": "0.6.97",
+  "name": "Pathmark Local App Windows",
+  "platform": "windows",
+  "filename": "Pathmark_Local_App_Windows_v0_6_97.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_97.zip",
+  "release": "v0.6.97 CSS brace crash fix",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_97.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_97.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_97.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_97.zip",
+  "label": "CSS brace crash fix",
+  "release_notes": "Fixes the v0.6.96 startup crash caused by unescaped CSS braces in the project selection card styling.",
+  "notes": [
+    "Fixes the v0.6.96 startup crash caused by unescaped CSS braces in the project selection card styling.",
+    "Retains the Home branding cleanup, visible project due-date cards, and focus-based support-block hierarchy from v0.6.96.",
+    "Retains the Tasklist and Spending Plan fallback diagnostics added after the section-opening errors."
+  ],
+  "release_name": "CSS brace crash fix",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_97.zip"
+}
