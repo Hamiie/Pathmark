@@ -919,6 +919,53 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewC
   }}
 }}
 
+
+
+/* v0.7.6 polished focus hierarchy and mobile containment */
+.focus-block-card, .support-card {{
+  overflow: hidden !important;
+}}
+.focus-block-card h3, .support-card h3 {{
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}}
+.support-block-group-label {{
+  color: var(--muted) !important;
+  font-size: .76rem !important;
+  font-weight: 850 !important;
+  letter-spacing: .095em !important;
+  text-transform: uppercase !important;
+  margin: .35rem 0 .4rem !important;
+}}
+.support-nesting-rail {{
+  min-height: 100%;
+  height: 100%;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  margin: .25rem auto;
+}}
+.support-card {{
+  background: var(--surface-2) !important;
+  border-left: 5px solid color-mix(in srgb, var(--accent) 38%, var(--line)) !important;
+  margin: .3rem 0 .75rem !important;
+}}
+.project-card-meta {{
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  white-space: normal !important;
+}}
+@media (max-width: 760px) {{
+  .block-container, .main .block-container {{
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }}
+  .focus-block-card, .support-card {{
+    padding: .82rem !important;
+  }}
+  .support-nesting-rail {{
+    border-left-width: 2px;
+  }}
+}}
+
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -4697,40 +4744,47 @@ def _action_form(sheet_id: str, *, goal_id: str = "", routine_id: str = "", defa
 
 
 def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal_id: str, default_area: str = "") -> None:
-    """Render focus blocks with supporting time blocks nested visually and semantically."""
+    """Render focus blocks as parent containers with supporting time nested underneath."""
     if linked is None or linked.empty:
         st.info("No focus blocks yet. Add one below when you are ready.")
         return
+
     progress_rows = linked[linked.apply(project_action_counts_toward_progress, axis=1)].copy()
     support_rows = linked[linked.apply(lambda r: not project_action_counts_toward_progress(r), axis=1)].copy()
     blocks = staged_calendar_blocks(sheet_id)
+
     if progress_rows.empty:
         st.info("No focus blocks yet. Add one below when you are ready.")
     else:
         st.markdown("#### Focus blocks")
+
     for _, focus_row in progress_rows.iterrows():
         focus_id = str(focus_row.get("action_id", "") or "").strip()
         title = str(focus_row.get("title", "") or "Untitled focus block")
         supports = project_supporting_actions_for_parent(support_rows, focus_id)
-        focus_card = _project_work_card_html(sheet_id, focus_row, linked, blocks=blocks, card_class="focus-block-card")
-        if supports.empty:
-            support_cards = "<div class='support-block-empty'>No supporting time blocks have been added under this focus block yet.</div>"
-        else:
-            support_cards = "".join(
-                _project_work_card_html(sheet_id, support_row, linked, blocks=blocks, card_class="support-card")
-                for _, support_row in supports.iterrows()
-            )
         support_label = "Supporting time blocks" if len(supports.index) != 1 else "Supporting time block"
-        focus_shell = (
-            "<div class='focus-block-shell'>"
-            f"{focus_card}"
-            "<div class='support-block-group'>"
-            f"<div class='support-block-group-label'>{html.escape(support_label)}</div>"
-            f"{support_cards}"
-            "</div>"
-            "</div>"
-        )
-        st.markdown(focus_shell, unsafe_allow_html=True)
+
+        # Use Streamlit containers rather than one large nested HTML string.
+        # This avoids raw HTML appearing when Streamlit re-renders complex nested cards.
+        with st.container(border=True):
+            st.markdown(
+                _project_work_card_html(sheet_id, focus_row, linked, blocks=blocks, card_class="focus-block-card"),
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"<div class='support-block-group-label'>{html.escape(support_label)}</div>", unsafe_allow_html=True)
+            if supports.empty:
+                st.markdown("<div class='support-block-empty'>No supporting time blocks have been added under this focus block yet.</div>", unsafe_allow_html=True)
+            else:
+                left, right = st.columns([0.06, 0.94])
+                with left:
+                    st.markdown("<div class='support-nesting-rail'></div>", unsafe_allow_html=True)
+                with right:
+                    for _, support_row in supports.iterrows():
+                        st.markdown(
+                            _project_work_card_html(sheet_id, support_row, linked, blocks=blocks, card_class="support-card"),
+                            unsafe_allow_html=True,
+                        )
+
         with st.expander(f"Edit focus block · {title}", expanded=False):
             _action_form(
                 sheet_id,
@@ -4759,6 +4813,7 @@ def render_focus_based_project_work(sheet_id: str, linked: pd.DataFrame, *, goal
                     form_key=f"edit_support_{support_id or uuid.uuid4().hex}",
                     action={k: support_row.get(k, "") for k in linked.columns},
                 )
+
     unassigned = support_rows.copy()
     if not unassigned.empty and "parent_progress_item_id" in unassigned.columns:
         unassigned = unassigned[unassigned["parent_progress_item_id"].fillna("").astype(str).str.strip() == ""].copy()
@@ -8629,6 +8684,266 @@ def pull_google_sync_status_to_pathmark(sheet_id: str, *, pull_calendar: bool = 
     return overall_ok, " ".join([m for m in messages if str(m).strip()])
 
 
+
+
+def google_sync_manageable_items(sheet_id: str) -> pd.DataFrame:
+    """Return Pathmark actions that can be moved or deleted with their linked Google items."""
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    goals, routines = parent_lookup(sheet_id)
+    for _, action in actions.iterrows():
+        status = str(action.get("status", "") or "").strip().lower()
+        if status in {"archived", "retired"}:
+            continue
+        has_calendar = truthy_flag(action.get("calendar_block")) or bool(str(action.get("google_calendar_event_id", "") or "").strip())
+        has_task = truthy_flag(action.get("reminder")) or bool(str(action.get("google_task_id", "") or "").strip())
+        if not (has_calendar or has_task):
+            continue
+        aid = str(action.get("action_id", "") or "").strip()
+        if not aid:
+            continue
+        goal_id = str(action.get("goal_id", "") or "")
+        routine_id = str(action.get("routine_id", "") or "")
+        parent = routines.get(routine_id, {}).get("title") or goals.get(goal_id, {}).get("title") or ""
+        item_type = str(action.get("item_type", "") or "project_step").replace("_", " ").strip().title()
+        scheduled = str(action.get("scheduled_date", "") or action.get("due_date", "") or "").strip()
+        if not scheduled and routine_id:
+            scheduled = str(routines.get(routine_id, {}).get("next_due", "") or "").strip()
+        rows.append({
+            "action_id": aid,
+            "title": str(action.get("title", "") or "Untitled planning item"),
+            "parent": str(parent or ""),
+            "area_name": str(action.get("area_name", "") or ""),
+            "item_type": item_type,
+            "scheduled_date": scheduled,
+            "calendar_start_time": str(action.get("calendar_start_time", "") or "09:00"),
+            "calendar_end_time": str(action.get("calendar_end_time", "") or "10:00"),
+            "calendar_end_date": str(action.get("calendar_end_date", "") or ""),
+            "google_calendar_event_id": str(action.get("google_calendar_event_id", "") or ""),
+            "google_calendar_id": str(action.get("google_calendar_id", "") or ""),
+            "google_task_id": str(action.get("google_task_id", "") or ""),
+            "google_task_list_id": str(action.get("google_task_list_id", "") or ""),
+            "label": f"{action.get('title', 'Untitled')} — {item_type}{' · ' + str(parent) if parent else ''}",
+        })
+    return pd.DataFrame(rows)
+
+
+def _delete_google_calendar_event_for_action(action: pd.Series) -> tuple[bool, str]:
+    event_id = str(action.get("google_calendar_event_id", "") or "").strip()
+    calendar_id = str(action.get("google_calendar_id", "") or "").strip()
+    if not event_id:
+        return True, "No linked Google Calendar event to delete."
+    if not calendar_id:
+        return False, "This item has a Google Calendar event ID but no stored calendar ID. Pull or repair Google status first."
+    service = calendar_service()
+    if service is None:
+        return False, "Google Calendar access is not available for this session."
+    try:
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        return True, "Deleted the linked Google Calendar event."
+    except Exception as exc:
+        detail = _sync_error_detail(exc)
+        if "404" in detail or "not found" in detail.lower() or "gone" in detail.lower():
+            return True, "The linked Google Calendar event was already missing."
+        return False, "Could not delete the linked Google Calendar event: " + safe_user_message(detail)
+
+
+def _delete_google_task_by_ids(task_list_id: str, task_id: str) -> tuple[bool, str]:
+    if not task_id:
+        return True, "No linked Google Task to delete."
+    service = tasks_service()
+    if service is None:
+        return False, "Google Tasks access is not available for this session."
+    list_id = str(task_list_id or "").strip()
+    if not list_id:
+        ok, list_id, msg = get_or_create_google_task_list("Pathmark")
+        if not ok or not list_id:
+            return False, msg
+    try:
+        service.tasks().delete(tasklist=list_id, task=task_id).execute()
+        return True, "Deleted a linked Google Task."
+    except Exception as exc:
+        detail = _sync_error_detail(exc)
+        if "404" in detail or "not found" in detail.lower() or "gone" in detail.lower():
+            return True, "A linked Google Task was already missing."
+        return False, "Could not delete a linked Google Task: " + safe_user_message(detail)
+
+
+def delete_linked_google_items_for_action(sheet_id: str, action_id: str, *, archive_pathmark_item: bool = False) -> tuple[bool, str]:
+    """Delete the Google Calendar event and Google Task(s) linked to one Pathmark action."""
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty or "action_id" not in actions.columns:
+        return False, "Could not find Pathmark actions."
+    matches = actions[actions["action_id"].fillna("").astype(str).eq(str(action_id))]
+    if matches.empty:
+        return False, "Could not find that planning item in Pathmark."
+    action = matches.iloc[0]
+    messages: list[str] = []
+    overall_ok = True
+    ok_cal, msg_cal = _delete_google_calendar_event_for_action(action)
+    overall_ok = overall_ok and ok_cal
+    messages.append(msg_cal)
+    ok_task, msg_task = _delete_google_task_by_ids(str(action.get("google_task_list_id", "") or ""), str(action.get("google_task_id", "") or ""))
+    overall_ok = overall_ok and ok_task
+    messages.append(msg_task)
+
+    prompts = read_online_table(sheet_id, "task_prompts")
+    linked_prompt_ids: list[str] = []
+    if not prompts.empty and "linked_record_id" in prompts.columns:
+        linked = prompts[prompts["linked_record_id"].fillna("").astype(str).eq(str(action_id))].copy()
+        for _, prompt in linked.iterrows():
+            pid = str(prompt.get("prompt_id", "") or "").strip()
+            if not pid:
+                continue
+            linked_prompt_ids.append(pid)
+            ok_prompt, msg_prompt = _delete_google_task_by_ids(str(prompt.get("google_task_list_id", "") or ""), str(prompt.get("google_task_id", "") or ""))
+            overall_ok = overall_ok and ok_prompt
+            messages.append(msg_prompt)
+            prompt_updates = {
+                "google_task_list_id": "",
+                "google_task_id": "",
+                "google_task_status": "",
+                "google_task_completed_at": "",
+                "google_task_updated_at": "",
+                "google_task_synced_at": "",
+                "sync_status": "not_synced",
+            }
+            if archive_pathmark_item:
+                prompt_updates["status"] = "Archived"
+                prompt_updates["archived_at"] = utc_now_text()
+                prompt_updates["archived_reason"] = "Deleted with linked planning item."
+            update_online_record(sheet_id, "task_prompts", pid, prompt_updates)
+
+    action_updates = {
+        "google_calendar_event_id": "",
+        "google_calendar_id": "",
+        "google_calendar_status": "deleted_in_google",
+        "google_calendar_updated_at": "",
+        "google_calendar_synced_at": utc_now_text(),
+        "calendar_sync_status": "not_synced",
+        "google_task_list_id": "",
+        "google_task_id": "",
+        "google_task_status": "",
+        "google_task_completed_at": "",
+        "google_task_updated_at": "",
+        "google_task_synced_at": utc_now_text(),
+        "sync_status": "not_synced",
+    }
+    if archive_pathmark_item:
+        action_updates["status"] = "Archived"
+        action_updates["archived_at"] = utc_now_text()
+        action_updates["archived_reason"] = "Deleted from Google Calendar and Google Tasks together."
+    ok_update, update_msg = update_online_record(sheet_id, "actions", str(action_id), action_updates)
+    overall_ok = overall_ok and bool(ok_update)
+    if not ok_update:
+        messages.append("Google cleanup ran, but Pathmark could not update the source row: " + safe_user_message(update_msg))
+    clear_online_cache(sheet_id)
+    suffix = " The Pathmark item was archived." if archive_pathmark_item else " The Pathmark item remains in Pathmark and can be synced again later."
+    return overall_ok, " ".join([m for m in messages if str(m).strip()]) + suffix
+
+
+def move_linked_planning_item(sheet_id: str, action_id: str, *, start_date: date, end_date: date | None, start_time: time, end_time: time, create_backup: bool = False) -> tuple[bool, str]:
+    """Move a Pathmark action and resync its paired Google Calendar/Tasks items."""
+    if create_backup:
+        backup_ok, _backup_url, backup_msg = create_pathmark_sync_backup(sheet_id)
+        if not backup_ok:
+            return False, "Could not create the requested backup, so the item was not moved. " + safe_user_message(backup_msg)
+    actions = read_online_table(sheet_id, "actions")
+    if actions.empty or "action_id" not in actions.columns:
+        return False, "Could not find Pathmark actions."
+    matches = actions[actions["action_id"].fillna("").astype(str).eq(str(action_id))]
+    if matches.empty:
+        return False, "Could not find that planning item in Pathmark."
+    action = matches.iloc[0]
+    item_type = str(action.get("item_type", "") or "").strip().lower()
+    is_focus = item_type in {"project_focus", "focus_block", "focus block"}
+    start_iso = start_date.isoformat()
+    end_iso = (end_date or start_date).isoformat()
+    updates = {
+        "scheduled_date": start_iso,
+        "due_date": start_iso,
+        "calendar_start_time": start_time.strftime("%H:%M"),
+        "calendar_end_time": end_time.strftime("%H:%M"),
+    }
+    if is_focus:
+        updates["calendar_end_date"] = end_iso
+    else:
+        updates["calendar_end_date"] = end_iso if end_iso != start_iso else ""
+    ok_update, msg_update = update_online_record(sheet_id, "actions", str(action_id), updates)
+    if not ok_update:
+        return False, safe_user_message(msg_update)
+
+    prompts = read_online_table(sheet_id, "task_prompts")
+    if not prompts.empty and "linked_record_id" in prompts.columns:
+        linked = prompts[prompts["linked_record_id"].fillna("").astype(str).eq(str(action_id))].copy()
+        for _, prompt in linked.iterrows():
+            pid = str(prompt.get("prompt_id", "") or "").strip()
+            if pid:
+                update_online_record(sheet_id, "task_prompts", pid, {"due_date": start_iso})
+    clear_online_cache(sheet_id)
+    ok_sync, msg_sync = sync_pathmark_calendar_and_tasks(sheet_id, create_backup=False)
+    if ok_sync:
+        return True, "Moved the Pathmark item and updated its linked Google Calendar/Tasks items. " + msg_sync
+    return False, "The Pathmark item was moved, but Google sync needs review: " + safe_user_message(msg_sync)
+
+
+def render_linked_item_move_delete_manager(sheet_id: str) -> None:
+    st.markdown("### Move or delete a linked planning item")
+    st.caption("Use this when a calendar block and its Google Task should move or be removed together. Pathmark updates its own row first, then updates or deletes the linked Google items.")
+    items = google_sync_manageable_items(sheet_id)
+    if items.empty:
+        st.info("No linked planning items are available to move or delete yet.")
+        return
+    labels = [str(row.get("label", "Untitled")) for _, row in items.iterrows()]
+    choice = st.selectbox("Planning item", labels, key="linked_item_move_delete_choice")
+    selected = items[items["label"].astype(str).eq(str(choice))].iloc[0]
+    aid = str(selected.get("action_id", "") or "")
+    st.markdown(
+        f"""
+        <div class='pathmark-note'>
+          <strong>{html.escape(str(selected.get('title', '') or 'Untitled'))}</strong><br>
+          {html.escape(str(selected.get('item_type', '') or 'Planning item'))}
+          {(' · ' + html.escape(str(selected.get('parent', '') or ''))) if str(selected.get('parent', '') or '').strip() else ''}<br>
+          Calendar link: {'yes' if str(selected.get('google_calendar_event_id', '') or '').strip() else 'not yet'} · Google Task link: {'yes' if str(selected.get('google_task_id', '') or '').strip() else 'not yet'}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    tab_move, tab_delete = st.tabs(["Move / reschedule", "Delete / remove"])
+    with tab_move:
+        d_default = parse_online_date(selected.get("scheduled_date")) or date.today()
+        end_default = parse_online_date(selected.get("calendar_end_date")) or d_default
+        t_start = parse_online_time(selected.get("calendar_start_time") or "09:00", "09:00")
+        t_end = parse_online_time(selected.get("calendar_end_time") or "10:00", "10:00")
+        c1, c2 = st.columns(2)
+        new_start = c1.date_input("Start date", value=d_default, format="DD/MM/YYYY", key=f"move_start_{aid}")
+        new_end = c2.date_input("Finish date", value=end_default, format="DD/MM/YYYY", key=f"move_end_{aid}")
+        c3, c4 = st.columns(2)
+        new_start_time = c3.time_input("Start time", value=t_start, key=f"move_start_time_{aid}")
+        new_end_time = c4.time_input("Finish time", value=t_end, key=f"move_end_time_{aid}")
+        backup_move = st.checkbox("Create a safety backup before moving", value=True, key=f"move_backup_{aid}")
+        if st.button("Move Pathmark item and linked Google items", use_container_width=True, key=f"move_linked_item_{aid}"):
+            ok, message = move_linked_planning_item(sheet_id, aid, start_date=new_start, end_date=new_end, start_time=new_start_time, end_time=new_end_time, create_backup=backup_move)
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
+            st.rerun()
+    with tab_delete:
+        st.write("Remove the linked Google Calendar event and Google Task together. You can either keep the Pathmark item for later resyncing, or archive it at the same time.")
+        archive_item = st.checkbox("Also archive the Pathmark item", value=False, key=f"delete_archive_{aid}")
+        confirm = st.text_input("Type DELETE to confirm", key=f"delete_confirm_{aid}")
+        disabled = confirm.strip().upper() != "DELETE"
+        if st.button("Delete linked Google Calendar event and Google Task", type="primary", use_container_width=True, disabled=disabled, key=f"delete_linked_item_{aid}"):
+            ok, message = delete_linked_google_items_for_action(sheet_id, aid, archive_pathmark_item=archive_item)
+            if ok:
+                st.success(message)
+            else:
+                st.warning(safe_user_message(message))
+            st.rerun()
+
 def render_google_sync_manager(sheet_id: str) -> None:
     st.subheader("Google Sync")
     st.write("Sync Google Calendar and Google Tasks together so the planned time and checklist item stay paired. Pathmark is the planning source of truth; existing linked Google items are updated from Pathmark rather than duplicated.")
@@ -8671,6 +8986,9 @@ def render_google_sync_manager(sheet_id: str) -> None:
         st.rerun()
 
     st.caption("If a Pathmark row already has a stored Google Calendar event ID or Google Task ID, Pathmark updates that matched Google item. If no ID is stored, Pathmark creates the item and saves the returned ID for next time.")
+
+    with st.expander("Move or delete linked items", expanded=False):
+        render_linked_item_move_delete_manager(sheet_id)
 
     c1, c2 = st.columns(2)
     if c1.button("Pull Google status", use_container_width=True, disabled=not (calendar_ready and tasks_ready)):
@@ -8919,8 +9237,10 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
     sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=8)
     h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=8, spaceAfter=4, textColor=colors.HexColor("#334E68"))
     body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
-    body_indent = ParagraphStyle("PathmarkBodyIndent", parent=body, leftIndent=7*mm)
+    task_title_style = ParagraphStyle("PathmarkTaskTitle", parent=body, fontSize=9.4, leading=12, textColor=colors.HexColor("#1F2221"))
+    support_task_style = ParagraphStyle("PathmarkSupportTask", parent=body, fontSize=9.0, leading=11.5, leftIndent=7*mm, firstLineIndent=0, textColor=colors.HexColor("#1F2221"))
     small = ParagraphStyle("PathmarkSmall", parent=styles["BodyText"], fontSize=8.4, leading=11, textColor=colors.HexColor("#626966"))
+    support_small = ParagraphStyle("PathmarkSupportSmall", parent=small, fontSize=8.1, leading=10.5, leftIndent=2*mm, textColor=colors.HexColor("#626966"))
 
     story = [
         Paragraph(clean_text(title or "Pathmark Tasklist"), title_style),
@@ -8938,19 +9258,7 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             heading = "Project work" if source_type == "Goal action" else "Routine activities"
             story.append(Paragraph(clean_text(heading), h_style))
             data = [["", "Task", "Notes"]]
-            supporting_rows: list[int] = []
-            for _, row in subset.iterrows():
-                row_is_support = _tasklist_is_supporting_row(row)
-                task_style = body_indent if row_is_support else body
-                if row_is_support:
-                    supporting_rows.append(len(data))
-                data.append([
-                    checkbox_box(),
-                    Paragraph(clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled"), task_style),
-                    Paragraph(clean_text(tasklist_notes_text(row)), small),
-                ])
-            table = Table(data, colWidths=[8*mm, 70*mm, 100*mm], repeatRows=1)
-            table.setStyle(TableStyle([
+            table_commands = [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EEF4")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2221")),
                 ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#334E68")),
@@ -8963,9 +9271,26 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ] + [("LEFTPADDING", (1, r), (1, r), 20) for r in supporting_rows]
-              + [("BACKGROUND", (1, r), (-1, r), colors.HexColor("#F3F5F4")) for r in supporting_rows]
-              + [("LINEBEFORE", (1, r), (1, r), 1.2, colors.HexColor("#9BA7A1")) for r in supporting_rows]))
+            ]
+            for _, row in subset.iterrows():
+                row_is_support = _tasklist_is_supporting_row(row)
+                task_title = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
+                notes_text = clean_text(tasklist_notes_text(row))
+                row_number = len(data)
+                if row_is_support:
+                    task_para = Paragraph(f"<font color='#626966' size='7'>Supporting time block</font><br/><b>{task_title}</b>", support_task_style)
+                    notes_para = Paragraph(notes_text, support_small)
+                    table_commands.extend([
+                        ("BACKGROUND", (1, row_number), (-1, row_number), colors.HexColor("#F4F6F5")),
+                        ("LINEBEFORE", (1, row_number), (1, row_number), 1.6, colors.HexColor("#9BA7A1")),
+                        ("LEFTPADDING", (1, row_number), (1, row_number), 16),
+                    ])
+                else:
+                    task_para = Paragraph(f"<b>{task_title}</b>", task_title_style)
+                    notes_para = Paragraph(notes_text, small)
+                data.append([checkbox_box(), task_para, notes_para])
+            table = Table(data, colWidths=[8*mm, 70*mm, 100*mm], repeatRows=1)
+            table.setStyle(TableStyle(table_commands))
             story.append(table)
             story.append(Spacer(1, 8))
 
