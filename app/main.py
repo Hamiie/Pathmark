@@ -141,6 +141,12 @@ ONLINE_THEMES = {
     # Pathmark themes are accent themes only. Streamlit owns Light, Dark and System.
     # Seasonal is the default Pathmark accent and updates automatically by Southern Hemisphere season.
     "Seasonal": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": "", "auto": True},
+    "Moss": {"accent": "#637D2E", "accent_2": "#B4C577", "seasonal_icon": ""},
+    "Lagoon": {"accent": "#1D7F74", "accent_2": "#8FC7BE", "seasonal_icon": ""},
+    "Persimmon": {"accent": "#B65335", "accent_2": "#D79E82", "seasonal_icon": ""},
+    "Marigold": {"accent": "#A87216", "accent_2": "#D8B85E", "seasonal_icon": ""},
+    "Iris": {"accent": "#5B4BA0", "accent_2": "#B9A9DB", "seasonal_icon": ""},
+    "Rosewood": {"accent": "#A33D6A", "accent_2": "#D79BB3", "seasonal_icon": ""},
     "Cyan": {"accent": "#1B8EA8", "accent_2": "#334E9E", "seasonal_icon": ""},
     "Sky": {"accent": "#0284C7", "accent_2": "#38BDF8", "seasonal_icon": ""},
     "Blue": {"accent": "#334E9E", "accent_2": "#6BA2B8", "seasonal_icon": ""},
@@ -643,11 +649,41 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .helper-row-card {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .9rem; margin:.55rem 0; }}
 .helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
 .repeat-summary {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; }}
-@media (max-width: 640px) {{
-  .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 1.35rem; }}
-  .hero h1 {{ font-size: clamp(3rem, 17vw, 5.2rem); }}
-  .lead {{ font-size: 1.15rem; }}
-  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 3.2rem; font-size: 1rem !important; }}
+@media (max-width: 760px) {{
+  .block-container {{ padding-left: .85rem; padding-right: .85rem; padding-top: .65rem; padding-bottom: 2.8rem; max-width: 100%; }}
+  h1 {{ font-size: clamp(1.85rem, 8.5vw, 2.55rem); line-height: 1.08; margin-top: .75rem; }}
+  h2 {{ font-size: clamp(1.55rem, 7.2vw, 2.15rem); line-height: 1.12; }}
+  h3 {{ font-size: clamp(1.15rem, 5.4vw, 1.45rem); }}
+  p, li {{ font-size: .98rem; line-height: 1.52; }}
+  .hero {{ padding: 1.2rem 0 .8rem 0; }}
+  .hero h1 {{ font-size: clamp(3.25rem, 20vw, 5.1rem); line-height: .88; margin-bottom: .7rem; }}
+  .lead {{ font-size: 1.05rem; line-height: 1.32; }}
+  .sublead {{ font-size: .98rem; margin-top: .45rem; }}
+  .eyebrow {{ font-size: .82rem; padding: .34rem .6rem; margin-bottom: .85rem; }}
+  .seasonal-banner {{ min-height: 82px; margin: .45rem 0 .95rem; border-radius: .95rem; box-shadow: 0 8px 18px color-mix(in srgb, #000000 7%, transparent); background-position: center center; }}
+  .seasonal-banner-compact {{ min-height: 48px; margin: .4rem 0 .75rem; border-radius: .82rem; }}
+  .seasonal-banner-content {{ padding: .65rem .7rem; }}
+  .seasonal-banner-panel {{ padding: .55rem .65rem; border-radius: .75rem; max-width: calc(100vw - 2.2rem); }}
+  .seasonal-banner-label {{ font-size: .68rem; padding: .25rem .48rem; }}
+  .grid-3, .grid-2, .meta-grid, .pillar-grid {{ grid-template-columns: 1fr !important; gap: .75rem; margin: .85rem 0 1.1rem; }}
+  .metric-strip {{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .55rem; }}
+  .card, .pillar-card, .meta-card, .download-panel, .setup-shell, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card, .attention-card, .money-summary-card, .focus-block-shell, .project-select-card {{ border-radius: .95rem; padding: .9rem; box-shadow: 0 5px 14px color-mix(in srgb, #000000 7%, transparent); }}
+  .pillar-card {{ min-height: 0; }}
+  .pillar-stat, .metric-value {{ font-size: 1.28rem; }}
+  .project-due-card {{ align-items:flex-start; padding:.72rem .82rem; }}
+  .support-block-group {{ margin-left: .45rem; padding: .55rem .55rem .65rem .7rem; }}
+  .account-chip-row {{ gap: .35rem; opacity: .78; margin-bottom: .25rem; }}
+  .account-chip {{ font-size: .72rem; padding: .16rem .46rem; max-width: calc(100vw - 2rem); }}
+  .account-chip strong {{ display:inline-block; max-width: 12.5rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }}
+  .connection-strip {{ font-size: .78rem; padding: .2rem .52rem; max-width: 100%; }}
+  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 2.75rem; font-size: .95rem !important; border-radius: .82rem !important; }}
+  [data-testid="stTabs"] > div:first-child {{ overflow-x: auto; overflow-y: hidden; white-space: nowrap; gap: .25rem; scrollbar-width: none; padding-bottom: .25rem; }}
+  [data-testid="stTabs"] > div:first-child::-webkit-scrollbar {{ display: none; }}
+  [data-testid="stTabs"] button[role="tab"], button[data-baseweb="tab"] {{ flex: 0 0 auto; border: 1px solid var(--line) !important; border-radius: 999px !important; margin-right: .28rem !important; min-height: 2.15rem !important; padding: .22rem .7rem !important; background: var(--surface) !important; color: var(--muted) !important; }}
+  [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{ background: var(--accent-soft) !important; color: var(--pathmark-accent-ui, var(--accent)) !important; border-color: color-mix(in srgb, var(--pathmark-accent-ui, var(--accent)) 42%, var(--line)) !important; }}
+  [data-testid="stTabs"] button[role="tab"] p, button[data-baseweb="tab"] p {{ font-size: .84rem !important; font-weight: 700 !important; }}
+  div[data-testid="column"] {{ width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important; }}
+  .stDataFrame, [data-testid="stDataFrame"] {{ overflow-x: auto; }}
 }}
 
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{

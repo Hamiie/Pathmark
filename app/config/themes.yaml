@@ -3,6 +3,12 @@
 # Edit this file through Developer tools > Theme editor, then commit the updated file to GitHub.
 options:
   - Seasonal
+  - Moss
+  - Lagoon
+  - Persimmon
+  - Marigold
+  - Iris
+  - Rosewood
   - Cyan
   - Sky
   - Blue
@@ -38,6 +44,24 @@ themes:
     accent: "#334E9E"
     accent_2: "#6BA2B8"
     auto: true
+  Moss:
+    accent: "#637D2E"
+    accent_2: "#B4C577"
+  Lagoon:
+    accent: "#1D7F74"
+    accent_2: "#8FC7BE"
+  Persimmon:
+    accent: "#B65335"
+    accent_2: "#D79E82"
+  Marigold:
+    accent: "#A87216"
+    accent_2: "#D8B85E"
+  Iris:
+    accent: "#5B4BA0"
+    accent_2: "#B9A9DB"
+  Rosewood:
+    accent: "#A33D6A"
+    accent_2: "#D79BB3"
   Cyan:
     accent: "#1B8EA8"
     accent_2: "#334E9E"
