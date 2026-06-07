@@ -1,22 +1,23 @@
 {
-  "version": "0.6.93",
+  "version": "0.6.95",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_6_93.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_6_93.zip",
-  "release": "v0.6.93 Seasonal landscape banners",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_6_93.zip",
-  "label": "Seasonal landscape banners",
-  "release_notes": "Adds soft AI-generated New Zealand seasonal landscape banners to the hosted experience when using Seasonal or an explicit seasonal theme, with a preview on the Theme page.",
+  "filename": "Pathmark_Local_App_Windows_v0_6_95.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_6_95.zip",
+  "release": "v0.6.95 Seasonal banner refinement",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_6_95.zip",
+  "label": "Seasonal banner refinement",
+  "release_notes": "Refines seasonal banners so they are quieter, textless on working pages, and no longer render an empty panel, while retaining labelled previews on the Theme page.",
   "notes": [
-    "Seasonal, Spring, Summer, Autumn and Winter themes can now display a soft AI-generated New Zealand landscape banner.",
-    "Banners use The Remarkables for winter, Paihia for summer, Arrowtown for autumn, and the Waikato for spring.",
-    "Theme page now previews the seasonal banner treatment and explains that non-seasonal accent themes keep a cleaner card-only look.",
-    "Home, Pathmark Planner, Spending Plan and Meal Plan now use a restrained compact banner treatment when a seasonal theme is active."
+    "Seasonal banners are now quieter and shallower on Home, Pathmark Planner, Spending Plan and Meal Plan.",
+    "Plain seasonal banners no longer render the glass label panel, preventing the stray text/box issue seen on the Home page.",
+    "The Theme page still shows the labelled banner preview, where the seasonal context is useful.",
+    "Top page padding has been increased slightly to avoid clipping the signed-in/access cards.",
+    "The v0.6.94 section compatibility patch is retained."
   ],
-  "release_name": "Seasonal landscape banners",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_93.zip"
+  "release_name": "Seasonal banner refinement",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_6_95.zip"
 }

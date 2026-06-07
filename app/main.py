@@ -13,6 +13,7 @@ import html
 import base64
 import urllib.parse
 import urllib.request
+import traceback
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 try:
@@ -364,7 +365,13 @@ def theme_uses_seasonal_banner(theme_name: str | None = None) -> bool:
     return choice == "Seasonal" or choice in SEASONAL_BANNER_FILES
 
 
-def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | None = None, compact: bool = False, force: bool = False, theme_name: str | None = None) -> None:
+def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | None = None, compact: bool = False, force: bool = False, theme_name: str | None = None, show_label: bool | None = None) -> None:
+    """Render a restrained seasonal image strip.
+
+    Plain banners are intentionally textless so they read as atmosphere rather
+    than an extra card. A label/panel is used only when there is explanatory
+    content, such as on the Theme preview page.
+    """
     if not force and not theme_uses_seasonal_banner(theme_name):
         return
     active_season = season or seasonal_banner_season(theme_name)
@@ -376,22 +383,25 @@ def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | No
     title_html = f"<h3>{html.escape(title)}</h3>" if title else ""
     subtitle_html = f"<p>{html.escape(subtitle)}</p>" if subtitle else ""
     label = html.escape(f"{active_season} · {location}" if location else active_season)
+    show_panel = bool(title_html or subtitle_html or show_label)
+    panel_html = ""
+    if show_panel:
+        label_html = f'<div class="seasonal-banner-label">{label}</div>' if show_label is not False else ""
+        panel_html = (
+            '<div class="seasonal-banner-content">'
+            '<div class="seasonal-banner-panel">'
+            f'{label_html}{title_html}{subtitle_html}'
+            '</div></div>'
+        )
     st.markdown(
         f"""
         <div class="{classes}" style="background-image:url('{image_uri}');">
           <div class="seasonal-banner-overlay"></div>
-          <div class="seasonal-banner-content">
-            <div class="seasonal-banner-panel">
-              <div class="seasonal-banner-label">{label}</div>
-              {title_html}
-              {subtitle_html}
-            </div>
-          </div>
+          {panel_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
-
 
 def inject_pwa_metadata() -> None:
     """Best-effort PWA metadata hook.
@@ -490,7 +500,7 @@ colour overrides so Streamlit's Light/Dark/System menu behaves natively.
     --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
   }}
 }}
-.block-container {{ max-width: 1180px; padding-top: 1.6rem; padding-bottom: 4rem; }}
+.block-container {{ max-width: 1180px; padding-top: 2.25rem; padding-bottom: 4rem; }}
 h1, h2, h3 {{ letter-spacing: -0.035em; }}
 p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .hero {{ padding: 2.6rem 0 1.2rem 0; }}
@@ -505,11 +515,11 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
   color: var(--ink);
   font-weight: 760;
 }}
-.seasonal-banner {{ position: relative; overflow: hidden; border-radius: 1.35rem; min-height: 180px; margin: .45rem 0 1.15rem; border: 1px solid var(--line); background-size: cover; background-position: center center; box-shadow: 0 12px 28px color-mix(in srgb, #000000 10%, transparent); }}
-.seasonal-banner-compact {{ min-height: 118px; margin: .35rem 0 1rem; }}
-.seasonal-banner-overlay {{ position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--background-color, #F7F6F2) 26%, transparent) 0%, color-mix(in srgb, var(--background-color, #F7F6F2) 34%, transparent) 24%, rgba(255,255,255,0.06) 100%); }}
-.seasonal-banner-content {{ position: relative; z-index: 1; padding: 1rem 1.05rem; min-height: inherit; display: flex; align-items: flex-end; }}
-.seasonal-banner-panel {{ display: inline-flex; flex-direction: column; gap: .38rem; max-width: 760px; background: color-mix(in srgb, var(--surface) 84%, transparent); border: 1px solid color-mix(in srgb, var(--line) 74%, transparent); border-radius: 1rem; padding: .78rem .95rem; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 22px color-mix(in srgb, #000000 12%, transparent); }}
+.seasonal-banner {{ position: relative; overflow: hidden; border-radius: 1.25rem; min-height: 156px; margin: .35rem 0 1.05rem; border: 1px solid var(--line); background-size: cover; background-position: center center; box-shadow: 0 10px 22px color-mix(in srgb, #000000 8%, transparent); }}
+.seasonal-banner-compact {{ min-height: 86px; margin: .25rem 0 .9rem; border-radius: 1.15rem; }}
+.seasonal-banner-overlay {{ position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--background-color, #F7F6F2) 20%, transparent) 0%, color-mix(in srgb, var(--background-color, #F7F6F2) 28%, transparent) 34%, rgba(255,255,255,0.04) 100%); }}
+.seasonal-banner-content {{ position: relative; z-index: 1; padding: .9rem .95rem; min-height: inherit; display: flex; align-items: flex-end; }}
+.seasonal-banner-panel {{ display: inline-flex; flex-direction: column; gap: .38rem; max-width: 760px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid color-mix(in srgb, var(--line) 74%, transparent); border-radius: .95rem; padding: .72rem .9rem; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 20px color-mix(in srgb, #000000 10%, transparent); }}
 .seasonal-banner-label {{ display: inline-flex; width: fit-content; align-items: center; gap: .35rem; padding: .34rem .62rem; border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 90%, transparent); color: var(--muted); font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }}
 .seasonal-banner h3 {{ margin: 0; font-size: clamp(1.15rem, 2vw, 1.55rem); line-height: 1.12; letter-spacing: -.035em; color: var(--ink); }}
 .seasonal-banner p {{ margin: 0; color: var(--muted); font-size: .96rem; line-height: 1.42; }}
@@ -625,7 +635,7 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
 .repeat-summary {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; }}
 @media (max-width: 640px) {{
-  .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 1rem; }}
+  .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 1.35rem; }}
   .hero h1 {{ font-size: clamp(3rem, 17vw, 5.2rem); }}
   .lead {{ font-size: 1.15rem; }}
   .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 3.2rem; font-size: 1rem !important; }}
@@ -2536,8 +2546,10 @@ def render_safe_section(label: str, func, *args, **kwargs) -> None:
     except Exception as exc:
         st.warning(f"Pathmark could not open {label} just now. Please refresh online data and try again.")
         user = current_user() if 'current_user' in globals() else {}
-        # Keep implementation details out of the user-facing app. Full details
-        # remain available in Streamlit Cloud logs.
+        role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False))) if user else ("", "")
+        if role_can_develop(role, status):
+            with st.expander("Developer details", expanded=False):
+                st.code("".join(traceback.format_exception_only(type(exc), exc)).strip())
         return
 def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
     if df.empty:
@@ -2546,6 +2558,35 @@ def dataframe_preview(df: pd.DataFrame, columns: list[str]) -> None:
         show_cols = [col for col in columns if col in df.columns]
         st.dataframe(df[show_cols], use_container_width=True, hide_index=True)
 
+
+
+def pathmark_column_config(kind: str, label: str, **kwargs):
+    """Return a Streamlit column_config object with a safe fallback.
+
+    Some deployments can lag behind the current Streamlit column_config API.
+    Pathmark should not fail a whole section just because an optional editor
+    column type such as SelectboxColumn is unavailable.
+    """
+    config = getattr(st, "column_config", None)
+    if config is None:
+        return None
+    kind_name = str(kind or "TextColumn")
+    factory = getattr(config, kind_name, None)
+    if factory is None and kind_name == "SelectboxColumn":
+        factory = getattr(config, "TextColumn", None)
+        kwargs = {k: v for k, v in kwargs.items() if k not in {"options"}}
+    if factory is None:
+        return None
+    try:
+        return factory(label, **kwargs)
+    except Exception:
+        fallback = getattr(config, "TextColumn", None)
+        if fallback is not None:
+            try:
+                return fallback(label)
+            except Exception:
+                return None
+    return None
 
 
 def online_setting(sheet_id: str, key: str, default: str = "") -> str:
@@ -5238,11 +5279,11 @@ def render_spending_income_form(sheet_id: str) -> None:
             use_container_width=True,
             column_order=["Income source", "Amount", "Frequency", "Notes", "Active"],
             column_config={
-                "Income source": st.column_config.TextColumn("Income source"),
-                "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=10.0, format="$%.2f"),
-                "Frequency": st.column_config.SelectboxColumn("Frequency", options=["Weekly", "Fortnightly", "Monthly", "Yearly"]),
-                "Notes": st.column_config.TextColumn("Notes"),
-                "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this source from the current assessment."),
+                "Income source": pathmark_column_config("TextColumn", "Income source"),
+                "Amount": pathmark_column_config("NumberColumn", "Amount", min_value=0.0, step=10.0, format="$%.2f"),
+                "Frequency": pathmark_column_config("SelectboxColumn", "Frequency", options=["Weekly", "Fortnightly", "Monthly", "Yearly"]),
+                "Notes": pathmark_column_config("TextColumn", "Notes"),
+                "Active": pathmark_column_config("CheckboxColumn", "Active", help="Untick to remove this source from the current assessment."),
             },
         )
         save_income = st.form_submit_button("Save income setup", use_container_width=True)
@@ -5478,11 +5519,11 @@ def render_spending_expense_form(sheet_id: str) -> None:
                     use_container_width=True,
                     column_order=["Item", "Amount", "Frequency", "Notes", "Active"],
                     column_config={
-                        "Item": st.column_config.TextColumn("Item", help="Rename the item if your wording is more useful."),
-                        "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, step=5.0, format="$%.2f"),
-                        "Frequency": st.column_config.SelectboxColumn("Frequency", options=SPENDING_FREQUENCIES),
-                        "Notes": st.column_config.TextColumn("Notes", help="Optional"),
-                        "Active": st.column_config.CheckboxColumn("Active", help="Untick to remove this row from the assessment."),
+                        "Item": pathmark_column_config("TextColumn", "Item", help="Rename the item if your wording is more useful."),
+                        "Amount": pathmark_column_config("NumberColumn", "Amount", min_value=0.0, step=5.0, format="$%.2f"),
+                        "Frequency": pathmark_column_config("SelectboxColumn", "Frequency", options=SPENDING_FREQUENCIES),
+                        "Notes": pathmark_column_config("TextColumn", "Notes", help="Optional"),
+                        "Active": pathmark_column_config("CheckboxColumn", "Active", help="Untick to remove this row from the assessment."),
                     },
                 )
                 save = st.form_submit_button(f"Save {section_name}", use_container_width=True)
@@ -6497,11 +6538,11 @@ def render_tasklist_manager(sheet_id: str) -> None:
         title = st.text_input("Tasklist name", value="Weekly Tasklist", help="This appears at the top of the printable tasklist.")
         notes = st.text_area("Optional notes for the printed tasklist", height=80, help="Add one note per line. These are appended to the end of the tasklist.")
         selected_action_ids: list[str] = []
-        goal_actions = tasklist[tasklist["source_type"] == "Goal action"].copy()
-        routine_rows = tasklist[tasklist["source_type"] == "Routine activity"].copy()
+        goal_actions = tasklist[tasklist.get("source_type", pd.Series(dtype=str)).fillna("").astype(str) == "Goal action"].copy()
+        routine_rows = tasklist[tasklist.get("source_type", pd.Series(dtype=str)).fillna("").astype(str) == "Routine activity"].copy()
         if not goal_actions.empty:
             st.markdown("#### Project work")
-            for parent, group in goal_actions.groupby(goal_actions["parent"].fillna("Unlinked project"), sort=False):
+            for parent, group in goal_actions.groupby(goal_actions.get("parent", pd.Series("Unlinked project", index=goal_actions.index)).fillna("Unlinked project"), sort=False):
                 st.markdown(f"**{parent or 'Unlinked project'}**")
                 for _, row in group.iterrows():
                     key = f"tasklist_goal_{row.get('action_id') or row.name}_{row.get('title')}"
@@ -6518,7 +6559,7 @@ def render_tasklist_manager(sheet_id: str) -> None:
                         selected_action_ids.append(str(row.get("action_id", "") or ""))
         if not routine_rows.empty:
             st.markdown("#### Routine activities")
-            for parent, group in routine_rows.groupby(routine_rows["parent"].fillna("Unlinked routine"), sort=False):
+            for parent, group in routine_rows.groupby(routine_rows.get("parent", pd.Series("Unlinked routine", index=routine_rows.index)).fillna("Unlinked routine"), sort=False):
                 st.markdown(f"**{parent or 'Unlinked routine'}**")
                 for _, row in group.iterrows():
                     key = f"tasklist_routine_{row.get('action_id') or row.name}_{row.get('title')}"
@@ -8279,8 +8320,11 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         story.append(Paragraph("Notes", h_style))
         for line in notes.strip().splitlines():
             story.append(Paragraph(clean_text(line), body))
-    doc.build(story)
-    return buffer.getvalue()
+    try:
+        doc.build(story)
+        return buffer.getvalue()
+    except Exception:
+        return build_printable_tasklist_from_rows(rows)
 
 def parse_dt_for_ics(value: str) -> str:
     text = (value or "").strip()
@@ -10026,6 +10070,7 @@ def theme_tab() -> None:
         season=preview_season,
         force=True,
         theme_name=theme_name,
+        show_label=True,
     )
 
     current_display, _theme_tokens = resolved_accent_theme(theme_name)
