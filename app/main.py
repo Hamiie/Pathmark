@@ -7373,16 +7373,11 @@ def render_tasklist_manager(sheet_id: str) -> None:
     if selected_rows.empty:
         st.info("Tick at least one action or activity before downloading the tasklist.")
     else:
-        st.markdown("### Preview")
-        try:
-            preview = selected_rows.copy()
-            preview["notes_preview"] = preview.apply(tasklist_notes_text, axis=1).astype(str).str.replace("<br/>", " · ", regex=False)
-            dataframe_preview(preview, ["source_type", "display_title", "notes_preview", "status"])
-        except Exception:
-            st.dataframe(selected_rows[[c for c in ["source_type", "display_title", "title", "status"] if c in selected_rows.columns]], use_container_width=True, hide_index=True)
+        st.caption("Selected items will be formatted into the printable Pathmark tasklist. The on-screen selector is only for choosing rows, not a visual preview of the PDF.")
 
     try:
-        pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes)
+        active_theme = online_setting(sheet_id, "theme", st.session_state.get("hosted_theme_preference", "Seasonal")) if sheet_id else st.session_state.get("hosted_theme_preference", "Seasonal")
+        pdf_bytes = build_tasklist_pdf(selected_rows, title=title or "Pathmark Tasklist", notes=notes, theme_name=active_theme)
         mime = "application/pdf"
         filename = "pathmark_tasklist.pdf"
     except Exception:
@@ -9319,12 +9314,13 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 
-def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
-    """Build a sleek Pathmark tasklist PDF with true nested checklist structure.
+def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "", theme_name: str | None = None) -> bytes:
+    """Build a sleek Pathmark tasklist PDF using the selected Pathmark theme.
 
-    This deliberately avoids table/grid/card exports. It uses the lighter
-    desktop Pathmark paper style: a clear header, restrained section headings,
-    checkbox-led rows, fine dividers, and indented child checkboxes/content.
+    The PDF is intentionally not a data table or a card export. It follows the
+    cleaner desktop paper checklist style: brand/header, thin accent rule,
+    section headings, parent context labels, checkbox-led rows, fine dividers,
+    and genuinely indented child/support checklist rows.
     """
     try:
         from reportlab.lib.pagesizes import A4
@@ -9378,8 +9374,52 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 lines.append(current)
         return lines
 
+    def theme_hex(default: str = "#2B7A69") -> str:
+        try:
+            _display, tokens = resolved_accent_theme(theme_name or st.session_state.get("hosted_theme_preference", "Seasonal"))
+            value = str(tokens.get("accent", default) or default)
+            if re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
+                return value
+        except Exception:
+            pass
+        return default
+
+    def lighten(hex_color: str, amount: float = 0.88) -> str:
+        hex_color = hex_color.lstrip("#")
+        try:
+            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+            r = int(r + (255 - r) * amount)
+            g = int(g + (255 - g) * amount)
+            b = int(b + (255 - b) * amount)
+            return f"#{r:02X}{g:02X}{b:02X}"
+        except Exception:
+            return "#E8ECE8"
+
     def row_notes(row: pd.Series | dict[str, Any]) -> str:
-        return clean_text(tasklist_notes_text(row))
+        # The parent container is already shown above each group, so avoid
+        # repeating it in every task row. Keep the printable list focused.
+        scheduled = _tasklist_human_date(row.get("scheduled_date", ""))
+        due = _tasklist_human_date(row.get("due_date", ""))
+        start_time = clean_text(row.get("calendar_start_time", ""))
+        end_time = clean_text(row.get("calendar_end_time", ""))
+        end_date = _tasklist_human_date(row.get("calendar_end_date", ""))
+        duration = _tasklist_duration_label(row.get("estimated_minutes", ""))
+        support = clean_text(row.get("parent_progress_title", "")) if _tasklist_is_supporting_row(row) else ""
+        bits: list[str] = []
+        if support:
+            bits.append(f"Supports {support}")
+        if scheduled:
+            bits.append(f"Scheduled {scheduled}")
+        if due and due != scheduled:
+            bits.append(f"Due {due}")
+        if start_time and end_time:
+            finish = end_time if not end_date or end_date == scheduled else f"{end_date} {end_time}"
+            bits.append(f"{start_time}–{finish}")
+        elif duration:
+            bits.append(duration)
+        if duration and start_time and end_time:
+            bits.append(duration)
+        return " · ".join([b for b in bits if b])
 
     def source_heading(source_type: str) -> str:
         return "Project work" if source_type == "Goal action" else "Routine activities"
@@ -9394,27 +9434,21 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         area = clean_text(row.get("area_name", ""))
         return parent or area
 
-    def checkbox(cvs: Any, x: float, y_mid: float, size: float = 8.8) -> None:
-        cvs.setStrokeColor(accent)
-        cvs.setLineWidth(1.05)
-        cvs.rect(x, y_mid - size / 2, size, size, stroke=1, fill=0)
-
     buffer = io.BytesIO()
     page_w, page_h = A4
     c = canvas.Canvas(buffer, pagesize=A4)
 
-    margin_x = 17 * mm
-    top_margin = 16 * mm
+    margin_x = 18 * mm
+    top_margin = 17 * mm
     bottom_margin = 16 * mm
     content_w = page_w - (2 * margin_x)
 
+    accent_hex = theme_hex()
     ink = colors.HexColor("#202423")
     muted = colors.HexColor("#626A67")
-    faint = colors.HexColor("#E8ECE8")
-    accent = colors.HexColor("#2B7A69")
-    accent_dark = colors.HexColor("#246757")
-    heading_blue = colors.HexColor("#334E68")
-    support_muted = colors.HexColor("#76807B")
+    faint = colors.HexColor("#EEF1EF")
+    accent = colors.HexColor(accent_hex)
+    accent_soft = colors.HexColor(lighten(accent_hex, 0.86))
 
     y = page_h - top_margin
 
@@ -9428,27 +9462,31 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         if y - required < bottom_margin:
             new_page()
 
+    def checkbox(x: float, y_mid: float, size: float = 8.3) -> None:
+        c.setStrokeColor(accent)
+        c.setLineWidth(1.0)
+        c.rect(x, y_mid - size / 2, size, size, stroke=1, fill=0)
+
     def draw_page_header(continued: bool = False) -> None:
         nonlocal y
         cleaned_title = clean_text(title or "Weekly Tasklist")
         cleaned_title = re.sub(r"^pathmark\s*[·:-]?\s*", "", cleaned_title, flags=re.IGNORECASE).strip() or "Tasklist"
+        if continued:
+            cleaned_title += " continued"
 
-        # Pathmark brand appears as the professional source mark; the tasklist
-        # title remains the practical document title.
         c.setFillColor(ink)
-        c.setFont("Helvetica-Bold", 27)
-        c.drawString(margin_x, y - 7, "Pathmark")
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(margin_x, y, "Pathmark")
 
         c.setFillColor(muted)
-        c.setFont("Helvetica", 9.2)
-        c.drawRightString(page_w - margin_x, y - 1, "Tasklist from Pathmark")
-        c.drawRightString(page_w - margin_x, y - 12, datetime.now().strftime("Prepared %d %B %Y"))
-        y -= 25
+        c.setFont("Helvetica", 9.5)
+        c.drawRightString(page_w - margin_x, y - 1, datetime.now().strftime("Prepared %d %B %Y"))
+        y -= 16
 
         c.setFillColor(ink)
-        c.setFont("Helvetica-Bold", 20 if not continued else 15)
-        c.drawString(margin_x, y, cleaned_title + (" continued" if continued else ""))
-        y -= 11
+        c.setFont("Helvetica-Bold", 19 if not continued else 15)
+        c.drawString(margin_x, y, cleaned_title)
+        y -= 10
 
         c.setStrokeColor(accent)
         c.setLineWidth(0.9)
@@ -9457,85 +9495,75 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
 
     def draw_section_heading(text: str) -> None:
         nonlocal y
-        ensure_space(18)
-        c.setFillColor(accent_dark)
-        c.setFont("Helvetica-Bold", 14)
+        ensure_space(20)
+        c.setFillColor(accent)
+        c.setFont("Helvetica-Bold", 13.5)
         c.drawString(margin_x, y, clean_text(text))
-        y -= 13
+        y -= 12
 
     def draw_parent_context(label: str) -> None:
         nonlocal y
         label = clean_text(label)
         if not label:
             return
-        ensure_space(15)
+        ensure_space(14)
         c.setFillColor(muted)
-        c.setFont("Helvetica-Bold", 10.2)
+        c.setFont("Helvetica-Bold", 10.0)
         c.drawString(margin_x, y, label)
-        y -= 10
+        y -= 8
 
     def draw_item(row: pd.Series | dict[str, Any], *, is_support: bool = False) -> None:
         nonlocal y
         title_text = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
         note_text = row_notes(row)
 
-        # Parent items align near the left margin. Child/support rows indent the
-        # checkbox and the task text together, just like a nested checklist.
-        check_x = margin_x + (22 * mm if is_support else 8 * mm)
-        text_x = check_x + 13 * mm
+        check_x = margin_x + (22 * mm if is_support else 9 * mm)
+        text_x = check_x + 10 * mm
         text_w = page_w - margin_x - text_x
-
-        title_font = "Helvetica-Bold" if not is_support else "Helvetica"
-        title_size = 11.0 if not is_support else 10.6
+        title_font = "Helvetica" if is_support else "Helvetica-Bold"
+        title_size = 10.5 if is_support else 10.8
         note_size = 8.7
+
+        label_lines = ["Supporting time block"] if is_support else []
         title_lines = wrap_text(title_text, title_font, title_size, text_w)
         note_lines = wrap_text(note_text, "Helvetica", note_size, text_w)
-        label_lines = ["Supporting time block"] if is_support else []
 
-        row_h = 5
-        row_h += len(label_lines) * 9
-        row_h += max(1, len(title_lines)) * 13
-        row_h += len(note_lines) * 10
-        row_h += 9
+        row_h = 6 + (len(label_lines) * 8) + (max(1, len(title_lines)) * 11.5) + (len(note_lines) * 9.3) + 8
         ensure_space(row_h)
 
         top_y = y
-        checkbox(c, check_x, top_y - 6)
-
-        text_y = top_y - 2
         if is_support:
-            # A subtle rail gives hierarchy without creating a boxed card.
-            c.setStrokeColor(colors.HexColor("#D7DED9"))
-            c.setLineWidth(1.5)
-            c.line(margin_x + 16 * mm, top_y + 3, margin_x + 16 * mm, top_y - row_h + 8)
-            c.setFillColor(support_muted)
-            c.setFont("Helvetica", 8.0)
-            c.drawString(text_x, text_y, "Supporting time block")
-            text_y -= 9
+            rail_x = margin_x + 17 * mm
+            c.setStrokeColor(accent_soft)
+            c.setLineWidth(1.2)
+            c.line(rail_x, top_y + 4, rail_x, top_y - row_h + 6)
+            c.setFillColor(muted)
+            c.setFont("Helvetica", 7.8)
+            c.drawString(text_x, top_y - 1, "Supporting time block")
+            title_y = top_y - 10
+        else:
+            title_y = top_y - 1
 
+        checkbox(check_x, title_y - 2.5)
         c.setFillColor(ink)
         c.setFont(title_font, title_size)
-        if title_lines:
-            for line_text in title_lines:
-                c.drawString(text_x, text_y, line_text)
-                text_y -= 13
-        else:
-            text_y -= 13
+        text_y = title_y
+        for line_text in title_lines or [title_text]:
+            c.drawString(text_x, text_y, line_text)
+            text_y -= 11.5
 
         if note_lines:
             c.setFillColor(muted)
             c.setFont("Helvetica", note_size)
             for line_text in note_lines:
                 c.drawString(text_x, text_y, line_text)
-                text_y -= 10
+                text_y -= 9.3
 
-        # Light divider begins at the task text, not at the page edge. This
-        # keeps it from reading as a table/grid.
-        y = text_y - 3
+        y = text_y - 2
         c.setStrokeColor(faint)
         c.setLineWidth(0.45)
         c.line(text_x, y, page_w - margin_x, y)
-        y -= 8 if not is_support else 6
+        y -= 7 if not is_support else 5
 
     try:
         draw_page_header()
@@ -9549,12 +9577,9 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 if subset.empty:
                     continue
                 draw_section_heading(source_heading(source_type))
-
                 last_parent = "__never__"
                 for _, row in subset.iterrows():
                     row_parent = parent_label(row)
-                    # Routine/project container names are useful context, but
-                    # they should not be confused with checkbox items.
                     if row_parent != last_parent:
                         draw_parent_context(row_parent)
                         last_parent = row_parent

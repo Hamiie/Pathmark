@@ -1,23 +1,23 @@
 {
-  "version": "0.7.13",
+  "version": "0.7.14",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_13.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_13.zip",
-  "release": "v0.7.13 Sleek paper tasklist",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_13.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_13.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_13.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_13.zip",
-  "label": "Sleek paper tasklist",
-  "release_notes": "Rebuilds the printable tasklist as a sleek, light, non-table Pathmark paper checklist with properly indented child/support items.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_14.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_14.zip",
+  "release": "v0.7.14 Theme-matched tasklist cleanup",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_14.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_14.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_14.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_14.zip",
+  "label": "Theme-matched tasklist cleanup",
+  "release_notes": "Removes the misleading on-screen table preview and refines the PDF tasklist into a cleaner theme-matched Pathmark checklist with better nested support rows.",
   "notes": [
-    "Rebuilt the printable PDF tasklist to follow the cleaner old desktop paper style rather than table or card exports.",
-    "Removed visible table/grid/card boxes from the PDF tasklist.",
-    "Indented supporting time block checkboxes and text together so child tasks read as true nested checklist items.",
-    "Kept Pathmark branding visible in a restrained header using the professional wordmark-style treatment.",
-    "Improved PDF text cleanup so empty or missing fields do not print as nan/None."
+    "Removed the misleading on-screen dataframe preview from the Tasklist tab; the selector is now only for choosing rows.",
+    "Tasklist PDF now uses the selected Pathmark accent theme for headings, rules, checkboxes, and support hierarchy.",
+    "Refined the printable tasklist header so Pathmark branding is present without dominating the page.",
+    "Reduced repeated parent/context wording in task row notes for a cleaner professional paper checklist.",
+    "Kept supporting time blocks nested by indenting the checkbox and task text together."
   ],
-  "release_name": "Sleek paper tasklist",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_13.zip"
+  "release_name": "Theme-matched tasklist cleanup",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_14.zip"
 }
