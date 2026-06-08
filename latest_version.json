@@ -1,23 +1,23 @@
 {
-  "version": "0.7.9",
+  "version": "0.7.10",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_9.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_9.zip",
-  "release": "v0.7.9 One-time Pathmark terms acceptance",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_9.zip",
-  "label": "One-time Pathmark terms acceptance",
-  "release_notes": "Removes the repeated pre-Google Pathmark Terms & Privacy gate. Google login now goes directly to Google's consent screen, and Pathmark asks for its own Terms and Privacy acceptance only once per terms version after sign-in.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_10.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_10.zip",
+  "release": "v0.7.10 Terms gate and tasklist polish",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_10.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_10.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_10.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_10.zip",
+  "label": "Terms gate and tasklist polish",
+  "release_notes": "Fixes the duplicate terms acceptance checkbox caused by Streamlit tab rendering and replaces the visible table-style PDF tasklist with a cleaner Pathmark card layout.",
   "notes": [
-    "Google login buttons now launch the Google OAuth flow directly rather than first forcing a Pathmark terms screen.",
-    "Pathmark's public Privacy Policy, Terms of Service, and Google access explanation remain available for Google OAuth and user review.",
-    "After Google sign-in, Pathmark asks for a one-time Terms and Privacy confirmation for the current Pathmark terms version.",
-    "Accepted terms version is stored in the browser session and, when Pathmark Sync is available, in the settings sheet so the user is not asked every session.",
-    "The confirmation can be shown again in future only if the terms version changes or the saved acceptance cannot be found."
+    "Made post-login Terms & Privacy checkbox keys unique across Planning, Finance, and Nutrition so Streamlit tabs cannot collide.",
+    "Kept the one-time terms acceptance model from v0.7.9.",
+    "Reworked the printable tasklist PDF so it no longer presents as a visible grid table.",
+    "Project steps/focus blocks and supporting time blocks now print as clean cards, with support blocks indented below their parent context.",
+    "Preserved the previous wizard clarification that Projects/Routines are containers and activities are what become Calendar/Tasks items."
   ],
-  "release_name": "One-time Pathmark terms acceptance",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip"
+  "release_name": "Terms gate and tasklist polish",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_10.zip"
 }

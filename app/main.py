@@ -1755,7 +1755,7 @@ def record_pathmark_terms_acceptance(sheet_id: str = "") -> tuple[bool, str]:
     return True, "Accepted for this browser session."
 
 
-def render_post_login_terms_confirmation(sheet_id: str = "") -> bool:
+def render_post_login_terms_confirmation(sheet_id: str = "", key_prefix: str = "global") -> bool:
     """Ask for Pathmark's own terms/privacy acceptance only once per version, after Google sign-in."""
     if pathmark_terms_already_accepted(sheet_id):
         return True
@@ -1772,8 +1772,8 @@ def render_post_login_terms_confirmation(sheet_id: str = "") -> bool:
     st.markdown(
         "Public pages: [Privacy Policy](?page=privacy) · [Terms of Service](?page=terms) · [Google access explanation](?page=oauth)"
     )
-    st.checkbox("I agree to Pathmark's Terms of Service and Privacy Policy.", key="post_login_terms_ack")
-    if st.button("Accept and continue", use_container_width=True, disabled=not st.session_state.get("post_login_terms_ack"), key="post_login_terms_accept"):
+    st.checkbox("I agree to Pathmark's Terms of Service and Privacy Policy.", key=f"{key_prefix}_post_login_terms_ack")
+    if st.button("Accept and continue", use_container_width=True, disabled=not st.session_state.get(f"{key_prefix}_post_login_terms_ack"), key=f"{key_prefix}_post_login_terms_accept"):
         ok, msg = record_pathmark_terms_acceptance(sheet_id)
         if ok:
             st.success("Accepted.")
@@ -9319,20 +9319,20 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
-    """Build a polished printable tasklist PDF with clean checkbox cells."""
+    """Build a polished printable tasklist PDF with card-style rows rather than a visible table."""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
         from reportlab.graphics.shapes import Drawing, Rect
     except Exception:
         return build_printable_tasklist_from_rows(rows)
 
     def checkbox_box() -> Drawing:
-        drawing = Drawing(9, 9)
-        drawing.add(Rect(0.75, 0.75, 7.5, 7.5, strokeColor=colors.HexColor("#7A827F"), fillColor=colors.white, strokeWidth=0.8))
+        drawing = Drawing(10, 10)
+        drawing.add(Rect(0.8, 0.8, 8.4, 8.4, strokeColor=colors.HexColor("#7A827F"), fillColor=colors.white, strokeWidth=0.9))
         return drawing
 
     def clean_text(value: Any) -> str:
@@ -9340,26 +9340,79 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         text = re.sub(r"<[^>]+>", "", text)
         return html.escape(text.strip())
 
+    def make_card(row: pd.Series | dict[str, Any], is_support: bool = False) -> Table:
+        task_title = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
+        notes_text = clean_text(tasklist_notes_text(row))
+        if is_support:
+            label = Paragraph("<font color='#626966' size='7'>Supporting time block</font>", support_label_style)
+            title_para = Paragraph(f"<b>{task_title}</b>", support_title_style)
+            notes_para = Paragraph(notes_text, support_notes_style) if notes_text else Paragraph("", support_notes_style)
+            inner = [[label], [title_para], [notes_para]]
+            content = Table(inner, colWidths=[146 * mm])
+            content.setStyle(TableStyle([
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+            ]))
+            card = Table([[checkbox_box(), content]], colWidths=[10 * mm, 151 * mm])
+            card.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F7F6")),
+                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#D8DED9")),
+                ("LINEBEFORE", (1, 0), (1, 0), 2.0, colors.HexColor("#9BA7A1")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (0, 0), 4),
+                ("RIGHTPADDING", (0, 0), (0, 0), 1),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (1, 0), (1, 0), 9),
+                ("RIGHTPADDING", (1, 0), (1, 0), 8),
+            ]))
+            return card
+        title_para = Paragraph(f"<b>{task_title}</b>", task_title_style)
+        notes_para = Paragraph(notes_text, notes_style) if notes_text else Paragraph("", notes_style)
+        content = Table([[title_para], [notes_para]], colWidths=[158 * mm])
+        content.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        card = Table([[checkbox_box(), content]], colWidths=[10 * mm, 163 * mm])
+        card.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#D8D4CB")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (0, 0), 4),
+            ("RIGHTPADDING", (0, 0), (0, 0), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("LEFTPADDING", (1, 0), (1, 0), 6),
+            ("RIGHTPADDING", (1, 0), (1, 0), 8),
+        ]))
+        return card
+
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=14*mm, bottomMargin=14*mm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=16*mm, bottomMargin=16*mm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=21, leading=25, spaceAfter=4, textColor=colors.HexColor("#1F2221"))
-    sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=8)
-    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13, leading=16, spaceBefore=8, spaceAfter=4, textColor=colors.HexColor("#334E68"))
-    body = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
-    task_title_style = ParagraphStyle("PathmarkTaskTitle", parent=body, fontSize=9.4, leading=12, textColor=colors.HexColor("#1F2221"))
-    support_task_style = ParagraphStyle("PathmarkSupportTask", parent=body, fontSize=9.0, leading=11.5, leftIndent=7*mm, firstLineIndent=0, textColor=colors.HexColor("#1F2221"))
-    small = ParagraphStyle("PathmarkSmall", parent=styles["BodyText"], fontSize=8.4, leading=11, textColor=colors.HexColor("#626966"))
-    support_small = ParagraphStyle("PathmarkSupportSmall", parent=small, fontSize=8.1, leading=10.5, leftIndent=2*mm, textColor=colors.HexColor("#626966"))
+    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=22, leading=26, alignment=1, spaceAfter=6, textColor=colors.HexColor("#1F2221"))
+    sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=12)
+    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13.5, leading=17, spaceBefore=10, spaceAfter=6, textColor=colors.HexColor("#334E68"))
+    task_title_style = ParagraphStyle("PathmarkTaskTitle", parent=styles["BodyText"], fontSize=10, leading=13, textColor=colors.HexColor("#1F2221"))
+    notes_style = ParagraphStyle("PathmarkNotes", parent=styles["BodyText"], fontSize=8.6, leading=11.5, textColor=colors.HexColor("#626966"), spaceBefore=2)
+    support_label_style = ParagraphStyle("PathmarkSupportLabel", parent=styles["BodyText"], fontSize=7.2, leading=9, textColor=colors.HexColor("#626966"))
+    support_title_style = ParagraphStyle("PathmarkSupportTitle", parent=styles["BodyText"], fontSize=9.4, leading=12, textColor=colors.HexColor("#1F2221"))
+    support_notes_style = ParagraphStyle("PathmarkSupportNotes", parent=styles["BodyText"], fontSize=8.2, leading=10.8, textColor=colors.HexColor("#626966"), spaceBefore=1)
+    body_style = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
 
     story = [
         Paragraph(clean_text(title or "Pathmark Tasklist"), title_style),
         Paragraph(datetime.now().strftime("Created %d %B %Y"), sub_style),
-        Spacer(1, 4),
+        Spacer(1, 3),
     ]
 
     if rows.empty:
-        story.append(Paragraph("No tasklist rows selected.", body))
+        story.append(Paragraph("No tasklist rows selected.", body_style))
     else:
         for source_type in ["Goal action", "Routine activity"]:
             subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
@@ -9367,47 +9420,28 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 continue
             heading = "Project work" if source_type == "Goal action" else "Routine activities"
             story.append(Paragraph(clean_text(heading), h_style))
-            data = [["", "Task", "Notes"]]
-            table_commands = [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EEF4")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2221")),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#334E68")),
-                ("GRID", (0, 1), (-1, -1), 0.25, colors.HexColor("#D8D4CB")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 1), (0, -1), "CENTER"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
             for _, row in subset.iterrows():
                 row_is_support = _tasklist_is_supporting_row(row)
-                task_title = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
-                notes_text = clean_text(tasklist_notes_text(row))
-                row_number = len(data)
+                card = make_card(row, row_is_support)
                 if row_is_support:
-                    task_para = Paragraph(f"<font color='#626966' size='7'>Supporting time block</font><br/><b>{task_title}</b>", support_task_style)
-                    notes_para = Paragraph(notes_text, support_small)
-                    table_commands.extend([
-                        ("BACKGROUND", (1, row_number), (-1, row_number), colors.HexColor("#F4F6F5")),
-                        ("LINEBEFORE", (1, row_number), (1, row_number), 1.6, colors.HexColor("#9BA7A1")),
-                        ("LEFTPADDING", (1, row_number), (1, row_number), 16),
-                    ])
+                    wrapper = Table([["", card]], colWidths=[8 * mm, 169 * mm])
+                    wrapper.setStyle(TableStyle([
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]))
+                    story.append(KeepTogether([wrapper]))
                 else:
-                    task_para = Paragraph(f"<b>{task_title}</b>", task_title_style)
-                    notes_para = Paragraph(notes_text, small)
-                data.append([checkbox_box(), task_para, notes_para])
-            table = Table(data, colWidths=[8*mm, 70*mm, 100*mm], repeatRows=1)
-            table.setStyle(TableStyle(table_commands))
-            story.append(table)
-            story.append(Spacer(1, 8))
+                    story.append(KeepTogether([card]))
+                    story.append(Spacer(1, 3))
+            story.append(Spacer(1, 7))
 
     if notes.strip():
         story.append(Paragraph("Notes", h_style))
         for line in notes.strip().splitlines():
-            story.append(Paragraph(clean_text(line), body))
+            story.append(Paragraph(clean_text(line), body_style))
     try:
         doc.build(story)
         return buffer.getvalue()
@@ -11492,7 +11526,7 @@ def on_the_go_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
-    if not render_post_login_terms_confirmation(sheet_id):
+    if not render_post_login_terms_confirmation(sheet_id, key_prefix="planning"):
         return
 
     # The Creation Wizard now has its own Planner tab beside Home.
@@ -13338,7 +13372,7 @@ def shopping_list_beta_tab() -> None:
                 load_online_tables(sheet_id)
         except Exception:
             st.warning("Pathmark could not prepare your Meal Plan just now. Please refresh online data or reconnect Google access, then try again.")
-    if not render_post_login_terms_confirmation(sheet_id):
+    if not render_post_login_terms_confirmation(sheet_id, key_prefix="nutrition"):
         return
     render_safe_section("Meal Plan", render_shopping_list_manager, sheet_id)
 
@@ -13383,7 +13417,7 @@ def spending_plan_beta_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your Spending Plan just now. Please refresh online data or reconnect Google access, then try again.")
 
-    if not render_post_login_terms_confirmation(sheet_id):
+    if not render_post_login_terms_confirmation(sheet_id, key_prefix="finance"):
         return
 
     render_safe_section("Spending Plan", render_spending_plan_manager, sheet_id)
