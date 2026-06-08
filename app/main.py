@@ -412,7 +412,7 @@ def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | No
 def inject_pwa_metadata() -> None:
     """Compatibility hook retained after removing phone-app/PWA support.
 
-    Pathmark now treats mobile use as browser-responsive only. It no longer
+    Pathmark now treats phones as ordinary browser clients using the same desktop UI/data canvas. It no longer
     tries to inject a web-app manifest or mobile shortcut metadata because that
     half-supported behaviour made the hosted app appear less polished.
     """
@@ -959,6 +959,86 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewC
   }}
   .support-nesting-rail {{
     border-left-width: 2px;
+  }}
+}}
+
+
+
+
+/* v0.7.8 desktop parity on narrow browsers
+   Pathmark no longer presents a separate phone-app experience. Phones load the
+   same desktop browser UI/data canvas; narrow browsers may pan horizontally
+   rather than receiving a half-supported mobile layout. */
+@media (max-width: 760px) {{
+  html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
+    width: auto !important;
+    min-width: 1180px !important;
+    max-width: none !important;
+    overflow-x: auto !important;
+  }}
+  .block-container, .main .block-container {{
+    width: 1180px !important;
+    min-width: 1180px !important;
+    max-width: 1180px !important;
+    padding-left: 2.25rem !important;
+    padding-right: 2.25rem !important;
+    padding-top: 2.25rem !important;
+    overflow-x: visible !important;
+  }}
+  [data-testid="stHorizontalBlock"] {{
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }}
+  div[data-testid="column"] {{
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }}
+  .hero h1 {{
+    font-size: clamp(3.7rem, 8.2vw, 7.2rem) !important;
+    line-height: .84 !important;
+    overflow-wrap: normal !important;
+    white-space: normal !important;
+  }}
+  .lead {{
+    font-size: clamp(1.28rem, 2.4vw, 1.9rem) !important;
+    max-width: 920px !important;
+  }}
+  .sublead {{
+    font-size: 1.12rem !important;
+    max-width: 850px !important;
+  }}
+  .grid-3 {{
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }}
+  .grid-2, .meta-grid {{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }}
+  .pillar-grid, .metric-strip {{
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }}
+  .seasonal-banner {{
+    min-height: 156px !important;
+    border-radius: 1.25rem !important;
+  }}
+  .seasonal-banner-compact {{
+    min-height: 58px !important;
+  }}
+  .focus-block-shell {{
+    padding: 1rem !important;
+    border-radius: 1.18rem !important;
+  }}
+  .focus-block-card, .support-card {{
+    padding: 1rem !important;
+    border-radius: 1rem !important;
+  }}
+  .support-block-group {{
+    margin-left: 1.45rem !important;
+    padding-left: 1rem !important;
   }}
 }}
 
