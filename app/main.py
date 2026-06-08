@@ -9318,132 +9318,260 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 
+
 def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "") -> bytes:
-    """Build a polished printable tasklist PDF with card-style rows rather than a visible table."""
+    """Build a sleek Pathmark tasklist PDF with true nested checklist structure.
+
+    This deliberately avoids table/grid/card exports. It uses the lighter
+    desktop Pathmark paper style: a clear header, restrained section headings,
+    checkbox-led rows, fine dividers, and indented child checkboxes/content.
+    """
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
-        from reportlab.graphics.shapes import Drawing, Rect
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        from reportlab.pdfgen import canvas
     except Exception:
         return build_printable_tasklist_from_rows(rows)
 
-    def checkbox_box() -> Drawing:
-        drawing = Drawing(10, 10)
-        drawing.add(Rect(0.8, 0.8, 8.4, 8.4, strokeColor=colors.HexColor("#7A827F"), fillColor=colors.white, strokeWidth=0.9))
-        return drawing
-
     def clean_text(value: Any) -> str:
+        try:
+            if pd.isna(value):
+                return ""
+        except Exception:
+            pass
         text = re.sub(r"<\s*br\s*/?\s*>", " · ", str(value or ""), flags=re.IGNORECASE)
         text = re.sub(r"<[^>]+>", "", text)
-        return html.escape(text.strip())
+        text = html.unescape(text)
+        text = re.sub(r"\b(?:nan|none|null)\b", "", text, flags=re.IGNORECASE)
+        return re.sub(r"\s+", " ", text).strip(" ·")
 
-    def make_card(row: pd.Series | dict[str, Any], is_support: bool = False) -> Table:
-        task_title = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
-        notes_text = clean_text(tasklist_notes_text(row))
-        if is_support:
-            label = Paragraph("<font color='#626966' size='7'>Supporting time block</font>", support_label_style)
-            title_para = Paragraph(f"<b>{task_title}</b>", support_title_style)
-            notes_para = Paragraph(notes_text, support_notes_style) if notes_text else Paragraph("", support_notes_style)
-            inner = [[label], [title_para], [notes_para]]
-            content = Table(inner, colWidths=[146 * mm])
-            content.setStyle(TableStyle([
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
-            ]))
-            card = Table([[checkbox_box(), content]], colWidths=[10 * mm, 151 * mm])
-            card.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F7F6")),
-                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#D8DED9")),
-                ("LINEBEFORE", (1, 0), (1, 0), 2.0, colors.HexColor("#9BA7A1")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (0, 0), 4),
-                ("RIGHTPADDING", (0, 0), (0, 0), 1),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (1, 0), (1, 0), 9),
-                ("RIGHTPADDING", (1, 0), (1, 0), 8),
-            ]))
-            return card
-        title_para = Paragraph(f"<b>{task_title}</b>", task_title_style)
-        notes_para = Paragraph(notes_text, notes_style) if notes_text else Paragraph("", notes_style)
-        content = Table([[title_para], [notes_para]], colWidths=[158 * mm])
-        content.setStyle(TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ]))
-        card = Table([[checkbox_box(), content]], colWidths=[10 * mm, 163 * mm])
-        card.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-            ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#D8D4CB")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (0, 0), 4),
-            ("RIGHTPADDING", (0, 0), (0, 0), 1),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ("LEFTPADDING", (1, 0), (1, 0), 6),
-            ("RIGHTPADDING", (1, 0), (1, 0), 8),
-        ]))
-        return card
+    def wrap_text(text: str, font_name: str, font_size: float, max_width: float) -> list[str]:
+        text = clean_text(text)
+        if not text:
+            return []
+        lines: list[str] = []
+        for para in text.split("\n"):
+            words = para.split()
+            current = ""
+            for word in words:
+                candidate = f"{current} {word}".strip()
+                if stringWidth(candidate, font_name, font_size) <= max_width:
+                    current = candidate
+                    continue
+                if current:
+                    lines.append(current)
+                if stringWidth(word, font_name, font_size) <= max_width:
+                    current = word
+                else:
+                    chunk = ""
+                    for ch in word:
+                        if stringWidth(chunk + ch, font_name, font_size) <= max_width:
+                            chunk += ch
+                        else:
+                            if chunk:
+                                lines.append(chunk)
+                            chunk = ch
+                    current = chunk
+            if current:
+                lines.append(current)
+        return lines
+
+    def row_notes(row: pd.Series | dict[str, Any]) -> str:
+        return clean_text(tasklist_notes_text(row))
+
+    def source_heading(source_type: str) -> str:
+        return "Project work" if source_type == "Goal action" else "Routine activities"
+
+    def section_rows(source_type: str) -> pd.DataFrame:
+        if rows.empty or "source_type" not in rows.columns:
+            return pd.DataFrame(columns=list(rows.columns) if hasattr(rows, "columns") else [])
+        return rows[rows["source_type"] == source_type].copy()
+
+    def parent_label(row: pd.Series | dict[str, Any]) -> str:
+        parent = clean_text(row.get("parent", ""))
+        area = clean_text(row.get("area_name", ""))
+        return parent or area
+
+    def checkbox(cvs: Any, x: float, y_mid: float, size: float = 8.8) -> None:
+        cvs.setStrokeColor(accent)
+        cvs.setLineWidth(1.05)
+        cvs.rect(x, y_mid - size / 2, size, size, stroke=1, fill=0)
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=16*mm, bottomMargin=16*mm)
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("PathmarkTitle", parent=styles["Title"], fontSize=22, leading=26, alignment=1, spaceAfter=6, textColor=colors.HexColor("#1F2221"))
-    sub_style = ParagraphStyle("PathmarkSub", parent=styles["BodyText"], fontSize=9, leading=12, textColor=colors.HexColor("#626966"), spaceAfter=12)
-    h_style = ParagraphStyle("PathmarkHeading", parent=styles["Heading2"], fontSize=13.5, leading=17, spaceBefore=10, spaceAfter=6, textColor=colors.HexColor("#334E68"))
-    task_title_style = ParagraphStyle("PathmarkTaskTitle", parent=styles["BodyText"], fontSize=10, leading=13, textColor=colors.HexColor("#1F2221"))
-    notes_style = ParagraphStyle("PathmarkNotes", parent=styles["BodyText"], fontSize=8.6, leading=11.5, textColor=colors.HexColor("#626966"), spaceBefore=2)
-    support_label_style = ParagraphStyle("PathmarkSupportLabel", parent=styles["BodyText"], fontSize=7.2, leading=9, textColor=colors.HexColor("#626966"))
-    support_title_style = ParagraphStyle("PathmarkSupportTitle", parent=styles["BodyText"], fontSize=9.4, leading=12, textColor=colors.HexColor("#1F2221"))
-    support_notes_style = ParagraphStyle("PathmarkSupportNotes", parent=styles["BodyText"], fontSize=8.2, leading=10.8, textColor=colors.HexColor("#626966"), spaceBefore=1)
-    body_style = ParagraphStyle("PathmarkBody", parent=styles["BodyText"], fontSize=9.2, leading=12, textColor=colors.HexColor("#1F2221"))
+    page_w, page_h = A4
+    c = canvas.Canvas(buffer, pagesize=A4)
 
-    story = [
-        Paragraph(clean_text(title or "Pathmark Tasklist"), title_style),
-        Paragraph(datetime.now().strftime("Created %d %B %Y"), sub_style),
-        Spacer(1, 3),
-    ]
+    margin_x = 17 * mm
+    top_margin = 16 * mm
+    bottom_margin = 16 * mm
+    content_w = page_w - (2 * margin_x)
 
-    if rows.empty:
-        story.append(Paragraph("No tasklist rows selected.", body_style))
-    else:
-        for source_type in ["Goal action", "Routine activity"]:
-            subset = rows[rows["source_type"] == source_type] if "source_type" in rows.columns else pd.DataFrame()
-            if subset.empty:
-                continue
-            heading = "Project work" if source_type == "Goal action" else "Routine activities"
-            story.append(Paragraph(clean_text(heading), h_style))
-            for _, row in subset.iterrows():
-                row_is_support = _tasklist_is_supporting_row(row)
-                card = make_card(row, row_is_support)
-                if row_is_support:
-                    wrapper = Table([["", card]], colWidths=[8 * mm, 169 * mm])
-                    wrapper.setStyle(TableStyle([
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                        ("TOPPADDING", (0, 0), (-1, -1), 0),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ]))
-                    story.append(KeepTogether([wrapper]))
-                else:
-                    story.append(KeepTogether([card]))
-                    story.append(Spacer(1, 3))
-            story.append(Spacer(1, 7))
+    ink = colors.HexColor("#202423")
+    muted = colors.HexColor("#626A67")
+    faint = colors.HexColor("#E8ECE8")
+    accent = colors.HexColor("#2B7A69")
+    accent_dark = colors.HexColor("#246757")
+    heading_blue = colors.HexColor("#334E68")
+    support_muted = colors.HexColor("#76807B")
 
-    if notes.strip():
-        story.append(Paragraph("Notes", h_style))
-        for line in notes.strip().splitlines():
-            story.append(Paragraph(clean_text(line), body_style))
+    y = page_h - top_margin
+
+    def new_page() -> None:
+        nonlocal y
+        c.showPage()
+        y = page_h - top_margin
+        draw_page_header(continued=True)
+
+    def ensure_space(required: float) -> None:
+        if y - required < bottom_margin:
+            new_page()
+
+    def draw_page_header(continued: bool = False) -> None:
+        nonlocal y
+        cleaned_title = clean_text(title or "Weekly Tasklist")
+        cleaned_title = re.sub(r"^pathmark\s*[·:-]?\s*", "", cleaned_title, flags=re.IGNORECASE).strip() or "Tasklist"
+
+        # Pathmark brand appears as the professional source mark; the tasklist
+        # title remains the practical document title.
+        c.setFillColor(ink)
+        c.setFont("Helvetica-Bold", 27)
+        c.drawString(margin_x, y - 7, "Pathmark")
+
+        c.setFillColor(muted)
+        c.setFont("Helvetica", 9.2)
+        c.drawRightString(page_w - margin_x, y - 1, "Tasklist from Pathmark")
+        c.drawRightString(page_w - margin_x, y - 12, datetime.now().strftime("Prepared %d %B %Y"))
+        y -= 25
+
+        c.setFillColor(ink)
+        c.setFont("Helvetica-Bold", 20 if not continued else 15)
+        c.drawString(margin_x, y, cleaned_title + (" continued" if continued else ""))
+        y -= 11
+
+        c.setStrokeColor(accent)
+        c.setLineWidth(0.9)
+        c.line(margin_x, y, page_w - margin_x, y)
+        y -= 18 if not continued else 14
+
+    def draw_section_heading(text: str) -> None:
+        nonlocal y
+        ensure_space(18)
+        c.setFillColor(accent_dark)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(margin_x, y, clean_text(text))
+        y -= 13
+
+    def draw_parent_context(label: str) -> None:
+        nonlocal y
+        label = clean_text(label)
+        if not label:
+            return
+        ensure_space(15)
+        c.setFillColor(muted)
+        c.setFont("Helvetica-Bold", 10.2)
+        c.drawString(margin_x, y, label)
+        y -= 10
+
+    def draw_item(row: pd.Series | dict[str, Any], *, is_support: bool = False) -> None:
+        nonlocal y
+        title_text = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
+        note_text = row_notes(row)
+
+        # Parent items align near the left margin. Child/support rows indent the
+        # checkbox and the task text together, just like a nested checklist.
+        check_x = margin_x + (22 * mm if is_support else 8 * mm)
+        text_x = check_x + 13 * mm
+        text_w = page_w - margin_x - text_x
+
+        title_font = "Helvetica-Bold" if not is_support else "Helvetica"
+        title_size = 11.0 if not is_support else 10.6
+        note_size = 8.7
+        title_lines = wrap_text(title_text, title_font, title_size, text_w)
+        note_lines = wrap_text(note_text, "Helvetica", note_size, text_w)
+        label_lines = ["Supporting time block"] if is_support else []
+
+        row_h = 5
+        row_h += len(label_lines) * 9
+        row_h += max(1, len(title_lines)) * 13
+        row_h += len(note_lines) * 10
+        row_h += 9
+        ensure_space(row_h)
+
+        top_y = y
+        checkbox(c, check_x, top_y - 6)
+
+        text_y = top_y - 2
+        if is_support:
+            # A subtle rail gives hierarchy without creating a boxed card.
+            c.setStrokeColor(colors.HexColor("#D7DED9"))
+            c.setLineWidth(1.5)
+            c.line(margin_x + 16 * mm, top_y + 3, margin_x + 16 * mm, top_y - row_h + 8)
+            c.setFillColor(support_muted)
+            c.setFont("Helvetica", 8.0)
+            c.drawString(text_x, text_y, "Supporting time block")
+            text_y -= 9
+
+        c.setFillColor(ink)
+        c.setFont(title_font, title_size)
+        if title_lines:
+            for line_text in title_lines:
+                c.drawString(text_x, text_y, line_text)
+                text_y -= 13
+        else:
+            text_y -= 13
+
+        if note_lines:
+            c.setFillColor(muted)
+            c.setFont("Helvetica", note_size)
+            for line_text in note_lines:
+                c.drawString(text_x, text_y, line_text)
+                text_y -= 10
+
+        # Light divider begins at the task text, not at the page edge. This
+        # keeps it from reading as a table/grid.
+        y = text_y - 3
+        c.setStrokeColor(faint)
+        c.setLineWidth(0.45)
+        c.line(text_x, y, page_w - margin_x, y)
+        y -= 8 if not is_support else 6
+
     try:
-        doc.build(story)
+        draw_page_header()
+        if rows.empty:
+            c.setFillColor(muted)
+            c.setFont("Helvetica", 10)
+            c.drawString(margin_x, y, "No tasklist rows selected.")
+        else:
+            for source_type in ["Goal action", "Routine activity"]:
+                subset = section_rows(source_type)
+                if subset.empty:
+                    continue
+                draw_section_heading(source_heading(source_type))
+
+                last_parent = "__never__"
+                for _, row in subset.iterrows():
+                    row_parent = parent_label(row)
+                    # Routine/project container names are useful context, but
+                    # they should not be confused with checkbox items.
+                    if row_parent != last_parent:
+                        draw_parent_context(row_parent)
+                        last_parent = row_parent
+                    draw_item(row, is_support=_tasklist_is_supporting_row(row))
+                y -= 6
+
+        if str(notes or "").strip():
+            draw_section_heading("Notes")
+            c.setFillColor(ink)
+            c.setFont("Helvetica", 9.3)
+            for line_text in str(notes).strip().splitlines():
+                wrapped = wrap_text(line_text, "Helvetica", 9.3, content_w)
+                ensure_space(max(12, len(wrapped) * 11))
+                for wrapped_line in wrapped:
+                    c.drawString(margin_x, y, wrapped_line)
+                    y -= 11
+        c.save()
         return buffer.getvalue()
     except Exception:
         return build_printable_tasklist_from_rows(rows)
