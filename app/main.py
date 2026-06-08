@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 try:
     import yaml
@@ -329,6 +330,45 @@ def page_icon():
 
 
 st.set_page_config(page_title="Pathmark", page_icon=page_icon(), layout="wide")
+
+
+
+def inject_desktop_viewport_for_phone_browsers() -> None:
+    """Ask phone browsers to render Pathmark like the desktop site.
+
+    Chrome/Samsung Internet desktop-site mode works because the browser uses a
+    wide layout viewport and scales it down. Pathmark is designed as a desktop
+    planning canvas, so we explicitly request that same wide viewport rather
+    than maintaining a separate narrow phone layout.
+    """
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          let meta = doc.querySelector('meta[name="viewport"]');
+          if (!meta) {
+            meta = doc.createElement('meta');
+            meta.setAttribute('name', 'viewport');
+            doc.head.appendChild(meta);
+          }
+          const target = 'width=1180, initial-scale=1, minimum-scale=0.25, maximum-scale=5, user-scalable=yes';
+          if (meta.getAttribute('content') !== target) {
+            meta.setAttribute('content', target);
+          }
+          doc.documentElement.style.minWidth = '1180px';
+          doc.body.style.minWidth = '1180px';
+          const app = doc.querySelector('.stApp');
+          if (app) app.style.minWidth = '1180px';
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+inject_desktop_viewport_for_phone_browsers()
 
 
 def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
@@ -968,10 +1008,10 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewC
 
 
 
-/* v0.7.8 desktop parity on narrow browsers
-   Pathmark no longer presents a separate phone-app experience. Phones load the
-   same desktop browser UI/data canvas; narrow browsers may pan horizontally
-   rather than receiving a half-supported mobile layout. */
+/* v0.7.15 desktop-site parity on phone browsers
+   Pathmark no longer presents a separate phone-app experience. A viewport
+   script above asks mobile browsers to use the same wide desktop canvas that
+   Chrome/Samsung Internet use when Desktop site is enabled. */
 @media (max-width: 760px) {{
   html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
     width: auto !important;

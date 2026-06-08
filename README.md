@@ -1,3 +1,3 @@
-# Pathmark v0.7.14
+# Pathmark release hub v0.7.15
 
-Theme-matched tasklist cleanup. Removes the misleading Tasklist preview table and refines the printable tasklist into a cleaner Pathmark-style checklist that uses the selected accent theme.
+Desktop-site phone viewport.
