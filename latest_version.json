@@ -1,22 +1,23 @@
 {
-  "version": "0.7.8",
+  "version": "0.7.9",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_8.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_8.zip",
-  "release": "v0.7.8 Desktop parity for phone browsers",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_8.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_8.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_8.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_8.zip",
-  "label": "Desktop parity for phone browsers",
-  "release_notes": "Treats phones as ordinary browser clients using the same desktop Pathmark UI/data canvas, rather than maintaining a half-supported phone-app/mobile layout.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_9.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_9.zip",
+  "release": "v0.7.9 One-time Pathmark terms acceptance",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_9.zip",
+  "label": "One-time Pathmark terms acceptance",
+  "release_notes": "Removes the repeated pre-Google Pathmark Terms & Privacy gate. Google login now goes directly to Google's consent screen, and Pathmark asks for its own Terms and Privacy acceptance only once per terms version after sign-in.",
   "notes": [
-    "Keeps the Creation Wizard clarification that projects and routines are parent containers, while activities/steps/blocks become calendar and task items.",
-    "Removes the remaining phone-specific layout assumption by forcing phones/narrow browsers to use the same desktop browser UI/data canvas instead of a separate mobile-style layout.",
-    "Allows narrow browsers to pan/zoom the desktop canvas rather than clipping hero text, cards, or hierarchy blocks.",
-    "Keeps PWA/phone shortcut support removed; Pathmark Online is presented as a browser app only."
+    "Google login buttons now launch the Google OAuth flow directly rather than first forcing a Pathmark terms screen.",
+    "Pathmark's public Privacy Policy, Terms of Service, and Google access explanation remain available for Google OAuth and user review.",
+    "After Google sign-in, Pathmark asks for a one-time Terms and Privacy confirmation for the current Pathmark terms version.",
+    "Accepted terms version is stored in the browser session and, when Pathmark Sync is available, in the settings sheet so the user is not asked every session.",
+    "The confirmation can be shown again in future only if the terms version changes or the saved acceptance cannot be found."
   ],
-  "release_name": "Desktop parity for phone browsers",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_8.zip"
+  "release_name": "One-time Pathmark terms acceptance",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_9.zip"
 }

@@ -90,6 +90,9 @@ ONLINE_TABLES = {
     "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "checked", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
 }
 
+PATHMARK_TERMS_VERSION = "2026-06-08"
+PATHMARK_TERMS_ACCEPTED_SETTING = "terms_privacy_accepted_version"
+
 GOOGLE_CALENDAR_COLOURS = [
     ("1", "Lavender", "#7986CB"),
     ("2", "Sage", "#33B679"),
@@ -1691,63 +1694,94 @@ def render_account_bar(role: str, user: dict[str, str]) -> None:
                 clear_hosted_login_session()
                 st.rerun()
         elif configured:
-            if st.button("Log in with Google", use_container_width=True, key="hosted_login_button"):
-                st.session_state["show_login_terms"] = True
-                st.rerun()
+            auth_url = login_auth_url()
+            if auth_url:
+                same_tab_oauth_button("Log in with Google", auth_url)
+            else:
+                st.button("Log in with Google", use_container_width=True, disabled=True, key="hosted_login_unavailable")
         else:
             st.button("Log in not configured", use_container_width=True, disabled=True, key="hosted_login_disabled")
 
 
 def render_google_permissions_onboarding(compact: bool = False) -> None:
-    """Terms and privacy acceptance step shown before launching Google OAuth."""
-    st.markdown("## Pathmark Online Terms & Privacy")
-    st.caption("Please review and accept this notice before continuing to Google permissions.")
-    terms_html = """
-    <div class="pathmark-terms-box">
-      <h3>Pathmark Online Terms & Privacy Notice</h3>
-      <p><strong>Last updated:</strong> June 2026</p>
-      <h4>1. What Pathmark is</h4>
-      <p>Pathmark is a planning, wellbeing, project, calendar, task and spending-plan tool. It helps you organise routines, projects, tasklists, calendar time and money-flow planning.</p>
-      <h4>2. Use of Google services</h4>
-      <p>Pathmark Online uses Google sign-in and Google APIs so your active planning records can stay in files and services owned by your Google account. Google may show a permissions screen after you continue.</p>
-      <h4>3. Pathmark Sync and Google Sheets</h4>
-      <p>Pathmark creates or updates a Google Sheet called Pathmark Sync. This sheet stores your Pathmark Online records, including areas, projects, routines, tasklist rows, settings, sync metadata and Spending Plan rows.</p>
-      <h4>4. Google Tasks Sync</h4>
-      <p>When you use Google Tasks Sync, Pathmark can create checklist items in Google Tasks and read their status so Pathmark can show whether a task is not sent, pending, completed, missing or needs review. Pathmark does not create tasks unless you choose a sync action.</p>
-      <h4>5. Google Calendar Sync</h4>
-      <p>When you use Google Calendar Sync, Pathmark can create or reuse calendars named after your Pathmark Areas and create or update project and routine calendar events within those calendars. Pathmark stores linked calendar IDs and event IDs in Pathmark Sync. Pathmark does not create calendar events unless you choose a sync action.</p>
-      <h4>6. Spending Plan disclaimer</h4>
-      <p>The Spending Plan is a budgeting and planning tool only. It is not financial, legal, tax, mortgage, insurance, KiwiSaver, investment or debt advice. If you are in financial hardship, consider seeking support from an appropriate budgeting or financial-support service.</p>
-      <h4>7. Backups and restore</h4>
-      <p>Pathmark can create backup Google Sheets and can restore or reset Pathmark Sync when you ask it to. Some actions may create a safety backup first. Resetting Pathmark Sync does not automatically delete Google Tasks or Google Calendar events.</p>
-      <h4>8. What Supabase stores</h4>
-      <p>Supabase is used for access/profile metadata, such as email, role, status, feature flags, theme preference and audit records. Supabase may also hold optional read-only starter-pack library rows, such as grocery, nutrition, produce or recipe starter data. Supabase is not used to store your private planning, task, calendar, spending-plan content, or your edited grocery inventory.</p>
-      <h4>9. What Pathmark does not do</h4>
-      <p>Pathmark does not sell your data, does not store your Google password, does not store OAuth tokens in Supabase, does not use your planning or finance content for advertising, and does not intentionally scan unrelated Google Drive, Tasks or Calendar content.</p>
-      <h4>10. User responsibility</h4>
-      <p>You are responsible for the accuracy of information you enter, the Google files you share, and any changes you make through import, restore, reset, sync or delete actions. Review warnings before running bulk or destructive actions.</p>
-      <h4>11. Revoking access</h4>
-      <p>You can revoke Pathmark's Google access from your Google Account. If you revoke access, Pathmark Online will not be able to update Pathmark Sync, Google Tasks or Google Calendar until you reconnect.</p>
-      <h4>12. Changes to Pathmark</h4>
-      <p>Pathmark is under active development. Features, wording and data structures may change as the beta is refined. Backups are recommended before major imports, resets or sync changes.</p>
-    </div>
-    """
-    st.markdown(terms_html, unsafe_allow_html=True)
-    st.checkbox("I have read and accept the Pathmark Online Terms & Privacy notice.", key="google_permissions_ack")
+    """Show a direct Google login/connect panel without a repeated Pathmark terms gate."""
     auth_url = login_auth_url()
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        if st.button("Back", use_container_width=True):
-            st.session_state.pop("show_login_terms", None)
-            st.session_state.pop("google_permissions_ack", None)
+    if compact:
+        st.info("Google will show the permissions Pathmark is requesting. Pathmark's public Privacy Policy and Terms of Service are linked from the Google consent screen and remain available from About & Privacy.")
+    else:
+        st.markdown("## Connect Google")
+        st.caption("Google will show the permissions Pathmark is requesting. Pathmark's public Privacy Policy and Terms of Service are linked from the Google consent screen and remain available from About & Privacy.")
+    if auth_url:
+        same_tab_oauth_button("Continue with Google", auth_url)
+    else:
+        st.button("Google login unavailable", use_container_width=True, disabled=True)
+
+
+def _terms_session_key(email: str = "") -> str:
+    email_part = re.sub(r"[^a-zA-Z0-9]+", "_", str(email or "anonymous").strip().lower()).strip("_") or "anonymous"
+    return f"pathmark_terms_accepted_{PATHMARK_TERMS_VERSION}_{email_part}"
+
+
+def pathmark_terms_already_accepted(sheet_id: str = "") -> bool:
+    """Return whether the current user has accepted the current Pathmark terms version."""
+    user_email = current_user().get("email", "")
+    if st.session_state.get(_terms_session_key(user_email)) == PATHMARK_TERMS_VERSION:
+        return True
+    if st.session_state.get("pathmark_terms_accepted_version") == PATHMARK_TERMS_VERSION:
+        return True
+    if sheet_id:
+        try:
+            accepted_version = online_setting(sheet_id, PATHMARK_TERMS_ACCEPTED_SETTING, "")
+            if str(accepted_version or "").strip() == PATHMARK_TERMS_VERSION:
+                st.session_state[_terms_session_key(user_email)] = PATHMARK_TERMS_VERSION
+                st.session_state["pathmark_terms_accepted_version"] = PATHMARK_TERMS_VERSION
+                return True
+        except Exception:
+            return False
+    return False
+
+
+def record_pathmark_terms_acceptance(sheet_id: str = "") -> tuple[bool, str]:
+    """Record the one-time Pathmark terms/privacy acceptance in session and, where possible, Pathmark Sync settings."""
+    user_email = current_user().get("email", "")
+    st.session_state[_terms_session_key(user_email)] = PATHMARK_TERMS_VERSION
+    st.session_state["pathmark_terms_accepted_version"] = PATHMARK_TERMS_VERSION
+    if sheet_id:
+        ok, msg = save_online_setting(sheet_id, PATHMARK_TERMS_ACCEPTED_SETTING, PATHMARK_TERMS_VERSION, source="pathmark_terms")
+        if ok:
+            save_online_setting(sheet_id, "terms_privacy_accepted_at", utc_now_text(), source="pathmark_terms")
+            return True, "Accepted."
+        return False, msg
+    return True, "Accepted for this browser session."
+
+
+def render_post_login_terms_confirmation(sheet_id: str = "") -> bool:
+    """Ask for Pathmark's own terms/privacy acceptance only once per version, after Google sign-in."""
+    if pathmark_terms_already_accepted(sheet_id):
+        return True
+    st.markdown("### Review Pathmark Terms & Privacy")
+    st.markdown(
+        "Google has already shown the Google permissions screen. Pathmark just needs a one-time confirmation for its own Terms and Privacy Policy for this version."
+    )
+    st.markdown(
+        "- Your Pathmark records are stored in your own Google files, mainly **Pathmark Sync**.\n"
+        "- Google Tasks and Calendar items are only created or updated when you run sync actions.\n"
+        "- Finance is a budgeting/planning tool only, not financial advice.\n"
+        "- You can revoke Google access from your Google Account."
+    )
+    st.markdown(
+        "Public pages: [Privacy Policy](?page=privacy) · [Terms of Service](?page=terms) · [Google access explanation](?page=oauth)"
+    )
+    st.checkbox("I agree to Pathmark's Terms of Service and Privacy Policy.", key="post_login_terms_ack")
+    if st.button("Accept and continue", use_container_width=True, disabled=not st.session_state.get("post_login_terms_ack"), key="post_login_terms_accept"):
+        ok, msg = record_pathmark_terms_acceptance(sheet_id)
+        if ok:
+            st.success("Accepted.")
             st.rerun()
-    with c2:
-        if auth_url and st.session_state.get("google_permissions_ack"):
-            same_tab_oauth_button("Continue to Google permissions", auth_url)
-        elif auth_url:
-            st.button("Continue to Google permissions", use_container_width=True, disabled=True)
         else:
-            st.button("Google login unavailable", use_container_width=True, disabled=True)
+            st.warning("Pathmark accepted this for the current browser session, but could not save the acceptance to Pathmark Sync just now: " + safe_user_message(msg))
+            st.rerun()
+    return False
 
 def role_can_use_on_the_go(role: str, status: str) -> bool:
     return status == "active" and feature_enabled("on_the_go_beta", role, default_enabled=True, default_minimum_role="beta_tester")
@@ -11458,6 +11492,9 @@ def on_the_go_tab() -> None:
         except Exception:
             st.warning("Pathmark could not prepare your online workspace. Please refresh online data or reconnect Google access, then try again.")
 
+    if not render_post_login_terms_confirmation(sheet_id):
+        return
+
     # The Creation Wizard now has its own Planner tab beside Home.
     sections = st.tabs([
         "Dashboard",
@@ -13301,6 +13338,8 @@ def shopping_list_beta_tab() -> None:
                 load_online_tables(sheet_id)
         except Exception:
             st.warning("Pathmark could not prepare your Meal Plan just now. Please refresh online data or reconnect Google access, then try again.")
+    if not render_post_login_terms_confirmation(sheet_id):
+        return
     render_safe_section("Meal Plan", render_shopping_list_manager, sheet_id)
 
 
@@ -13343,6 +13382,9 @@ def spending_plan_beta_tab() -> None:
                 load_online_tables(sheet_id)
         except Exception:
             st.warning("Pathmark could not prepare your Spending Plan just now. Please refresh online data or reconnect Google access, then try again.")
+
+    if not render_post_login_terms_confirmation(sheet_id):
+        return
 
     render_safe_section("Spending Plan", render_spending_plan_manager, sheet_id)
 
@@ -13761,9 +13803,6 @@ def render_app() -> None:
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
 
-    if not user.get("email") and st.session_state.get("show_login_terms") and login_configured():
-        render_google_permissions_onboarding(compact=False)
-        return
 
     # After login, land the user in Planner by making it the first tab,
     # but keep the rest of the top-level navigation available. This avoids the
