@@ -1,22 +1,23 @@
 {
-  "version": "0.7.6",
+  "version": "0.7.7",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_6.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_6.zip",
-  "release": "v0.7.6 Focus hierarchy polish",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_6.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_6.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_6.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_6.zip",
-  "label": "Focus hierarchy polish",
-  "release_notes": "Fixes the focus-based project hierarchy so supporting time blocks render directly beneath their parent focus block without raw HTML, and improves printable tasklist indentation.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_7.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_7.zip",
+  "release": "v0.7.7 Wizard clarity and browser-app tidy",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_7.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_7.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_7.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_7.zip",
+  "label": "Wizard clarity and browser-app tidy",
+  "release_notes": "Clarifies that projects and routines are parent containers while steps, focus blocks, supporting time blocks and routine activities become calendar/task items; removes unfinished phone-app/PWA shortcut support from the release.",
   "notes": [
-    "Corrects focus-based project rendering so supporting time blocks are rendered with Streamlit containers rather than nested raw HTML strings.",
-    "Supporting time blocks now sit directly beneath their focus block in the project view with a visible nested rail and card treatment.",
-    "Improves printable tasklist hierarchy so supporting time blocks are styled as indented support rows rather than plain offset text.",
-    "Keeps the v0.7.5 linked Calendar/Tasks management workflow."
+    "Adds Creation Wizard helper text explaining that a project name is the parent container, not the calendar block or reminder.",
+    "Adds Creation Wizard helper text explaining that a routine name is the parent container, while routine activities become scheduled blocks.",
+    "Clarifies the choose-type step with a visible container-versus-activity note.",
+    "Removes unfinished phone-app/PWA shortcut support and related manifest/mobile shortcut files so Pathmark Online is presented as a browser app until mobile support can be implemented cleanly.",
+    "Keeps responsive browser containment and the v0.7.6 focus/support hierarchy work."
   ],
-  "release_name": "Focus hierarchy polish",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_6.zip"
+  "release_name": "Wizard clarity and browser-app tidy",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_7.zip"
 }

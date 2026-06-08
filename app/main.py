@@ -410,17 +410,13 @@ def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | No
     )
 
 def inject_pwa_metadata() -> None:
-    """Best-effort PWA metadata hook.
+    """Compatibility hook retained after removing phone-app/PWA support.
 
-    Streamlit 2026 removes the old embedded HTML component. Earlier Pathmark
-    builds used that component to inject extra favicon/manifest JavaScript,
-    but the hosted Streamlit page already receives the core Pathmark title and
-    favicon through ``st.set_page_config`` and the static assets remain in the
-    repository. To avoid deployment warnings/errors, this hook is now a no-op.
+    Pathmark now treats mobile use as browser-responsive only. It no longer
+    tries to inject a web-app manifest or mobile shortcut metadata because that
+    half-supported behaviour made the hosted app appear less polished.
     """
     return
-
-inject_pwa_metadata()
 
 
 def inject_appearance_watcher() -> None:
@@ -10067,6 +10063,7 @@ def _wizard_required_text_form(
     placeholder: str = "",
     multiline: bool = False,
     note: str = "Required before continuing.",
+    helper_text: str = "",
 ) -> tuple[str, bool, bool]:
     """Render a required text question where Next also commits the typed text."""
     back_disabled = not bool(st.session_state.get(_wizard_back_stack_key(str(draft.get('draft_id',''))), []))
@@ -10075,6 +10072,8 @@ def _wizard_required_text_form(
             text = st.text_area(label, value=value, placeholder=placeholder)
         else:
             text = st.text_input(label, value=value, placeholder=placeholder)
+        if helper_text:
+            st.markdown(f"<div class='pathmark-hint'>{html.escape(helper_text)}</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([0.18, 0.64, 0.18], vertical_alignment="center")
         with c1:
             go_back = st.form_submit_button("‹ Back", use_container_width=True, disabled=back_disabled, type="primary")
@@ -10148,7 +10147,8 @@ def render_pathmark_creation_wizard(sheet_id: str) -> None:
 
     if step == "choose_type":
         st.subheader("What are you creating?")
-        _wizard_info_button("Which should I choose?", "Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life.")
+        _wizard_info_button("Which should I choose?", "Project: something you want to complete, finish, build, resolve, or move forward. Routine: something repeating that protects your wellbeing, energy, home, learning, work, or creative life. In both cases, the project or routine is the container; the steps, focus blocks, supporting time blocks, or routine activities are what become calendar/task items.")
+        st.markdown("<div class='pathmark-hint'><strong>Container first, activities next.</strong><br>The name you choose here gives the work a home. Calendar blocks and reminders are created from the steps, focus blocks, supporting time blocks, or routine activities you add underneath it.</div>", unsafe_allow_html=True)
         choice = st.radio("Choose one", ["Project", "Routine"], horizontal=True, index=0 if draft.get("wizard_type") != "routine" else 1)
         draft["wizard_type"] = "project" if choice == "Project" else "routine"
         _set_wizard_state(draft)
@@ -10252,6 +10252,7 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             label="Project",
             value=str(project.get("title", "")),
             placeholder="Complete a beginner sketching course",
+            helper_text="This is the project container. It gives the work a home, but it does not become a calendar block or reminder. The project steps, focus blocks, and supporting time blocks you add next are what appear on your calendar and task list.",
         )
         if go_back:
             _wizard_back(sheet_id, draft)
@@ -10323,14 +10324,14 @@ def render_project_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
                 current["item_type"] = "project_focus"
                 current["contributes_to_progress"] = "1"
                 st.subheader("What is the first or next focus block?")
-                st.caption("This is the outcome that counts toward project completion. It can span several days as an all-day calendar block. Supporting time blocks can be added from the Projects tab after saving.")
+                st.caption("This focus block is a scheduled project item. It can span several days as an all-day calendar block and counts toward project completion. Supporting time blocks can be added from the Projects tab after saving.")
                 step_label = "Focus block"
                 placeholder = "Learn Tune 1"
             else:
                 st.subheader("What is the first or next step in your project?")
                 current["item_type"] = "project_progress"
                 current["contributes_to_progress"] = "1"
-                st.caption("Project steps are distinct actions. Each step counts toward progress automatically.")
+                st.caption("Project steps are the scheduled actions inside the project. Each step becomes calendar/task time and counts toward progress automatically.")
                 step_label = "Project step"
                 placeholder = "Choose a beginner sketching guide"
             text, go_back, go_next = _wizard_required_text_form(
@@ -10506,6 +10507,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
             label="Routine",
             value=str(routine.get("title", "")),
             placeholder="Sleep 8 hours a night",
+            helper_text="This is the routine container. It sets the repeating pattern, but it does not become the calendar block or reminder. The activities inside the routine are what appear on your calendar and task list.",
         )
         if go_back:
             _wizard_back(sheet_id, draft)
@@ -10558,7 +10560,7 @@ def render_routine_wizard_step(sheet_id: str, draft: dict[str, Any], step: str) 
         current = _find_step_by_id(draft.get("routine_activities", []), "activity_id", draft.get("current_activity_id")) or draft["routine_activities"][-1]
         if step == "routine_activity_title":
             st.subheader("What activity belongs inside this routine?")
-            st.caption("The routine sets the repeat pattern. Each activity inside it repeats according to that pattern, but can have its own start and end time.")
+            st.caption("Routine activities are the scheduled blocks inside the routine. These are what become calendar/task items; the routine name itself stays as the parent container.")
             text, go_back, go_next = _wizard_required_text_form(
                 draft=draft,
                 step_key=f"routine_activity_title_{current.get('activity_id','')}",
@@ -10981,7 +10983,7 @@ def download_tab() -> None:
         st.download_button("Download Pathmark for Windows", data=windows_package.read_bytes(), file_name=windows_package.name, mime="application/zip", use_container_width=True, key="download_windows")
     else:
         st.error("The Windows package is missing from this release hub. Check that a file named Pathmark_Local_App_Windows_v*.zip exists in the downloads folder.")
-    st.caption("This release is Windows-only for now. Mac package support has been removed while the Windows workflow is stabilised.")
+    st.caption("This release is Windows-only for desktop. Pathmark Online remains a browser app; phone-app/PWA shortcut support has been removed until it can be implemented cleanly.")
     st.header("How the folders work")
     st.markdown("""
     <div class="grid-2">
@@ -11178,7 +11180,7 @@ def about_privacy_tab() -> None:
 
     st.subheader("Branding during Google sign-in")
     st.markdown("""
-    Pathmark now includes browser-tab, PWA and mobile shortcut icons in the release package. The browser tab and Pathmark pages should use the Pathmark logo once the updated app is deployed and the browser cache has refreshed.
+    Pathmark now focuses on the hosted browser app and the Windows desktop app. Browser-tab branding is handled through Streamlit page configuration, while phone-app/PWA shortcut support has been removed until it can be implemented cleanly.
 
     Google's own account chooser and consent screens are controlled by the Google Cloud OAuth configuration rather than by Streamlit code. To show the Pathmark logo there, the deployed Google Cloud project needs **Google Auth Platform → Branding** set to Pathmark with the Pathmark logo uploaded.
     """)
