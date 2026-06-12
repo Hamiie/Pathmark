@@ -1,21 +1,24 @@
 {
-  "version": "0.7.15",
+  "version": "0.7.17",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_15.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_15.zip",
-  "release": "v0.7.15 Desktop-site phone viewport",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_15.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_15.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_15.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_15.zip",
-  "label": "Desktop-site phone viewport",
-  "release_notes": "Makes phone browsers render Pathmark using the same wide desktop canvas that looks polished in Desktop site mode, rather than a separate narrow mobile layout.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_17.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_17.zip",
+  "release": "v0.7.17 Nutrition recipe import and shopping list workflow",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_17.zip",
+  "label": "Nutrition recipe import and shopping list workflow",
+  "release_notes": "Adds a developer-only OurGroceries JSON importer, bulk recipe ingredient entry, an Ingredients validation tab, supermarket-aisle shopping lists with completed sections, and expiry/removal task support for purchased ingredients.",
   "notes": [
-    "Adds an explicit wide viewport request so normal phone browsers should render the same polished desktop canvas seen in Desktop site mode.",
-    "Keeps phone access to the same Pathmark UI and data rather than maintaining a separate phone-app layout.",
-    "Preserves the theme-matched printable tasklist cleanup from v0.7.14."
+    "Adds a developer-only OurGroceries Lists.json import tab visible only to developer accounts.",
+    "Parses ingredient lines into quantity, unit and ingredient while preserving the original line for checking.",
+    "Imports OurGroceries recipes into Recipes, Recipe Ingredients, Ingredients/Inventory and Grocery Categories for validation and aisle sorting.",
+    "Adds a dedicated Ingredients validation tab that consolidates recipe and inventory ingredient units.",
+    "Improves shopping lists so bought items move to a completed section and can be restored.",
+    "Adds optional expiry/remove-by dates and Google Task reminders to remove purchased items from stock."
   ],
-  "release_name": "Desktop-site phone viewport",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_15.zip"
+  "release_name": "Nutrition recipe import and shopping list workflow",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip"
 }

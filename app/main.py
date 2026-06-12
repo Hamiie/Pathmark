@@ -88,7 +88,7 @@ ONLINE_TABLES = {
     "recipe_dish_style_tags": ["dish_style_tag_id", "dish_style_tag_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_dietary_tags": ["dietary_tag_id", "dietary_tag_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "shopping_lists": ["shopping_list_id", "list_name", "planned_date", "status", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "checked", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "checked", "expiry_date", "pantry_task_list_id", "pantry_task_id", "pantry_task_due", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
 }
 
 PATHMARK_TERMS_VERSION = "2026-06-08"
@@ -333,43 +333,6 @@ st.set_page_config(page_title="Pathmark", page_icon=page_icon(), layout="wide")
 
 
 
-def inject_desktop_viewport_for_phone_browsers() -> None:
-    """Ask phone browsers to render Pathmark like the desktop site.
-
-    Chrome/Samsung Internet desktop-site mode works because the browser uses a
-    wide layout viewport and scales it down. Pathmark is designed as a desktop
-    planning canvas, so we explicitly request that same wide viewport rather
-    than maintaining a separate narrow phone layout.
-    """
-    components.html(
-        """
-        <script>
-        (function () {
-          const doc = window.parent.document;
-          let meta = doc.querySelector('meta[name="viewport"]');
-          if (!meta) {
-            meta = doc.createElement('meta');
-            meta.setAttribute('name', 'viewport');
-            doc.head.appendChild(meta);
-          }
-          const target = 'width=1180, initial-scale=1, minimum-scale=0.25, maximum-scale=5, user-scalable=yes';
-          if (meta.getAttribute('content') !== target) {
-            meta.setAttribute('content', target);
-          }
-          doc.documentElement.style.minWidth = '1180px';
-          doc.body.style.minWidth = '1180px';
-          const app = doc.querySelector('.stApp');
-          if (app) app.style.minWidth = '1180px';
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-inject_desktop_viewport_for_phone_browsers()
-
 
 def _static_icon_data_uri(filename: str, mime_type: str = "image/png") -> str:
     path = ROOT_STATIC / filename
@@ -453,12 +416,7 @@ def render_seasonal_banner(title: str = "", subtitle: str = "", season: str | No
     )
 
 def inject_pwa_metadata() -> None:
-    """Compatibility hook retained after removing phone-app/PWA support.
-
-    Pathmark now treats phones as ordinary browser clients using the same desktop UI/data canvas. It no longer
-    tries to inject a web-app manifest or mobile shortcut metadata because that
-    half-supported behaviour made the hosted app appear less polished.
-    """
+    """No-op compatibility hook. Pathmark relies on Streamlit browser behaviour."""
     return
 
 
@@ -688,53 +646,14 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .helper-row-card {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .9rem; margin:.55rem 0; }}
 .helper-row-card p {{ margin:0 0 .5rem 0; color:var(--muted); font-size:.92rem; }}
 .repeat-summary {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.95rem; padding:.85rem .95rem; margin:.65rem 0 1rem; }}
-@media (max-width: 760px) {{
-  .block-container {{ padding-left: .85rem; padding-right: .85rem; padding-top: .65rem; padding-bottom: 2.8rem; max-width: 100%; }}
-  h1 {{ font-size: clamp(1.85rem, 8.5vw, 2.55rem); line-height: 1.08; margin-top: .75rem; }}
-  h2 {{ font-size: clamp(1.55rem, 7.2vw, 2.15rem); line-height: 1.12; }}
-  h3 {{ font-size: clamp(1.15rem, 5.4vw, 1.45rem); }}
-  p, li {{ font-size: .98rem; line-height: 1.52; }}
-  .hero {{ padding: 1.2rem 0 .8rem 0; }}
-  .hero h1 {{ font-size: clamp(3.25rem, 20vw, 5.1rem); line-height: .88; margin-bottom: .7rem; }}
-  .lead {{ font-size: 1.05rem; line-height: 1.32; }}
-  .sublead {{ font-size: .98rem; margin-top: .45rem; }}
-  .eyebrow {{ font-size: .82rem; padding: .34rem .6rem; margin-bottom: .85rem; }}
-  .seasonal-banner {{ min-height: 82px; margin: .45rem 0 .95rem; border-radius: .95rem; box-shadow: 0 8px 18px color-mix(in srgb, #000000 7%, transparent); background-position: center center; }}
-  .seasonal-banner-compact {{ min-height: 48px; margin: .4rem 0 .75rem; border-radius: .82rem; }}
-  .seasonal-banner-content {{ padding: .65rem .7rem; }}
-  .seasonal-banner-panel {{ padding: .55rem .65rem; border-radius: .75rem; max-width: calc(100vw - 2.2rem); }}
-  .seasonal-banner-label {{ font-size: .68rem; padding: .25rem .48rem; }}
-  .grid-3, .grid-2, .meta-grid, .pillar-grid {{ grid-template-columns: 1fr !important; gap: .75rem; margin: .85rem 0 1.1rem; }}
-  .metric-strip {{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .55rem; }}
-  .card, .pillar-card, .meta-card, .download-panel, .setup-shell, .step-card, .process-card, .pathmark-card, .workspace-card, .issue-card, .attention-card, .money-summary-card, .focus-block-shell, .project-select-card {{ border-radius: .95rem; padding: .9rem; box-shadow: 0 5px 14px color-mix(in srgb, #000000 7%, transparent); }}
-  .pillar-card {{ min-height: 0; }}
-  .pillar-stat, .metric-value {{ font-size: 1.28rem; }}
-  .project-due-card {{ align-items:flex-start; padding:.72rem .82rem; }}
-  .support-block-group {{ margin-left: .45rem; padding: .55rem .55rem .65rem .7rem; }}
-  .account-chip-row {{ gap: .35rem; opacity: .78; margin-bottom: .25rem; }}
-  .account-chip {{ font-size: .72rem; padding: .16rem .46rem; max-width: calc(100vw - 2rem); }}
-  .account-chip strong {{ display:inline-block; max-width: 12.5rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }}
-  .connection-strip {{ font-size: .78rem; padding: .2rem .52rem; max-width: 100%; }}
-  .stButton button, .stDownloadButton button, [data-testid="stLinkButton"] a {{ min-height: 2.75rem; font-size: .95rem !important; border-radius: .82rem !important; }}
-  [data-testid="stTabs"] > div:first-child {{ overflow-x: auto; overflow-y: hidden; white-space: nowrap; gap: .25rem; scrollbar-width: none; padding-bottom: .25rem; }}
-  [data-testid="stTabs"] > div:first-child::-webkit-scrollbar {{ display: none; }}
-  [data-testid="stTabs"] button[role="tab"], button[data-baseweb="tab"] {{ flex: 0 0 auto; border: 1px solid var(--line) !important; border-radius: 999px !important; margin-right: .28rem !important; min-height: 2.15rem !important; padding: .22rem .7rem !important; background: var(--surface) !important; color: var(--muted) !important; }}
-  [data-testid="stTabs"] button[aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{ background: var(--accent-soft) !important; color: var(--pathmark-accent-ui, var(--accent)) !important; border-color: color-mix(in srgb, var(--pathmark-accent-ui, var(--accent)) 42%, var(--line)) !important; }}
-  [data-testid="stTabs"] button[role="tab"] p, button[data-baseweb="tab"] p {{ font-size: .84rem !important; font-weight: 700 !important; }}
-  div[data-testid="column"] {{ width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important; }}
-  .stDataFrame, [data-testid="stDataFrame"] {{ overflow-x: auto; max-width: 100%; }}
-  .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .card, .pillar-card, .metric-tile {{ max-width: 100%; overflow: hidden; }}
-  .step-card *, .focus-block-shell *, .focus-block-card *, .support-card *, .project-select-card *, .card *, .pillar-card *, .metric-tile * {{ max-width: 100%; overflow-wrap: anywhere; word-break: normal; white-space: normal; }}
-  .support-block-group {{ margin-left: .65rem; padding-left: .75rem; }}
-  .support-block-group .support-card {{ padding: .8rem; }}
-  .status-chip {{ max-width: 100%; white-space: normal; align-items: flex-start; }}
-  .project-card-meta {{ max-width: 100%; overflow-wrap: anywhere; }}
-}}
+/* Phone-specific Pathmark CSS removed in v0.7.16; Streamlit now controls browser responsiveness. */
+
 
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{
   color: var(--muted) !important;
 }}
-@media (max-width: 860px) {{ .pillar-grid, .metric-strip, .grid-3, .grid-2, .meta-grid {{ grid-template-columns:1fr; }} }}
+/* Phone-specific Pathmark CSS removed in v0.7.16; Streamlit now controls browser responsiveness. */
+
 
 /* Dark-safe contrast guardrails for Pathmark-owned components.
    Body/muted text must remain readable in Streamlit Dark mode, even when
@@ -810,26 +729,9 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .oauth-domain-card code {{ background:var(--surface-2); border:1px solid var(--line); border-radius:.35rem; padding:.08rem .25rem; }}
 .theme-config-preview {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem; white-space: pre-wrap; border: 1px solid var(--pm-border); border-radius: 14px; padding: .8rem; background: var(--pm-card-bg); color: var(--pm-card-text); max-height: 260px; overflow: auto; }}
 
-/* Mobile containment and polished project hierarchy */
-html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
-  max-width: 100vw !important;
-  overflow-x: hidden !important;
-}}
+/* Project hierarchy styling. Browser responsiveness is left to Streamlit. */
 *, *::before, *::after {{ box-sizing: border-box; }}
-.block-container, .main .block-container {{ width: 100% !important; max-width: min(1180px, calc(100vw - 2rem)) !important; overflow-x: hidden !important; }}
-.card, .pillar-card, .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .metric-tile, .attention-card, .money-summary-card, .seasonal-banner, .download-panel, .setup-shell, .pathmark-card, .workspace-card {{
-  max-width: 100% !important;
-  overflow-wrap: anywhere;
-  word-break: normal;
-}}
-.step-card p, .focus-block-card p, .support-card p, .project-card-meta, .item-status-row, .status-chip, .small-muted {{
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: normal;
-  white-space: normal;
-}}
 .item-status-row {{ display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }}
-.status-chip {{ max-width: 100%; }}
 .focus-block-shell {{
   border: 1px solid var(--line);
   border-left: 5px solid color-mix(in srgb, var(--accent) 62%, var(--line));
@@ -862,105 +764,8 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer
 }}
 .support-card {{ background: var(--surface-2); border-left: 4px solid color-mix(in srgb, var(--accent) 42%, var(--line)); }}
 .project-card-meta {{ color: var(--muted); font-size:.94rem; line-height:1.42; margin:.45rem 0; }}
-@media (max-width: 760px) {{
-  html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{ overflow-x: hidden !important; width: 100vw !important; }}
-  .block-container, .main .block-container {{ padding-left: .85rem !important; padding-right: .85rem !important; max-width: 100vw !important; }}
-  .hero h1 {{ font-size: clamp(3rem, 18vw, 4.6rem) !important; overflow-wrap: normal; }}
-  .lead, .sublead {{ max-width: 100% !important; }}
-  .focus-block-shell {{ padding: .85rem; margin: .75rem 0 1rem; border-radius: 1rem; }}
-  .focus-block-card, .support-card {{ padding: .85rem; border-radius:.9rem; }}
-  .focus-block-card h3, .support-card h3 {{ font-size: clamp(1.25rem, 7vw, 1.75rem) !important; line-height: 1.12; }}
-  .support-block-group {{ margin-left: .55rem; padding-left: .7rem; }}
-  .project-card-meta {{ font-size:.9rem; }}
-  .stDataFrame, [data-testid="stDataFrame"], div[data-testid="stTable"] {{ max-width: 100% !important; overflow-x: auto !important; }}
-}}
 
-
-
-/* v0.7.4 responsive containment + focus hierarchy final overrides */
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
-  max-width: 100vw !important;
-  overflow-x: hidden !important;
-}}
-.block-container, .main .block-container {{
-  width: 100% !important;
-  max-width: min(1280px, calc(100vw - 2rem)) !important;
-  overflow-x: hidden !important;
-}}
-.element-container, [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"], div[data-testid="column"] {{
-  max-width: 100% !important;
-  min-width: 0 !important;
-}}
-.card, .pillar-card, .step-card, .focus-block-shell, .focus-block-card, .support-card, .project-select-card, .metric-tile, .attention-card, .money-summary-card, .seasonal-banner, .download-panel, .setup-shell, .pathmark-card, .workspace-card {{
-  max-width: 100% !important;
-  overflow-wrap: anywhere !important;
-  word-break: normal !important;
-}}
-.step-card *, .focus-block-shell *, .focus-block-card *, .support-card *, .project-select-card *, .project-card-meta, .item-status-row, .status-chip {{
-  max-width: 100% !important;
-  overflow-wrap: anywhere !important;
-  white-space: normal !important;
-}}
-.focus-block-shell {{
-  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line)) !important;
-  border-left: 5px solid color-mix(in srgb, var(--accent) 62%, var(--line)) !important;
-  border-radius: 1.18rem !important;
-  background: color-mix(in srgb, var(--surface) 94%, var(--accent-soft) 6%) !important;
-  padding: 1rem !important;
-  margin: 1rem 0 1.25rem !important;
-  overflow: hidden !important;
-}}
-.focus-block-shell .focus-block-card {{
-  margin: 0 0 .8rem 0 !important;
-  border-radius: 1rem !important;
-  background: var(--surface) !important;
-  box-shadow: none !important;
-}}
-.support-block-group {{
-  margin: .45rem 0 0 1.45rem !important;
-  padding: .15rem 0 .05rem 1rem !important;
-  border-left: 3px solid color-mix(in srgb, var(--accent) 42%, var(--line)) !important;
-  background: transparent !important;
-}}
-.support-block-group .support-card {{
-  margin: .65rem 0 0 0 !important;
-  border-radius: .95rem !important;
-  background: var(--surface-2) !important;
-  border-left: 4px solid color-mix(in srgb, var(--muted) 40%, var(--line)) !important;
-  box-shadow: none !important;
-}}
-.support-block-empty {{
-  color: var(--muted);
-  font-size: .92rem;
-  padding: .45rem .2rem;
-}}
-@media (max-width: 760px) {{
-  .block-container, .main .block-container {{
-    max-width: 100vw !important;
-    padding-left: .85rem !important;
-    padding-right: .85rem !important;
-  }}
-  .support-block-group {{
-    margin-left: .55rem !important;
-    padding-left: .7rem !important;
-  }}
-  .focus-block-shell {{
-    padding: .85rem !important;
-    border-radius: 1rem !important;
-  }}
-  .focus-block-card h3, .support-card h3 {{
-    font-size: clamp(1.25rem, 7vw, 1.75rem) !important;
-    line-height: 1.12 !important;
-  }}
-  .status-chip {{
-    max-width: 100% !important;
-    white-space: normal !important;
-  }}
-}}
-
-
-
-/* v0.7.6 polished focus hierarchy and mobile containment */
+/* Polished focus hierarchy */
 .focus-block-card, .support-card {{
   overflow: hidden !important;
 }}
@@ -992,98 +797,11 @@ html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewC
   word-break: normal !important;
   white-space: normal !important;
 }}
-@media (max-width: 760px) {{
-  .block-container, .main .block-container {{
-    max-width: 100vw !important;
-    overflow-x: hidden !important;
-  }}
-  .focus-block-card, .support-card {{
-    padding: .82rem !important;
-  }}
-  .support-nesting-rail {{
-    border-left-width: 2px;
-  }}
-}}
+/* Phone-specific Pathmark CSS removed in v0.7.16; Streamlit now controls browser responsiveness. */
 
 
 
 
-/* v0.7.15 desktop-site parity on phone browsers
-   Pathmark no longer presents a separate phone-app experience. A viewport
-   script above asks mobile browsers to use the same wide desktop canvas that
-   Chrome/Samsung Internet use when Desktop site is enabled. */
-@media (max-width: 760px) {{
-  html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
-    width: auto !important;
-    min-width: 1180px !important;
-    max-width: none !important;
-    overflow-x: auto !important;
-  }}
-  .block-container, .main .block-container {{
-    width: 1180px !important;
-    min-width: 1180px !important;
-    max-width: 1180px !important;
-    padding-left: 2.25rem !important;
-    padding-right: 2.25rem !important;
-    padding-top: 2.25rem !important;
-    overflow-x: visible !important;
-  }}
-  [data-testid="stHorizontalBlock"] {{
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }}
-  div[data-testid="column"] {{
-    flex: 1 1 0 !important;
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }}
-  .hero h1 {{
-    font-size: clamp(3.7rem, 8.2vw, 7.2rem) !important;
-    line-height: .84 !important;
-    overflow-wrap: normal !important;
-    white-space: normal !important;
-  }}
-  .lead {{
-    font-size: clamp(1.28rem, 2.4vw, 1.9rem) !important;
-    max-width: 920px !important;
-  }}
-  .sublead {{
-    font-size: 1.12rem !important;
-    max-width: 850px !important;
-  }}
-  .grid-3 {{
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }}
-  .grid-2, .meta-grid {{
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }}
-  .pillar-grid, .metric-strip {{
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }}
-  .seasonal-banner {{
-    min-height: 156px !important;
-    border-radius: 1.25rem !important;
-  }}
-  .seasonal-banner-compact {{
-    min-height: 58px !important;
-  }}
-  .focus-block-shell {{
-    padding: 1rem !important;
-    border-radius: 1.18rem !important;
-  }}
-  .focus-block-card, .support-card {{
-    padding: 1rem !important;
-    border-radius: 1rem !important;
-  }}
-  .support-block-group {{
-    margin-left: 1.45rem !important;
-    padding-left: 1rem !important;
-  }}
-}}
 
 </style>
 """
@@ -9355,12 +9073,12 @@ def render_online_settings(sheet_id: str) -> None:
 
 
 def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", notes: str = "", theme_name: str | None = None) -> bytes:
-    """Build a sleek Pathmark tasklist PDF using the selected Pathmark theme.
+    """Build a clean Pathmark paper tasklist PDF.
 
-    The PDF is intentionally not a data table or a card export. It follows the
-    cleaner desktop paper checklist style: brand/header, thin accent rule,
-    section headings, parent context labels, checkbox-led rows, fine dividers,
-    and genuinely indented child/support checklist rows.
+    This export follows the earlier desktop paper-list style rather than a
+    table, card export, or report. It keeps the hierarchy simple: section,
+    parent container, checklist item, then an indented child checklist item for
+    support blocks. The selected Pathmark accent is used sparingly.
     """
     try:
         from reportlab.lib.pagesizes import A4
@@ -9388,30 +9106,29 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         if not text:
             return []
         lines: list[str] = []
-        for para in text.split("\n"):
-            words = para.split()
-            current = ""
-            for word in words:
-                candidate = f"{current} {word}".strip()
-                if stringWidth(candidate, font_name, font_size) <= max_width:
-                    current = candidate
-                    continue
-                if current:
-                    lines.append(current)
-                if stringWidth(word, font_name, font_size) <= max_width:
-                    current = word
-                else:
-                    chunk = ""
-                    for ch in word:
-                        if stringWidth(chunk + ch, font_name, font_size) <= max_width:
-                            chunk += ch
-                        else:
-                            if chunk:
-                                lines.append(chunk)
-                            chunk = ch
-                    current = chunk
+        words = text.split()
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if stringWidth(candidate, font_name, font_size) <= max_width:
+                current = candidate
+                continue
             if current:
                 lines.append(current)
+            if stringWidth(word, font_name, font_size) <= max_width:
+                current = word
+            else:
+                chunk = ""
+                for ch in word:
+                    if stringWidth(chunk + ch, font_name, font_size) <= max_width:
+                        chunk += ch
+                    else:
+                        if chunk:
+                            lines.append(chunk)
+                        chunk = ch
+                current = chunk
+        if current:
+            lines.append(current)
         return lines
 
     def theme_hex(default: str = "#2B7A69") -> str:
@@ -9423,43 +9140,6 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         except Exception:
             pass
         return default
-
-    def lighten(hex_color: str, amount: float = 0.88) -> str:
-        hex_color = hex_color.lstrip("#")
-        try:
-            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-            r = int(r + (255 - r) * amount)
-            g = int(g + (255 - g) * amount)
-            b = int(b + (255 - b) * amount)
-            return f"#{r:02X}{g:02X}{b:02X}"
-        except Exception:
-            return "#E8ECE8"
-
-    def row_notes(row: pd.Series | dict[str, Any]) -> str:
-        # The parent container is already shown above each group, so avoid
-        # repeating it in every task row. Keep the printable list focused.
-        scheduled = _tasklist_human_date(row.get("scheduled_date", ""))
-        due = _tasklist_human_date(row.get("due_date", ""))
-        start_time = clean_text(row.get("calendar_start_time", ""))
-        end_time = clean_text(row.get("calendar_end_time", ""))
-        end_date = _tasklist_human_date(row.get("calendar_end_date", ""))
-        duration = _tasklist_duration_label(row.get("estimated_minutes", ""))
-        support = clean_text(row.get("parent_progress_title", "")) if _tasklist_is_supporting_row(row) else ""
-        bits: list[str] = []
-        if support:
-            bits.append(f"Supports {support}")
-        if scheduled:
-            bits.append(f"Scheduled {scheduled}")
-        if due and due != scheduled:
-            bits.append(f"Due {due}")
-        if start_time and end_time:
-            finish = end_time if not end_date or end_date == scheduled else f"{end_date} {end_time}"
-            bits.append(f"{start_time}–{finish}")
-        elif duration:
-            bits.append(duration)
-        if duration and start_time and end_time:
-            bits.append(duration)
-        return " · ".join([b for b in bits if b])
 
     def source_heading(source_type: str) -> str:
         return "Project work" if source_type == "Goal action" else "Routine activities"
@@ -9474,21 +9154,44 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         area = clean_text(row.get("area_name", ""))
         return parent or area
 
+    def date_time_summary(row: pd.Series | dict[str, Any]) -> str:
+        scheduled = _tasklist_human_date(row.get("scheduled_date", ""))
+        due = _tasklist_human_date(row.get("due_date", ""))
+        start_time = clean_text(row.get("calendar_start_time", ""))
+        end_time = clean_text(row.get("calendar_end_time", ""))
+        end_date = _tasklist_human_date(row.get("calendar_end_date", ""))
+        duration = _tasklist_duration_label(row.get("estimated_minutes", ""))
+        bits: list[str] = []
+        if scheduled:
+            bits.append(scheduled)
+        if due and due != scheduled:
+            bits.append(f"due {due}")
+        if start_time and end_time:
+            if end_date and scheduled and end_date != scheduled:
+                bits.append(f"{start_time}–{end_date} {end_time}")
+            else:
+                bits.append(f"{start_time}–{end_time}")
+        elif start_time:
+            bits.append(start_time)
+        if duration and duration.lower() not in {"0 min", "0 mins"}:
+            if not (start_time and end_time and duration.lower() in {"all day"}):
+                bits.append(duration)
+        return " · ".join([b for b in bits if b])
+
     buffer = io.BytesIO()
     page_w, page_h = A4
     c = canvas.Canvas(buffer, pagesize=A4)
 
     margin_x = 18 * mm
-    top_margin = 17 * mm
+    top_margin = 18 * mm
     bottom_margin = 16 * mm
     content_w = page_w - (2 * margin_x)
 
     accent_hex = theme_hex()
     ink = colors.HexColor("#202423")
     muted = colors.HexColor("#626A67")
-    faint = colors.HexColor("#EEF1EF")
+    faint = colors.HexColor("#E8ECEA")
     accent = colors.HexColor(accent_hex)
-    accent_soft = colors.HexColor(lighten(accent_hex, 0.86))
 
     y = page_h - top_margin
 
@@ -9496,18 +9199,18 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
         nonlocal y
         c.showPage()
         y = page_h - top_margin
-        draw_page_header(continued=True)
+        draw_header(continued=True)
 
     def ensure_space(required: float) -> None:
         if y - required < bottom_margin:
             new_page()
 
-    def checkbox(x: float, y_mid: float, size: float = 8.3) -> None:
+    def checkbox(x: float, y_mid: float, size: float = 8.0) -> None:
         c.setStrokeColor(accent)
-        c.setLineWidth(1.0)
+        c.setLineWidth(0.9)
         c.rect(x, y_mid - size / 2, size, size, stroke=1, fill=0)
 
-    def draw_page_header(continued: bool = False) -> None:
+    def draw_header(continued: bool = False) -> None:
         nonlocal y
         cleaned_title = clean_text(title or "Weekly Tasklist")
         cleaned_title = re.sub(r"^pathmark\s*[·:-]?\s*", "", cleaned_title, flags=re.IGNORECASE).strip() or "Tasklist"
@@ -9515,98 +9218,82 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
             cleaned_title += " continued"
 
         c.setFillColor(ink)
-        c.setFont("Helvetica-Bold", 20)
+        c.setFont("Helvetica-Bold", 18)
         c.drawString(margin_x, y, "Pathmark")
-
         c.setFillColor(muted)
-        c.setFont("Helvetica", 9.5)
+        c.setFont("Helvetica", 9.2)
         c.drawRightString(page_w - margin_x, y - 1, datetime.now().strftime("Prepared %d %B %Y"))
         y -= 16
 
         c.setFillColor(ink)
-        c.setFont("Helvetica-Bold", 19 if not continued else 15)
+        c.setFont("Helvetica-Bold", 22 if not continued else 16)
         c.drawString(margin_x, y, cleaned_title)
         y -= 10
-
         c.setStrokeColor(accent)
-        c.setLineWidth(0.9)
+        c.setLineWidth(0.85)
         c.line(margin_x, y, page_w - margin_x, y)
-        y -= 18 if not continued else 14
+        y -= 17 if not continued else 13
 
-    def draw_section_heading(text: str) -> None:
+    def draw_section(text: str) -> None:
         nonlocal y
-        ensure_space(20)
+        ensure_space(18)
         c.setFillColor(accent)
-        c.setFont("Helvetica-Bold", 13.5)
+        c.setFont("Helvetica-Bold", 14)
         c.drawString(margin_x, y, clean_text(text))
-        y -= 12
+        y -= 11
 
-    def draw_parent_context(label: str) -> None:
+    def draw_parent(text: str) -> None:
         nonlocal y
-        label = clean_text(label)
-        if not label:
+        text = clean_text(text)
+        if not text:
             return
-        ensure_space(14)
+        ensure_space(12)
         c.setFillColor(muted)
-        c.setFont("Helvetica-Bold", 10.0)
-        c.drawString(margin_x, y, label)
-        y -= 8
+        c.setFont("Helvetica-Bold", 10.2)
+        c.drawString(margin_x, y, text)
+        y -= 5.5
 
     def draw_item(row: pd.Series | dict[str, Any], *, is_support: bool = False) -> None:
         nonlocal y
         title_text = clean_text(row.get("title", "") or row.get("display_title", "") or "Untitled")
-        note_text = row_notes(row)
+        time_text = date_time_summary(row)
 
-        check_x = margin_x + (22 * mm if is_support else 9 * mm)
-        text_x = check_x + 10 * mm
-        text_w = page_w - margin_x - text_x
+        check_x = margin_x + (18 * mm if is_support else 7 * mm)
+        text_x = check_x + 10.5 * mm
+        max_w = page_w - margin_x - text_x
         title_font = "Helvetica" if is_support else "Helvetica-Bold"
         title_size = 10.5 if is_support else 10.8
-        note_size = 8.7
+        note_size = 8.8
 
-        label_lines = ["Supporting time block"] if is_support else []
-        title_lines = wrap_text(title_text, title_font, title_size, text_w)
-        note_lines = wrap_text(note_text, "Helvetica", note_size, text_w)
-
-        row_h = 6 + (len(label_lines) * 8) + (max(1, len(title_lines)) * 11.5) + (len(note_lines) * 9.3) + 8
+        title_lines = wrap_text(title_text, title_font, title_size, max_w)
+        note_lines = wrap_text(time_text, "Helvetica", note_size, max_w)
+        row_h = 5 + max(1, len(title_lines)) * 10.8 + len(note_lines) * 8.8 + 7
         ensure_space(row_h)
 
-        top_y = y
-        if is_support:
-            rail_x = margin_x + 17 * mm
-            c.setStrokeColor(accent_soft)
-            c.setLineWidth(1.2)
-            c.line(rail_x, top_y + 4, rail_x, top_y - row_h + 6)
-            c.setFillColor(muted)
-            c.setFont("Helvetica", 7.8)
-            c.drawString(text_x, top_y - 1, "Supporting time block")
-            title_y = top_y - 10
-        else:
-            title_y = top_y - 1
-
+        title_y = y
         checkbox(check_x, title_y - 2.5)
         c.setFillColor(ink)
         c.setFont(title_font, title_size)
         text_y = title_y
         for line_text in title_lines or [title_text]:
             c.drawString(text_x, text_y, line_text)
-            text_y -= 11.5
+            text_y -= 10.8
 
         if note_lines:
             c.setFillColor(muted)
             c.setFont("Helvetica", note_size)
             for line_text in note_lines:
                 c.drawString(text_x, text_y, line_text)
-                text_y -= 9.3
+                text_y -= 8.8
 
-        y = text_y - 2
+        y = text_y - 2.5
         c.setStrokeColor(faint)
-        c.setLineWidth(0.45)
+        c.setLineWidth(0.35)
         c.line(text_x, y, page_w - margin_x, y)
-        y -= 7 if not is_support else 5
+        y -= 6
 
     try:
-        draw_page_header()
+        draw_header()
         if rows.empty:
             c.setFillColor(muted)
             c.setFont("Helvetica", 10)
@@ -9616,30 +9303,31 @@ def build_tasklist_pdf(rows: pd.DataFrame, title: str = "Pathmark Tasklist", not
                 subset = section_rows(source_type)
                 if subset.empty:
                     continue
-                draw_section_heading(source_heading(source_type))
+                draw_section(source_heading(source_type))
                 last_parent = "__never__"
                 for _, row in subset.iterrows():
                     row_parent = parent_label(row)
                     if row_parent != last_parent:
-                        draw_parent_context(row_parent)
+                        draw_parent(row_parent)
                         last_parent = row_parent
                     draw_item(row, is_support=_tasklist_is_supporting_row(row))
-                y -= 6
+                y -= 7
 
         if str(notes or "").strip():
-            draw_section_heading("Notes")
+            draw_section("Notes")
             c.setFillColor(ink)
             c.setFont("Helvetica", 9.3)
             for line_text in str(notes).strip().splitlines():
                 wrapped = wrap_text(line_text, "Helvetica", 9.3, content_w)
-                ensure_space(max(12, len(wrapped) * 11))
+                ensure_space(max(12, len(wrapped) * 10))
                 for wrapped_line in wrapped:
                     c.drawString(margin_x, y, wrapped_line)
-                    y -= 11
+                    y -= 10
         c.save()
         return buffer.getvalue()
     except Exception:
         return build_printable_tasklist_from_rows(rows)
+
 
 def parse_dt_for_ics(value: str) -> str:
     text = (value or "").strip()
@@ -11324,7 +11012,7 @@ def download_tab() -> None:
         st.download_button("Download Pathmark for Windows", data=windows_package.read_bytes(), file_name=windows_package.name, mime="application/zip", use_container_width=True, key="download_windows")
     else:
         st.error("The Windows package is missing from this release hub. Check that a file named Pathmark_Local_App_Windows_v*.zip exists in the downloads folder.")
-    st.caption("This release is Windows-only for desktop. Pathmark Online remains a browser app; phone-app/PWA shortcut support has been removed until it can be implemented cleanly.")
+    st.caption("This release is Windows-only for desktop. Pathmark Online remains a browser app and uses Streamlit's standard browser behaviour.")
     st.header("How the folders work")
     st.markdown("""
     <div class="grid-2">
@@ -11521,7 +11209,7 @@ def about_privacy_tab() -> None:
 
     st.subheader("Branding during Google sign-in")
     st.markdown("""
-    Pathmark now focuses on the hosted browser app and the Windows desktop app. Browser-tab branding is handled through Streamlit page configuration, while phone-app/PWA shortcut support has been removed until it can be implemented cleanly.
+    Pathmark now focuses on the hosted browser app and the Windows desktop app. Browser-tab branding is handled through Streamlit page configuration, and Pathmark Online uses Streamlit's standard browser behaviour.
 
     Google's own account chooser and consent screens are controlled by the Google Cloud OAuth configuration rather than by Streamlit code. To show the Pathmark logo there, the deployed Google Cloud project needs **Google Auth Platform → Branding** set to Pathmark with the Pathmark logo uploaded.
     """)
@@ -12956,6 +12644,342 @@ def export_recipe_to_project(sheet_id: str, recipe_row: dict[str, Any]) -> tuple
         update_online_record(sheet_id, "recipes", str(recipe_row.get("recipe_id", "")), {"exported_goal_id": goal_id, "exported_action_id": action_id})
     return ok, msg
 
+
+# ---- Developer-only OurGroceries import and grocery workflow helpers ----
+
+OUR_GROCERIES_UNITS = [
+    "kg", "g", "mg", "l", "L", "ml", "tsp", "tbsp", "cup", "cups", "pinch", "dash",
+    "bunch", "bunches", "bulb", "clove", "cloves", "tin", "tins", "can", "cans", "packet",
+    "pack", "slice", "slices", "sprig", "sprigs", "handful", "handfuls", "drop", "drops",
+    "egg", "eggs", "lemon", "lemons", "lime", "limes", "orange", "oranges", "apple", "apples",
+]
+
+
+def _fraction_to_float(value: str) -> float | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except Exception:
+        pass
+    try:
+        if " " in text:
+            whole, frac = text.split(" ", 1)
+            if "/" in frac:
+                n, d = frac.split("/", 1)
+                return float(whole) + float(n) / float(d)
+        if "/" in text:
+            n, d = text.split("/", 1)
+            return float(n) / float(d)
+    except Exception:
+        return None
+    return None
+
+
+def parse_ingredient_line(line: Any) -> dict[str, str]:
+    """Parse a loose ingredient line into quantity, unit and ingredient.
+
+    This deliberately stays conservative; the original line is kept in notes so
+    unusual recipe wording is not lost.
+    """
+    original = str(line or "").strip()
+    text = re.sub(r"\s+", " ", original)
+    if not text:
+        return {"quantity": "", "unit": "", "ingredient": "", "original": ""}
+    quantity = ""
+    unit = ""
+    ingredient = text
+    unit_pattern = "|".join(sorted([re.escape(u) for u in OUR_GROCERIES_UNITS], key=len, reverse=True))
+    # Handles: 250g ricotta, 250 g ricotta, 1 1/2 tbsp oil, 1/2 cucumber.
+    m = re.match(rf"^(?P<qty>\d+\s+\d+/\d+|\d+/\d+|\d+\s*-\s*\d+|\d+(?:\.\d+)?)\s*(?P<unit>{unit_pattern})?\b\s*(?P<rest>.*)$", text, flags=re.IGNORECASE)
+    if m:
+        quantity = m.group("qty").replace(" ", " ").strip()
+        unit = (m.group("unit") or "").strip()
+        ingredient = (m.group("rest") or "").strip()
+        if not ingredient and unit:
+            ingredient = unit
+            unit = ""
+    else:
+        # Handles: a small bunch of coriander, handful of olives, pinch salt.
+        m2 = re.match(r"^(?:a|an|about|scant|heaped)?\s*(?:small|large|good)?\s*(?P<unit>bunch|handful|pinch|dash|sprig|swig|few sprigs)\s+(?:of\s+)?(?P<rest>.+)$", text, flags=re.IGNORECASE)
+        if m2:
+            quantity = "1"
+            unit = m2.group("unit").strip()
+            ingredient = m2.group("rest").strip()
+    ingredient = re.sub(r"^(?:of|a|an)\s+", "", ingredient, flags=re.IGNORECASE).strip()
+    return {"quantity": quantity, "unit": unit.lower(), "ingredient": ingredient or text, "original": original}
+
+
+def _normalise_ingredient_name(value: Any) -> str:
+    text = str(value or "").replace(".", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text[:1].upper() + text[1:] if text else ""
+
+
+def _category_order_map(sheet_id: str) -> dict[str, int]:
+    cats = active_online_df(read_online_table(sheet_id, "grocery_categories"))
+    order = {name: i for i, name in enumerate(GROCERY_CATEGORIES)}
+    if not cats.empty:
+        for i, row in cats.iterrows():
+            name = str(row.get("category_name", "") or "").strip()
+            if not name:
+                continue
+            try:
+                sort_val = int(float(row.get("sort_order", "") or i + 1))
+            except Exception:
+                sort_val = i + 1
+            order[name] = sort_val
+    return order
+
+
+def ensure_grocery_categories_from_names(sheet_id: str, names: list[str]) -> None:
+    existing = active_online_df(read_online_table(sheet_id, "grocery_categories"))
+    existing_names = {str(x).strip().lower() for x in existing.get("category_name", pd.Series(dtype=str)).tolist() if str(x).strip()}
+    records = []
+    next_sort = len(existing_names) + 1
+    for name in names:
+        clean = str(name or "").strip()
+        if not clean or clean.lower() in existing_names:
+            continue
+        records.append({
+            "category_id": f"grocery-category-{uuid.uuid4().hex[:12]}",
+            "category_name": clean,
+            "description": "Imported supermarket aisle/category.",
+            "colour": "#334E9E",
+            "sort_order": str(next_sort),
+            "status": "active",
+            "source": "OurGroceries import",
+        })
+        existing_names.add(clean.lower())
+        next_sort += 1
+    if records:
+        append_many_online_records(sheet_id, {"grocery_categories": records})
+
+
+def build_ourgroceries_import_records(payload: dict[str, Any], *, import_limit: int | None = None) -> dict[str, list[dict[str, Any]]]:
+    records: dict[str, list[dict[str, Any]]] = {"recipes": [], "recipe_ingredients": [], "grocery_inventory": [], "grocery_categories": []}
+    category_names = []
+    for c in (payload.get("categories", {}) or {}).get("items", []) or []:
+        name = str((c or {}).get("name", "") or "").strip()
+        if name:
+            category_names.append(name)
+    for idx, name in enumerate(category_names, start=1):
+        records["grocery_categories"].append({
+            "category_id": f"grocery-category-{uuid.uuid4().hex[:12]}",
+            "category_name": name,
+            "description": "Imported supermarket aisle/category from OurGroceries.",
+            "colour": "#334E9E",
+            "sort_order": str(idx),
+            "status": "active",
+            "source": "OurGroceries import",
+        })
+    seen_inventory: set[str] = set()
+    recipes = payload.get("recipes", []) or []
+    if import_limit:
+        recipes = recipes[:int(import_limit)]
+    for recipe in recipes:
+        recipe_name = str((recipe or {}).get("name", "") or "").strip()
+        if not recipe_name:
+            continue
+        recipe_id = f"recipe-{uuid.uuid4().hex[:12]}"
+        notes = str((recipe or {}).get("notes", "") or "").strip()
+        records["recipes"].append({
+            "recipe_id": recipe_id,
+            "recipe_name": recipe_name,
+            "category_name": "",
+            "course": "",
+            "notes": notes,
+            "status": "active",
+            "source": "OurGroceries import",
+        })
+        for item in (recipe or {}).get("items", []) or []:
+            raw_name = str((item or {}).get("name", "") or "").strip()
+            if not raw_name:
+                continue
+            parsed = parse_ingredient_line(raw_name)
+            ingredient = _normalise_ingredient_name(parsed.get("ingredient", ""))
+            category = str((item or {}).get("category", "") or "").strip() or _grocery_category_for_item(ingredient)
+            inventory_id = ""
+            inv_key = _normalise_food_key(ingredient)
+            if inv_key and inv_key not in seen_inventory:
+                inventory_id = f"inventory-{uuid.uuid4().hex[:12]}"
+                seen_inventory.add(inv_key)
+                records["grocery_inventory"].append({
+                    "inventory_id": inventory_id,
+                    "category_name": category,
+                    "item": ingredient,
+                    "quantity": "",
+                    "unit": parsed.get("unit", ""),
+                    "expiry_date": "",
+                    "storage": "",
+                    "notes": f"Imported from recipe ingredient: {parsed.get('original', raw_name)}",
+                    "status": "active",
+                    "source": "OurGroceries import",
+                })
+            records["recipe_ingredients"].append({
+                "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
+                "recipe_id": recipe_id,
+                "recipe_name": recipe_name,
+                "inventory_id": inventory_id,
+                "ingredient": ingredient,
+                "quantity": parsed.get("quantity", ""),
+                "unit": parsed.get("unit", ""),
+                "category_name": category,
+                "is_fresh_produce": _grocery_bool_text(category in {"Produce", "Fruits & Vegetables"}),
+                "lookup_seasonality": "Yes",
+                "notes": parsed.get("original", raw_name),
+                "status": "active",
+                "source": "OurGroceries import",
+            })
+    return records
+
+
+def import_ourgroceries_json_to_pathmark(sheet_id: str, payload: dict[str, Any], *, mode: str = "merge", import_limit: int | None = None) -> tuple[bool, str]:
+    if not isinstance(payload, dict):
+        return False, "The uploaded file was not a valid OurGroceries JSON export."
+    if "recipes" not in payload and "shopping_lists" not in payload:
+        return False, "This does not look like an OurGroceries Lists.json export."
+    records = build_ourgroceries_import_records(payload, import_limit=import_limit)
+    if mode == "clean":
+        # Developer-only destructive import: archive existing recipe/inventory/shopping data by clearing active sheets.
+        # Kept simple so this import tool can be removed before public release.
+        service = sheets_service()
+        if service is not None:
+            for table in ["recipes", "recipe_ingredients", "grocery_inventory", "grocery_categories"]:
+                header = online_sheet_header(service, sheet_id, table) or ONLINE_TABLES.get(table, [])
+                service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{table}!A2:{sheet_col_letter(len(header))}").execute()
+    ok, msg = append_many_online_records(sheet_id, {k: v for k, v in records.items() if v})
+    if ok:
+        return True, f"Imported {len(records.get('recipes', []))} recipes, {len(records.get('recipe_ingredients', []))} recipe ingredients, and {len(records.get('grocery_inventory', []))} ingredient validation rows from OurGroceries."
+    return ok, msg
+
+
+def render_developer_ourgroceries_import_tab(sheet_id: str) -> None:
+    st.subheader("Developer: OurGroceries import")
+    st.caption("Temporary developer-only importer for OurGroceries Lists.json exports. This should be removed before the public/final Nutrition release.")
+    uploaded = st.file_uploader("Upload OurGroceries Lists.json", type=["json"], key="ourgroceries_json_upload")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        mode_label = st.radio("Import mode", ["Merge into current Nutrition data", "Clean import recipes/ingredients/categories"], key="ourgroceries_import_mode")
+    with c2:
+        limit_import = st.number_input("Recipe import limit for testing", min_value=0, max_value=1000, value=0, step=10, help="Use 0 to import all recipes.")
+    if uploaded is not None:
+        try:
+            payload = json.loads(uploaded.getvalue().decode("utf-8"))
+            recipe_count = len(payload.get("recipes", []) or [])
+            cat_count = len((payload.get("categories", {}) or {}).get("items", []) or [])
+            st.info(f"Detected {recipe_count} recipes and {cat_count} supermarket categories/aisles.")
+            preview_records = build_ourgroceries_import_records(payload, import_limit=int(limit_import) or None)
+            sample = pd.DataFrame(preview_records.get("recipe_ingredients", [])[:20])
+            if not sample.empty:
+                cols = [c for c in ["recipe_name", "quantity", "unit", "ingredient", "category_name", "notes"] if c in sample.columns]
+                st.dataframe(sample[cols], use_container_width=True, hide_index=True)
+            confirm = st.checkbox("I understand this is a developer-only import and should not ship in the final public version.", key="confirm_ourgroceries_import")
+            if st.button("Import OurGroceries recipes", use_container_width=True, disabled=not confirm):
+                ok, msg = import_ourgroceries_json_to_pathmark(sheet_id, payload, mode="clean" if mode_label.startswith("Clean") else "merge", import_limit=int(limit_import) or None)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
+        except Exception as exc:
+            st.warning(f"Pathmark could not read that OurGroceries JSON file: {exc}")
+
+
+def create_pantry_expiry_google_task(ingredient: str, expiry_date: Any) -> tuple[bool, str, str, str]:
+    due = _normalise_google_task_due(expiry_date)
+    if not due:
+        return False, "", "", "Enter an expiry date first."
+    ok, list_id, msg = get_or_create_google_task_list("Pathmark")
+    if not ok or not list_id:
+        return False, "", "", msg
+    service = tasks_service()
+    if service is None:
+        return False, "", "", "Google Tasks access is not available for this session."
+    title = f"Remove {ingredient} from pantry"
+    try:
+        task = service.tasks().insert(tasklist=list_id, body={"title": title, "notes": "Created from Pathmark Nutrition inventory expiry.", "due": due}).execute()
+        return True, list_id, str(task.get("id", "") or ""), "Created Google Task reminder."
+    except Exception as exc:
+        return False, "", "", f"Could not create the Google Task reminder: {exc}"
+
+
+def render_ingredients_validation_tab(sheet_id: str) -> None:
+    st.subheader("Ingredients")
+    st.caption("Ingredient names and units used by recipes. This helps keep new recipe entry consistent, a bit like a materials list.")
+    inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
+    recipe_ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    rows = []
+    if not inventory.empty:
+        for _, row in inventory.iterrows():
+            rows.append({"ingredient": row.get("item", ""), "unit": row.get("unit", ""), "category_name": row.get("category_name", ""), "source": "Inventory"})
+    if not recipe_ingredients.empty:
+        for _, row in recipe_ingredients.iterrows():
+            rows.append({"ingredient": row.get("ingredient", ""), "unit": row.get("unit", ""), "category_name": row.get("category_name", ""), "source": "Recipe"})
+    df = pd.DataFrame(rows)
+    if df.empty:
+        st.info("No ingredient validation rows yet. Add recipe ingredients or import recipes.")
+    else:
+        df["ingredient_key"] = df["ingredient"].map(_normalise_food_key)
+        grouped = df.groupby("ingredient_key", as_index=False).agg({
+            "ingredient": "first",
+            "unit": lambda s: ", ".join(sorted({str(x).strip() for x in s if str(x).strip()})),
+            "category_name": lambda s: next((str(x).strip() for x in s if str(x).strip()), ""),
+            "source": lambda s: ", ".join(sorted({str(x).strip() for x in s if str(x).strip()})),
+        })
+        search = st.text_input("Search ingredients", key="ingredient_validation_search")
+        if search.strip():
+            grouped = grouped[grouped.apply(lambda r: search.strip().lower() in " ".join(str(v).lower() for v in r.values), axis=1)]
+        st.dataframe(grouped[["ingredient", "unit", "category_name", "source"]].sort_values(["category_name", "ingredient"]), use_container_width=True, hide_index=True, height=420)
+
+
+def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list: str, items: pd.DataFrame) -> None:
+    if items.empty:
+        st.info("No items in this list yet.")
+        return
+    order = _category_order_map(sheet_id)
+    view = items.copy()
+    view["_checked_bool"] = view.get("checked", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"yes", "true", "1", "checked", "done"})
+    view["_category_order"] = view.get("category_name", pd.Series(dtype=str)).map(lambda x: order.get(str(x), 9999))
+    view["_ingredient_sort"] = view.get("ingredient", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
+    for completed, label in [(False, "To buy"), (True, "Completed")]:
+        subset = view[view["_checked_bool"].eq(completed)].sort_values(["_category_order", "category_name", "_ingredient_sort"])
+        if subset.empty:
+            continue
+        st.markdown(f"#### {label}")
+        for category, group in subset.groupby("category_name", dropna=False, sort=False):
+            cat = str(category or "Uncategorised").strip() or "Uncategorised"
+            st.markdown(f"**{cat}**")
+            for _, row in group.iterrows():
+                item_id = str(row.get("shopping_item_id", "") or "").strip()
+                qty = str(row.get("quantity", "") or "").strip()
+                unit = str(row.get("unit", "") or "").strip()
+                ingredient = str(row.get("ingredient", "") or "").strip()
+                recipe_name = str(row.get("recipe_name", "") or "").strip()
+                expiry = str(row.get("expiry_date", "") or "").strip()
+                title = " ".join([x for x in [qty, unit, ingredient] if x]).strip() or ingredient
+                meta = []
+                if recipe_name:
+                    meta.append(recipe_name)
+                if expiry:
+                    meta.append(f"Expiry: {expiry}")
+                c1, c2, c3 = st.columns([0.08, 0.72, 0.20])
+                with c1:
+                    if st.button("↩" if completed else "✓", key=f"toggle_shop_{item_id}", help="Move back to To buy" if completed else "Mark as bought"):
+                        update_online_record(sheet_id, "shopping_items", item_id, {"checked": "" if completed else "Yes"})
+                        st.rerun()
+                with c2:
+                    st.markdown(f"**{html.escape(title)}**", unsafe_allow_html=True)
+                    if meta:
+                        st.caption(" · ".join(meta))
+                with c3:
+                    if not completed and st.button("Expiry", key=f"expiry_select_{item_id}"):
+                        st.session_state["shopping_expiry_item_id"] = item_id
+                        st.rerun()
+            st.divider()
+
+
 def render_grocery_categories_tab(sheet_id: str) -> None:
     st.subheader("Grocery categories")
     st.caption("These work like Areas for shopping lists. Items can be grouped under supermarket-style sections.")
@@ -13281,6 +13305,44 @@ def render_recipes_tab(sheet_id: str) -> None:
     recipe_row = recipes[recipes["recipe_name"].fillna("").eq(selected_recipe)].iloc[0].to_dict()
     recipe_id = str(recipe_row.get("recipe_id", "") or "")
     servings_val = _amount_from_text(recipe_row.get("servings", "")) or 1.0
+    with st.expander("Quick add ingredients", expanded=False):
+        st.caption("Enter one ingredient per line as quantity, unit, ingredient — for example: 1 bunch Cavolo Nero. Pathmark keeps the original line in notes for checking.")
+        bulk_text = st.text_area("Ingredient lines", placeholder="1 bunch Cavolo Nero\n250 g buffalo mozzarella\n2 tbsp olive oil", key=f"bulk_recipe_ingredients_{recipe_id}")
+        default_category = st.selectbox("Fallback category", categories, key=f"bulk_recipe_category_{recipe_id}")
+        if st.button("Add ingredient lines to recipe", use_container_width=True, key=f"bulk_add_recipe_ingredients_{recipe_id}"):
+            records = []
+            for line in bulk_text.splitlines():
+                parsed = parse_ingredient_line(line)
+                ingredient_name = _normalise_ingredient_name(parsed.get("ingredient", ""))
+                if not ingredient_name:
+                    continue
+                category_guess = _grocery_category_for_item(ingredient_name) or default_category
+                inv_id = _add_inventory_item_if_needed(sheet_id, ingredient_name, category_guess, unit=parsed.get("unit", ""), notes="Added from recipe quick entry.")
+                records.append({
+                    "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
+                    "recipe_id": recipe_id,
+                    "recipe_name": selected_recipe,
+                    "inventory_id": inv_id,
+                    "ingredient": ingredient_name,
+                    "quantity": parsed.get("quantity", ""),
+                    "unit": parsed.get("unit", ""),
+                    "category_name": category_guess,
+                    "is_fresh_produce": _grocery_bool_text(category_guess in {"Produce", "Fruits & Vegetables"}),
+                    "lookup_seasonality": "Yes",
+                    "notes": parsed.get("original", line),
+                    "status": "active",
+                    "source": "Meal Plan quick ingredient entry",
+                })
+            if not records:
+                st.warning("Enter at least one ingredient line.")
+            else:
+                ok, msg = append_many_online_records(sheet_id, {"recipe_ingredients": records})
+                if ok:
+                    st.success(f"Added {len(records)} ingredient line(s).")
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
+
     st.markdown("#### Recipe ingredients, nutrition and cost")
     detail_df, total_kcal, total_cost, missing = recipe_nutrition_summary(sheet_id, recipe_id, servings_val)
     if detail_df.empty:
@@ -13378,7 +13440,7 @@ def render_recipes_tab(sheet_id: str) -> None:
 
 def render_shopping_lists_tab(sheet_id: str) -> None:
     st.subheader("Shopping lists")
-    st.caption("Create shopping lists using quantity, unit and ingredient, grouped by grocery category.")
+    st.caption("Create supermarket-aisle shopping lists from recipes or individual ingredients. Bought items move to a completed section at the bottom and can be brought back with one click.")
     categories = grocery_category_options(sheet_id)
     lists = active_online_df(read_online_table(sheet_id, "shopping_lists"))
     items = active_online_df(read_online_table(sheet_id, "shopping_items"))
@@ -13416,11 +13478,42 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
     list_row = lists[lists["list_name"].fillna("").eq(selected_list)].iloc[0].to_dict()
     list_id = str(list_row.get("shopping_list_id", ""))
     this_items = _shopping_items_for_list(sheet_id, list_id)
-    if not this_items.empty:
-        grouped_cols = [c for c in ["checked", "category_name", "quantity", "unit", "ingredient", "recipe_name", "notes"] if c in this_items.columns]
-        st.dataframe(this_items.sort_values(["category_name", "ingredient"])[grouped_cols], use_container_width=True, hide_index=True)
-    else:
-        st.info("No items in this list yet.")
+    render_shopping_items_as_planner(sheet_id, list_id, selected_list, this_items)
+
+    selected_expiry_item_id = str(st.session_state.get("shopping_expiry_item_id", "") or "").strip()
+    if selected_expiry_item_id and not this_items.empty:
+        selected_row_df = this_items[this_items.get("shopping_item_id", pd.Series(dtype=str)).fillna("").eq(selected_expiry_item_id)]
+        if not selected_row_df.empty:
+            row = selected_row_df.iloc[0].to_dict()
+            ingredient = str(row.get("ingredient", "") or "").strip()
+            with st.expander(f"Purchase details: {ingredient}", expanded=True):
+                st.caption("Add an expiry date when you put this item into stock. Pathmark can also create a Google Task reminding you to remove it from the pantry/fridge.")
+                c1, c2, c3 = st.columns([1, 1, 1])
+                with c1:
+                    bought_qty = st.text_input("Stock quantity", value=str(row.get("quantity", "") or ""), key=f"stock_qty_{selected_expiry_item_id}")
+                with c2:
+                    bought_unit = st.text_input("Stock unit", value=str(row.get("unit", "") or ""), key=f"stock_unit_{selected_expiry_item_id}")
+                with c3:
+                    expiry_date = st.date_input("Expiry/remove-by date", value=None, key=f"stock_expiry_{selected_expiry_item_id}")
+                create_task = st.checkbox("Create Google Task to remove this item from stock", value=False, key=f"stock_expiry_task_{selected_expiry_item_id}")
+                if st.button("Save purchase details", use_container_width=True, key=f"save_stock_{selected_expiry_item_id}"):
+                    category = str(row.get("category_name", "") or _grocery_category_for_item(ingredient))
+                    inv_id = _add_inventory_item_if_needed(sheet_id, ingredient, category, unit=bought_unit, notes="Added from shopping list purchase.")
+                    if inv_id:
+                        update_online_record(sheet_id, "grocery_inventory", inv_id, {"quantity": bought_qty, "unit": bought_unit, "expiry_date": str(expiry_date or ""), "source": "Shopping list purchase"})
+                    updates = {"checked": "Yes", "expiry_date": str(expiry_date or "")}
+                    if create_task and expiry_date:
+                        ok_task, list_task_id, task_id, task_msg = create_pantry_expiry_google_task(ingredient, expiry_date)
+                        if ok_task:
+                            updates.update({"pantry_task_list_id": list_task_id, "pantry_task_id": task_id, "pantry_task_due": str(expiry_date)})
+                            st.success(task_msg)
+                        else:
+                            st.warning(safe_user_message(task_msg))
+                    update_online_record(sheet_id, "shopping_items", selected_expiry_item_id, updates)
+                    st.session_state.pop("shopping_expiry_item_id", None)
+                    st.success("Purchase details saved.")
+                    st.rerun()
+
     inv_options = grocery_inventory_options(sheet_id)
     with st.form("add_shopping_item_form"):
         st.markdown("#### Add item")
@@ -13436,8 +13529,12 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
             if ingredient_choice == "+ Add new ingredient":
                 new_item = st.text_input("New ingredient")
         category = st.selectbox("Category", categories, key="shopping_item_category")
-        notes = st.text_input("Notes")
-        add_to_inventory = st.checkbox("Add new ingredient to inventory", value=True)
+        c4, c5 = st.columns([1, 2])
+        with c4:
+            expiry_date = st.date_input("Expiry date after purchase", value=None, key="shopping_item_expiry")
+        with c5:
+            notes = st.text_input("Notes")
+        add_to_inventory = st.checkbox("Add new ingredient to ingredients/inventory", value=True)
         save_item = st.form_submit_button("Add item to shopping list", use_container_width=True)
     if save_item:
         ingredient = new_item.strip() if ingredient_choice == "+ Add new ingredient" else ingredient_choice
@@ -13459,6 +13556,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                 "recipe_id": "",
                 "recipe_name": "",
                 "checked": "",
+                "expiry_date": str(expiry_date or ""),
                 "notes": notes.strip(),
                 "status": "active",
                 "source": "Meal Plan",
@@ -13493,6 +13591,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                         "recipe_id": recipe_id,
                         "recipe_name": recipe_name,
                         "checked": "",
+                        "expiry_date": "",
                         "notes": str(row.get("notes", "") or ""),
                         "status": "active",
                         "source": "Meal Plan recipe add",
@@ -13512,21 +13611,32 @@ def render_shopping_list_manager(sheet_id: str) -> None:
     ensure_grocery_default_rows(sheet_id)
     st.header("Nutrition")
     st.write("Plan groceries by category, keep an inventory with expiry and seasonality, and build recipes from ingredients.")
-    tabs = st.tabs(["Shopping Lists", "Inventory", "Nutrition", "Recipes", "Starter Packs", "Templates", "Categories"])
+    user = current_user()
+    role, status = resolve_role(user.get("email", ""), bool(user.get("email_verified", False)))
+    tab_names = ["Shopping Lists", "Recipes", "Ingredients", "Inventory", "Nutrition", "Starter Packs", "Templates", "Categories"]
+    show_dev_import = role_can_develop(role, status)
+    if show_dev_import:
+        tab_names.append("Developer Import")
+    tabs = st.tabs(tab_names)
     with tabs[0]:
         render_shopping_lists_tab(sheet_id)
     with tabs[1]:
-        render_grocery_inventory_tab(sheet_id)
-    with tabs[2]:
-        render_grocery_nutrition_tab(sheet_id)
-    with tabs[3]:
         render_recipes_tab(sheet_id)
+    with tabs[2]:
+        render_ingredients_validation_tab(sheet_id)
+    with tabs[3]:
+        render_grocery_inventory_tab(sheet_id)
     with tabs[4]:
-        render_grocery_starter_packs_tab(sheet_id)
+        render_grocery_nutrition_tab(sheet_id)
     with tabs[5]:
-        render_grocery_template_tab(sheet_id)
+        render_grocery_starter_packs_tab(sheet_id)
     with tabs[6]:
+        render_grocery_template_tab(sheet_id)
+    with tabs[7]:
         render_grocery_categories_tab(sheet_id)
+    if show_dev_import:
+        with tabs[8]:
+            render_developer_ourgroceries_import_tab(sheet_id)
 
 
 def shopping_list_beta_tab() -> None:

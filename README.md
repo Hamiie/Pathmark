@@ -1,3 +1,3 @@
-# Pathmark release hub v0.7.15
+# Pathmark v0.7.16
 
-Desktop-site phone viewport.
+Streamlit phone reset and smoother tasklist.
