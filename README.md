@@ -1,3 +1,3 @@
-# Pathmark v0.7.21 — Shopping trolley and recipe search cleanup
+# Pathmark v0.7.22 — Architecture and performance foundation
 
-Improves the Nutrition shopping trolley, inventory expiry/reminder workflow, and Recipe Finder search taxonomy.
+Starts the architecture/performance pass so Pathmark can keep growing without every new feature making the whole app slower.

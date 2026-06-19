@@ -1,23 +1,23 @@
 {
-  "version": "0.7.21",
+  "version": "0.7.22",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_21.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_21.zip",
-  "release": "v0.7.21 Shopping trolley and recipe search cleanup",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_21.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_21.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_21.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_21.zip",
-  "label": "Shopping trolley and recipe search cleanup",
-  "release_notes": "Cleans up the shopping trolley and inventory workflow, removes the duplicate recipe meal-category filter, and adds multi-select plus advanced Boolean-style recipe searching.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_22.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_22.zip",
+  "release": "v0.7.22 Architecture and performance foundation",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_22.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_22.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_22.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_22.zip",
+  "label": "Architecture and performance foundation",
+  "release_notes": "Starts the Pathmark architecture/performance pass: top-level, Planning and Nutrition navigation now render one selected section at a time; developer diagnostics track reruns, Sheets reads/writes, cache hits and unsaved local changes; high-interaction areas continue to use local session state and explicit saves.",
   "notes": [
-    "Shopping completed items are now shown as In trolley, with fast session-only ticking and a simpler Save changes action.",
-    "Add trolley to inventory creates or updates inventory rows in one explicit action.",
-    "Expiry dates and pantry/removal reminders now belong on the Inventory tab per item.",
-    "Recipe Finder removes the overlapping Meal category filter and uses multi-select Course, Culture / style, Plate / dish style, Month / season and Dietary requirements filters.",
-    "Recipe Finder includes Include and Exclude search fields plus an optional Advanced search box with AND, OR, NOT and simple field syntax."
+    "Top-level navigation now renders only the selected Pathmark section instead of executing every tab body on each rerun.",
+    "Planning and Nutrition subnavigation now render one selected section at a time, reducing accidental loading of unrelated workflows during small interactions.",
+    "Developer settings includes a Performance diagnostics panel for rerun time, Google Sheets reads/writes, cache hits and unsaved local changes.",
+    "Added core architecture modules for performance, session-state helpers, cache helpers and reusable fragments as a foundation for future feature modules.",
+    "Shopping trolley dirty-state tracking now records unsaved local shopping changes for developer diagnostics while preserving explicit Save changes behaviour."
   ],
-  "release_name": "Shopping trolley and recipe search cleanup",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_21.zip"
+  "release_name": "Architecture and performance foundation",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_22.zip"
 }

@@ -26,6 +26,15 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+try:
+    from core.performance import begin_perf_run, record_perf_event, mark_dirty, clear_dirty, render_perf_diagnostics
+except Exception:
+    def begin_perf_run(context: str = "") -> None: pass
+    def record_perf_event(kind: str, label: str, *, detail: str = "", count: int = 1) -> None: pass
+    def mark_dirty(scope: str, key: str, count: int = 1, label: str = "") -> None: pass
+    def clear_dirty(scope: str | None = None, key: str | None = None) -> None: pass
+    def render_perf_diagnostics() -> None: pass
+
 
 def _pm_fragment(func):
     """Run busy interactive sections as Streamlit fragments when available.
@@ -38,6 +47,40 @@ def _pm_fragment(func):
     if callable(fragment):
         return fragment(func)
     return func
+
+
+def _pm_select_section(label: str, options: list[str], *, key: str, default: str | None = None) -> str:
+    """Render one navigation choice and only one body section.
+
+    Streamlit tabs render every tab body on each rerun. Pathmark has grown large
+    enough that this causes unrelated Planning/Finance/Nutrition sections to load
+    and re-check Google state during small interactions. This helper keeps the
+    familiar horizontal navigation while rendering only the selected section.
+    """
+    clean_options = [str(x) for x in options if str(x).strip()]
+    if not clean_options:
+        return ""
+    default = default if default in clean_options else clean_options[0]
+    if st.session_state.get(key) not in clean_options:
+        st.session_state[key] = default
+    segmented = getattr(st, "segmented_control", None)
+    if callable(segmented):
+        try:
+            choice = segmented(label, clean_options, key=key, selection_mode="single", label_visibility="collapsed")
+            if isinstance(choice, str) and choice in clean_options:
+                record_perf_event("nav", key, detail=choice)
+                return choice
+            # Some Streamlit versions return None until a segmented option is
+            # selected. Do not render a fallback widget with the same key in the
+            # same run; just use the stored/default value.
+            stored = str(st.session_state.get(key) or default)
+            record_perf_event("nav", key, detail=stored)
+            return stored if stored in clean_options else default
+        except Exception:
+            pass
+    choice = st.radio(label, clean_options, horizontal=True, key=key, label_visibility="collapsed")
+    record_perf_event("nav", key, detail=str(choice))
+    return str(choice or default)
 
 try:
     import yaml
@@ -2218,6 +2261,7 @@ def append_to_user_oauth_sheet(sheet_id: str, row: dict[str, str]) -> tuple[bool
         return False, "Connect Google Sheets before saving to a sync sheet."
     try:
         ensure_pathmark_online_schema(service, sheet_id)
+        record_perf_event("sheets_write", f"append {table}", detail="single row")
         service.spreadsheets().values().append(
             spreadsheetId=sheet_id,
             range="pending_changes!A:O",
@@ -2299,7 +2343,9 @@ def ensure_pathmark_online_schema(service: Any, sheet_id: str) -> None:
     """
     ready_key = f"online_schema_ready::{sheet_id}"
     if st.session_state.get(ready_key):
+        record_perf_event("cache_hit", "online schema", detail="schema already ready")
         return
+    record_perf_event("sheets_read", "ensure online schema", detail="metadata/header check")
     ensure_pending_changes_sheet(service, sheet_id)
     metadata = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
     sheet_titles = {sheet.get("properties", {}).get("title") for sheet in metadata.get("sheets", [])}
@@ -2366,6 +2412,7 @@ def load_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataF
     """
     cache_key = _online_cache_key(sheet_id)
     if not force and cache_key in st.session_state:
+        record_perf_event("cache_hit", "online tables", detail="session cache")
         return st.session_state[cache_key]
     service = sheets_service()
     if service is None:
@@ -2375,6 +2422,7 @@ def load_online_tables(sheet_id: str, force: bool = False) -> dict[str, pd.DataF
     ensure_pathmark_online_schema(service, sheet_id)
     ranges = [f"{name}!A1:{sheet_col_letter(len(cols))}" for name, cols in ONLINE_TABLES.items()]
     try:
+        record_perf_event("sheets_read", "online tables batchGet", detail=f"{len(ranges)} ranges")
         result = service.spreadsheets().values().batchGet(spreadsheetId=sheet_id, ranges=ranges).execute()
         value_ranges = result.get("valueRanges", [])
         tables: dict[str, pd.DataFrame] = {}
@@ -2497,6 +2545,7 @@ def append_many_online_records(sheet_id: str, records_by_table: dict[str, list[d
                     row["source"] = "Pathmark Online starter examples"
                 rows.append([row.get(col, "") for col in header])
             if rows:
+                record_perf_event("sheets_write", f"append many {table}", detail=f"{len(rows)} row(s)")
                 service.spreadsheets().values().append(
                     spreadsheetId=sheet_id,
                     range=f"{table}!A:{sheet_col_letter(len(header))}",
@@ -2525,6 +2574,8 @@ def update_online_record(sheet_id: str, table: str, record_id: str, updates: dic
         return False, "Google Sheets access is not available for this session."
     try:
         ensure_pathmark_online_schema(service, sheet_id)
+        record_perf_event("sheets_read", f"update {table}", detail="find row")
+        record_perf_event("sheets_read", f"update many {table}", detail="find rows")
         values = service.spreadsheets().values().get(
             spreadsheetId=sheet_id,
             range=f"{table}!A1:{sheet_col_letter(len(columns))}",
@@ -2553,6 +2604,7 @@ def update_online_record(sheet_id: str, table: str, record_id: str, updates: dic
         if "updated_at" in header:
             row_map["updated_at"] = utc_now_text()
         new_row = [row_map.get(col, "") for col in header]
+        record_perf_event("sheets_write", f"update {table}", detail="single row")
         service.spreadsheets().values().update(
             spreadsheetId=sheet_id,
             range=f"{table}!A{row_number}:{sheet_col_letter(len(header))}{row_number}",
@@ -2617,6 +2669,7 @@ def update_many_online_records(sheet_id: str, table: str, updates_by_id: dict[st
             saved += 1
         if not data:
             return False, "Could not find those records in your Pathmark sync sheet."
+        record_perf_event("sheets_write", f"update many {table}", detail=f"{saved} row(s)")
         service.spreadsheets().values().batchUpdate(
             spreadsheetId=sheet_id,
             body={"valueInputOption": "USER_ENTERED", "data": data},
@@ -11486,8 +11539,9 @@ def on_the_go_tab() -> None:
     if not render_post_login_terms_confirmation(sheet_id, key_prefix="planning"):
         return
 
-    # The Creation Wizard now has its own Planner tab beside Home.
-    sections = st.tabs([
+    # Render one Planner section at a time. Streamlit tabs execute every body on
+    # each rerun, which became too slow as Planning grew.
+    section_options = [
         "Dashboard",
         "Creation Wizard",
         "Review Queue",
@@ -11498,27 +11552,22 @@ def on_the_go_tab() -> None:
         "Tasklist",
         "Archive",
         "Settings",
-    ])
-    with sections[0]:
-        render_safe_section("Dashboard", render_online_overview, sheet_id)
-    with sections[1]:
-        render_safe_section("Creation Wizard", render_pathmark_creation_wizard, sheet_id)
-    with sections[2]:
-        render_safe_section("Review Queue", render_review_queue_manager, sheet_id)
-    with sections[3]:
-        render_safe_section("Areas", render_area_manager, sheet_id)
-    with sections[4]:
-        render_safe_section("Routines", render_routine_manager, sheet_id)
-    with sections[5]:
-        render_safe_section("Projects", render_goal_manager, sheet_id)
-    with sections[6]:
-        render_safe_section("Google Sync", render_google_sync_manager, sheet_id)
-    with sections[7]:
-        render_safe_section("Tasklist", render_tasklist_manager, sheet_id)
-    with sections[8]:
-        render_safe_section("Archive", render_archive_manager, sheet_id)
-    with sections[9]:
-        render_safe_section("Settings", render_online_settings, sheet_id)
+    ]
+    choice = _pm_select_section("Planning section", section_options, key="planning_section_select", default="Dashboard")
+    dispatch = {
+        "Dashboard": ("Dashboard", render_online_overview),
+        "Creation Wizard": ("Creation Wizard", render_pathmark_creation_wizard),
+        "Review Queue": ("Review Queue", render_review_queue_manager),
+        "Areas": ("Areas", render_area_manager),
+        "Routines": ("Routines", render_routine_manager),
+        "Projects": ("Projects", render_goal_manager),
+        "Google Sync": ("Google Sync", render_google_sync_manager),
+        "Tasklist": ("Tasklist", render_tasklist_manager),
+        "Archive": ("Archive", render_archive_manager),
+        "Settings": ("Settings", render_online_settings),
+    }
+    label, func = dispatch.get(choice, ("Dashboard", render_online_overview))
+    render_safe_section(label, func, sheet_id)
 
 
 GROCERY_CATEGORIES = [
@@ -13335,6 +13384,10 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     st.session_state[pending_key] = pending_checked
 
     pending_count = len(pending_checked)
+    if pending_count:
+        mark_dirty("shopping", list_id, pending_count, label=selected_list)
+    else:
+        clear_dirty("shopping", list_id)
     trolley_count = int(view["_checked_bool"].sum()) if "_checked_bool" in view.columns else 0
     c_save, c_inventory, c_discard = st.columns([1.2, 1.2, 0.8])
     with c_save:
@@ -13345,6 +13398,7 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
                 st.success("Shopping changes saved.")
                 pending_checked.clear()
                 st.session_state[pending_key] = pending_checked
+                clear_dirty("shopping", list_id)
                 for _, row in view.iterrows():
                     item_id = str(row.get("shopping_item_id", "") or "").strip()
                     st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
@@ -13363,6 +13417,7 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
         if st.button("Discard", key=f"discard_shop_pending_{list_id}", use_container_width=True, disabled=not bool(pending_count)):
             pending_checked.clear()
             st.session_state[pending_key] = pending_checked
+            clear_dirty("shopping", list_id)
             for _, row in view.iterrows():
                 item_id = str(row.get("shopping_item_id", "") or "").strip()
                 st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
@@ -14151,26 +14206,20 @@ def render_shopping_list_manager(sheet_id: str) -> None:
     show_dev_import = role_can_develop(role, status)
     if show_dev_import:
         tab_names.append("Developer Import")
-    tabs = st.tabs(tab_names)
-    with tabs[0]:
-        render_shopping_lists_tab(sheet_id)
-    with tabs[1]:
-        render_recipes_tab(sheet_id)
-    with tabs[2]:
-        render_ingredients_validation_tab(sheet_id)
-    with tabs[3]:
-        render_grocery_inventory_tab(sheet_id)
-    with tabs[4]:
-        render_grocery_nutrition_tab(sheet_id)
-    with tabs[5]:
-        render_grocery_starter_packs_tab(sheet_id)
-    with tabs[6]:
-        render_grocery_template_tab(sheet_id)
-    with tabs[7]:
-        render_grocery_categories_tab(sheet_id)
+    choice = _pm_select_section("Nutrition section", tab_names, key="nutrition_section_select", default="Shopping Lists")
+    dispatch = {
+        "Shopping Lists": render_shopping_lists_tab,
+        "Recipes": render_recipes_tab,
+        "Ingredients": render_ingredients_validation_tab,
+        "Inventory": render_grocery_inventory_tab,
+        "Nutrition": render_grocery_nutrition_tab,
+        "Starter Packs": render_grocery_starter_packs_tab,
+        "Templates": render_grocery_template_tab,
+        "Categories": render_grocery_categories_tab,
+    }
     if show_dev_import:
-        with tabs[8]:
-            render_developer_ourgroceries_import_tab(sheet_id)
+        dispatch["Developer Import"] = render_developer_ourgroceries_import_tab
+    render_safe_section(choice, dispatch.get(choice, render_shopping_lists_tab), sheet_id)
 
 
 def shopping_list_beta_tab() -> None:
@@ -14362,6 +14411,10 @@ def developer_tab() -> None:
     actor = current_user().get("email", "")
     with st.expander("Theme editor", expanded=False):
         render_developer_theme_editor()
+
+    with st.expander("Performance diagnostics", expanded=False):
+        st.caption("Session-local diagnostics for reruns, Google Sheets reads/writes, cache hits and unsaved local changes. Nothing here is saved to Pathmark Sync.")
+        render_perf_diagnostics()
 
     if supabase_available():
         st.success("Supabase access management is connected. Supabase is used only for roles, feature flags, and audit logs. It does not store Pathmark projects, routines, checklist items, Workspace files, or on-the-go planning entries.")
@@ -14648,6 +14701,7 @@ def render_public_oauth_branding_page_if_requested() -> bool:
 
 
 def render_app() -> None:
+    begin_perf_run("render_app")
     if render_public_oauth_branding_page_if_requested():
         return
     # Complete Google login first. Handle Google Sheets OAuth immediately after,
@@ -14686,23 +14740,21 @@ def render_app() -> None:
     if role_can_develop(role, status):
         tabs.append("Developer")
 
-    created_tabs = st.tabs(tabs)
-    for tab_obj, tab_name in zip(created_tabs, tabs):
-        with tab_obj:
-            if tab_name == "Home":
-                download_tab()
-            elif tab_name == "Theme":
-                theme_tab()
-            elif tab_name == "About & Privacy":
-                about_privacy_tab()
-            elif tab_name == "Planning":
-                on_the_go_tab()
-            elif tab_name == "Finance":
-                spending_plan_beta_tab()
-            elif tab_name == "Nutrition":
-                shopping_list_beta_tab()
-            elif tab_name == "Developer":
-                developer_tab()
+    tab_name = _pm_select_section("Pathmark section", tabs, key="pathmark_top_nav", default=tabs[0])
+    if tab_name == "Home":
+        download_tab()
+    elif tab_name == "Theme":
+        theme_tab()
+    elif tab_name == "About & Privacy":
+        about_privacy_tab()
+    elif tab_name == "Planning":
+        on_the_go_tab()
+    elif tab_name == "Finance":
+        spending_plan_beta_tab()
+    elif tab_name == "Nutrition":
+        shopping_list_beta_tab()
+    elif tab_name == "Developer":
+        developer_tab()
 
 
 render_app()

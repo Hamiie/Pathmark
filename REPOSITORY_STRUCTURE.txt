@@ -2,7 +2,18 @@
 README.md
 REPOSITORY_STRUCTURE.txt
 app/assets/pathmark.png
+app/assets/seasonal_banners/autumn.jpg
+app/assets/seasonal_banners/spring.jpg
+app/assets/seasonal_banners/summer.jpg
+app/assets/seasonal_banners/winter.jpg
+app/components/__init__.py
+app/components/fragments.py
 app/config/themes.yaml
+app/core/__init__.py
+app/core/performance.py
+app/core/session_state.py
+app/data/__init__.py
+app/data/cache.py
 app/main.py
 app/static/favicon.ico
 app/static/pathmark-icon-128.png
@@ -12,7 +23,7 @@ app/static/pathmark-icon-32.png
 app/static/pathmark-icon-48.png
 app/static/pathmark-icon-512.png
 app/static/pathmark-icon-64.png
-downloads/Pathmark_Local_App_Windows_v0_7_8.zip
+downloads/Pathmark_Local_App_Windows_v0_7_22.zip
 latest_version.json
 requirements.txt
 static/favicon.ico
