@@ -1,6 +1,6 @@
 {
-  "version": "0.7.23",
-  "name": "Inventory organisation and stock movement foundation",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_23.zip",
-  "notes": "Splits Inventory into Stock, Add stock, Locations, Containers, and Movements; adds target quantities, pantry locations, container catalogue, and stock movement foundation."
+  "version": "0.7.24",
+  "name": "Meal planning and shopping workflow refinement",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_24.zip",
+  "notes": "Refines Nutrition into Meal Plan, Recipe Library and Shopping List workflows; adds selected recipe-to-shopping-list flow, pantry-check statuses, and shopping-list cost estimates."
 }

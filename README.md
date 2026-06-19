@@ -1,3 +1,3 @@
-# Pathmark v0.7.23 — Inventory organisation and stock movement foundation
+# Pathmark v0.7.24 — Meal planning and shopping workflow refinement
 
-Starts the architecture/performance pass so Pathmark can keep growing without every new feature making the whole app slower.
+Refines the Nutrition workflow into Meal Plan, Recipe Library, Shopping List, Inventory and supporting data areas. Meal Plan now finds and selects recipes for the week, sends selected recipes to a new or existing shopping list, and keeps recipe data management separate from shopping and inventory. Shopping List now supports Need to buy, Already have, In trolley, and Skipped statuses, keeps fast local changes until Save changes, and shows approximate cost where price data exists. Finance also surfaces the current shopping-list estimate as a planning signal.
