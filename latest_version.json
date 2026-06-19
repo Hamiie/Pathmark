@@ -1,24 +1,22 @@
 {
-  "version": "0.7.17",
+  "version": "0.7.19",
   "name": "Pathmark Local App Windows",
   "platform": "windows",
-  "filename": "Pathmark_Local_App_Windows_v0_7_17.zip",
-  "windows_package": "Pathmark_Local_App_Windows_v0_7_17.zip",
-  "release": "v0.7.17 Nutrition recipe import and shopping list workflow",
-  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
-  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip",
-  "download_file": "Pathmark_Local_App_Windows_v0_7_17.zip",
-  "label": "Nutrition recipe import and shopping list workflow",
-  "release_notes": "Adds a developer-only OurGroceries JSON importer, bulk recipe ingredient entry, an Ingredients validation tab, supermarket-aisle shopping lists with completed sections, and expiry/removal task support for purchased ingredients.",
+  "filename": "Pathmark_Local_App_Windows_v0_7_19.zip",
+  "windows_package": "Pathmark_Local_App_Windows_v0_7_19.zip",
+  "release": "v0.7.19 Fragmented shopping checklist",
+  "download_url": "downloads/Pathmark_Local_App_Windows_v0_7_19.zip",
+  "local_windows_zip": "downloads/Pathmark_Local_App_Windows_v0_7_19.zip",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_19.zip",
+  "download_file": "Pathmark_Local_App_Windows_v0_7_19.zip",
+  "label": "Fragmented shopping checklist",
+  "release_notes": "Keeps shopping-list taps local to a Streamlit fragment and saves checked items to Pathmark Sync only when the user presses Save shopping changes.",
   "notes": [
-    "Adds a developer-only OurGroceries Lists.json import tab visible only to developer accounts.",
-    "Parses ingredient lines into quantity, unit and ingredient while preserving the original line for checking.",
-    "Imports OurGroceries recipes into Recipes, Recipe Ingredients, Ingredients/Inventory and Grocery Categories for validation and aisle sorting.",
-    "Adds a dedicated Ingredients validation tab that consolidates recipe and inventory ingredient units.",
-    "Improves shopping lists so bought items move to a completed section and can be restored.",
-    "Adds optional expiry/remove-by dates and Google Task reminders to remove purchased items from stock."
+    "Shopping-list interaction now runs inside a Streamlit fragment where supported, so taps should not rerun the whole Pathmark app.",
+    "Checking and unchecking items still moves them between To buy and Completed immediately in the session.",
+    "Pathmark Sync is updated only when Save shopping changes is pressed.",
+    "Save shopping changes now writes all pending checked-state changes in one Google Sheets batch update."
   ],
-  "release_name": "Nutrition recipe import and shopping list workflow",
-  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_17.zip"
+  "release_name": "Fragmented shopping checklist",
+  "zip": "downloads/Pathmark_Local_App_Windows_v0_7_19.zip"
 }

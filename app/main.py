@@ -26,6 +26,19 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+
+def _pm_fragment(func):
+    """Run busy interactive sections as Streamlit fragments when available.
+
+    Fragment reruns keep rapid UI interactions, such as grocery-list ticking,
+    from re-running the whole app and re-checking Google connection state.
+    Older Streamlit versions simply fall back to the normal function.
+    """
+    fragment = getattr(st, "fragment", None)
+    if callable(fragment):
+        return fragment(func)
+    return func
+
 try:
     import yaml
 except Exception:
@@ -2547,6 +2560,68 @@ def update_online_record(sheet_id: str, table: str, record_id: str, updates: dic
         ).execute()
         clear_online_cache(sheet_id)
         return True, "Updated in your Pathmark sync sheet."
+    except Exception as exc:
+        return False, f"Could not update your Pathmark sync sheet: {exc}"
+
+
+def update_many_online_records(sheet_id: str, table: str, updates_by_id: dict[str, dict[str, Any]]) -> tuple[bool, str]:
+    """Update several Google Sheet rows in one read and one batch update.
+
+    This is mainly used by shopping mode so ticking items while shopping can be
+    saved at the end without doing one slow Google Sheets read/update per item.
+    """
+    columns = ONLINE_TABLES.get(table)
+    id_col = ONLINE_ID_COLUMNS.get(table)
+    if not columns or not id_col:
+        return False, "This Pathmark table cannot be edited yet."
+    cleaned_updates = {str(k).strip(): v for k, v in (updates_by_id or {}).items() if str(k).strip()}
+    if not cleaned_updates:
+        return True, "No changes to save."
+    service = sheets_service()
+    if service is None:
+        return False, "Google Sheets access is not available for this session."
+    try:
+        ensure_pathmark_online_schema(service, sheet_id)
+        values = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{table}!A1:{sheet_col_letter(len(columns))}",
+        ).execute().get("values", [])
+        if not values:
+            return False, "Could not find this table in your Pathmark sync sheet."
+        header = list(values[0])
+        try:
+            id_index = header.index(id_col)
+        except ValueError:
+            return False, f"The {table} table is missing its {id_col} column."
+
+        data = []
+        saved = 0
+        now = utc_now_text()
+        for row_number, row in enumerate(values[1:], start=2):
+            padded = list(row) + [""] * (len(header) - len(row))
+            record_id = str(padded[id_index]).strip() if id_index < len(padded) else ""
+            updates = cleaned_updates.get(record_id)
+            if not updates:
+                continue
+            row_map = {col: padded[idx] if idx < len(padded) else "" for idx, col in enumerate(header)}
+            for key, value in updates.items():
+                if key in header:
+                    row_map[key] = str(value or "")
+            if "updated_at" in header:
+                row_map["updated_at"] = now
+            data.append({
+                "range": f"{table}!A{row_number}:{sheet_col_letter(len(header))}{row_number}",
+                "values": [[row_map.get(col, "") for col in header]],
+            })
+            saved += 1
+        if not data:
+            return False, "Could not find those records in your Pathmark sync sheet."
+        service.spreadsheets().values().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"valueInputOption": "USER_ENTERED", "data": data},
+        ).execute()
+        clear_online_cache(sheet_id)
+        return True, f"Saved {saved} change(s) to your Pathmark sync sheet."
     except Exception as exc:
         return False, f"Could not update your Pathmark sync sheet: {exc}"
 
@@ -12934,23 +13009,132 @@ def render_ingredients_validation_tab(sheet_id: str) -> None:
         st.dataframe(grouped[["ingredient", "unit", "category_name", "source"]].sort_values(["category_name", "ingredient"]), use_container_width=True, hide_index=True, height=420)
 
 
+@_pm_fragment
 def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list: str, items: pd.DataFrame) -> None:
     if items.empty:
         st.info("No items in this list yet.")
         return
+
+    # Keep shopping interaction fast while users are walking around the supermarket.
+    # Checking/unchecking items updates the browser session immediately; the user can
+    # save those changes back to Pathmark Sync in one batch when they are ready.
+    pending_key = f"shopping_checked_pending_{list_id}"
+    pending_checked = st.session_state.setdefault(pending_key, {})
+    if not isinstance(pending_checked, dict):
+        pending_checked = {}
+        st.session_state[pending_key] = pending_checked
+
+    st.caption("Shopping mode: taps update this page only. Pathmark Sync is updated only when you press Save shopping changes.")
+
+    css = """
+    <style>
+      .pm-shop-category {
+        margin-top: 1.05rem;
+        margin-bottom: 0.2rem;
+        font-weight: 760;
+        letter-spacing: -0.01em;
+      }
+      .pm-shop-item {
+        padding: 0.34rem 0 0.46rem 0;
+        border-bottom: 1px solid rgba(120, 120, 120, 0.16);
+      }
+      .pm-shop-title {
+        font-weight: 690;
+        line-height: 1.25;
+      }
+      .pm-shop-meta {
+        margin-top: 0.12rem;
+        color: rgba(120, 120, 120, 0.92);
+        font-size: 0.9rem;
+        line-height: 1.25;
+      }
+      .pm-shop-completed .pm-shop-title {
+        color: rgba(120, 120, 120, 0.78);
+        text-decoration: line-through;
+        text-decoration-thickness: 1.5px;
+      }
+      .pm-shop-completed .pm-shop-meta {
+        color: rgba(120, 120, 120, 0.62);
+      }
+      .pm-shop-section-muted {
+        color: rgba(120, 120, 120, 0.86);
+      }
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
     order = _category_order_map(sheet_id)
     view = items.copy()
-    view["_checked_bool"] = view.get("checked", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"yes", "true", "1", "checked", "done"})
+    base_checked = view.get("checked", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"yes", "true", "1", "checked", "done"})
+    effective_checked = []
+    for idx, row in view.iterrows():
+        item_id = str(row.get("shopping_item_id", "") or "").strip()
+        original = bool(base_checked.iloc[idx] if idx < len(base_checked) else False)
+        checkbox_key = f"shop_checked_{list_id}_{item_id}"
+        if checkbox_key in st.session_state:
+            effective = bool(st.session_state.get(checkbox_key))
+        elif item_id in pending_checked:
+            effective = bool(pending_checked.get(item_id))
+            st.session_state[checkbox_key] = effective
+        else:
+            effective = original
+            st.session_state.setdefault(checkbox_key, original)
+        effective_checked.append(effective)
+    view["_checked_bool"] = effective_checked
+    view["_base_checked_bool"] = list(base_checked)
     view["_category_order"] = view.get("category_name", pd.Series(dtype=str)).map(lambda x: order.get(str(x), 9999))
     view["_ingredient_sort"] = view.get("ingredient", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
+
+    # Update pending-change state from the current checkbox values.
+    for _, row in view.iterrows():
+        item_id = str(row.get("shopping_item_id", "") or "").strip()
+        if not item_id:
+            continue
+        current = bool(row.get("_checked_bool", False))
+        original = bool(row.get("_base_checked_bool", False))
+        if current != original:
+            pending_checked[item_id] = current
+        else:
+            pending_checked.pop(item_id, None)
+    st.session_state[pending_key] = pending_checked
+
+    pending_count = len(pending_checked)
+    if pending_count:
+        c_save, c_discard = st.columns([3, 1])
+        with c_save:
+            if st.button(f"Save {pending_count} shopping change{'s' if pending_count != 1 else ''} to Pathmark Sync", key=f"save_shop_pending_{list_id}", use_container_width=True):
+                updates = {item_id: {"checked": "Yes" if checked else ""} for item_id, checked in list(pending_checked.items())}
+                ok, msg = update_many_online_records(sheet_id, "shopping_items", updates)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(msg)
+                if ok:
+                    pending_checked.clear()
+                    st.session_state[pending_key] = pending_checked
+                    # Clear item checkbox keys so the next render reflects Pathmark Sync.
+                    for _, row in view.iterrows():
+                        item_id = str(row.get("shopping_item_id", "") or "").strip()
+                        st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
+                    st.rerun()
+        with c_discard:
+            if st.button("Discard", key=f"discard_shop_pending_{list_id}", use_container_width=True):
+                pending_checked.clear()
+                st.session_state[pending_key] = pending_checked
+                for _, row in view.iterrows():
+                    item_id = str(row.get("shopping_item_id", "") or "").strip()
+                    st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
+                st.rerun()
+
     for completed, label in [(False, "To buy"), (True, "Completed")]:
         subset = view[view["_checked_bool"].eq(completed)].sort_values(["_category_order", "category_name", "_ingredient_sort"])
         if subset.empty:
             continue
-        st.markdown(f"#### {label}")
+        heading = label if not completed else "Completed"
+        st.markdown(f"#### {heading}" if not completed else f"#### <span class='pm-shop-section-muted'>{heading}</span>", unsafe_allow_html=True)
         for category, group in subset.groupby("category_name", dropna=False, sort=False):
             cat = str(category or "Uncategorised").strip() or "Uncategorised"
-            st.markdown(f"**{cat}**")
+            st.markdown(f"<div class='pm-shop-category'>{html.escape(cat)}</div>", unsafe_allow_html=True)
             for _, row in group.iterrows():
                 item_id = str(row.get("shopping_item_id", "") or "").strip()
                 qty = str(row.get("quantity", "") or "").strip()
@@ -12964,21 +13148,22 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
                     meta.append(recipe_name)
                 if expiry:
                     meta.append(f"Expiry: {expiry}")
-                c1, c2, c3 = st.columns([0.08, 0.72, 0.20])
+                checkbox_key = f"shop_checked_{list_id}_{item_id}"
+                c1, c2, c3 = st.columns([0.06, 0.78, 0.16])
                 with c1:
-                    if st.button("↩" if completed else "✓", key=f"toggle_shop_{item_id}", help="Move back to To buy" if completed else "Mark as bought"):
-                        update_online_record(sheet_id, "shopping_items", item_id, {"checked": "" if completed else "Yes"})
-                        st.rerun()
+                    current_val = bool(row.get("_checked_bool", False))
+                    checked_now = st.checkbox("", value=current_val, key=checkbox_key, label_visibility="collapsed")
+                if checked_now != bool(row.get("_checked_bool", False)):
+                    # The checkbox state will be picked up at the top of the next rerun.
+                    pass
+                item_class = "pm-shop-item pm-shop-completed" if completed else "pm-shop-item"
                 with c2:
-                    st.markdown(f"**{html.escape(title)}**", unsafe_allow_html=True)
-                    if meta:
-                        st.caption(" · ".join(meta))
+                    meta_html = f"<div class='pm-shop-meta'>{html.escape(' · '.join(meta))}</div>" if meta else ""
+                    st.markdown(f"<div class='{item_class}'><div class='pm-shop-title'>{html.escape(title)}</div>{meta_html}</div>", unsafe_allow_html=True)
                 with c3:
                     if not completed and st.button("Expiry", key=f"expiry_select_{item_id}"):
                         st.session_state["shopping_expiry_item_id"] = item_id
                         st.rerun()
-            st.divider()
-
 
 def render_grocery_categories_tab(sheet_id: str) -> None:
     st.subheader("Grocery categories")
