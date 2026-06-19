@@ -1,3 +1,3 @@
-# Pathmark v0.7.16
+# Pathmark v0.7.21 — Shopping trolley and recipe search cleanup
 
-Streamlit phone reset and smoother tasklist.
+Improves the Nutrition shopping trolley, inventory expiry/reminder workflow, and Recipe Finder search taxonomy.

@@ -106,6 +106,7 @@ ONLINE_TABLES = {
 
 PATHMARK_TERMS_VERSION = "2026-06-08"
 PATHMARK_TERMS_ACCEPTED_SETTING = "terms_privacy_accepted_version"
+EDIT_IN_CATEGORIES_LABEL = "Edit in Categories tab"
 
 GOOGLE_CALENDAR_COLOURS = [
     ("1", "Lavender", "#7986CB"),
@@ -11562,10 +11563,11 @@ GROCERY_CATEGORIES = [
 
 GROCERY_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-RECIPE_COURSES = ["Breakfast", "Lunch", "Dinner", "Main", "Side", "Starter", "Dessert", "Snack", "Salad", "Soup", "Sharing", "Drink", "Other"]
-RECIPE_MEAL_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Main", "Side", "Starter", "Dessert", "Snack", "Salad", "Soup", "Sharing", "Mezze", "Small Plate", "Preserve", "Drink", "Sauce / Condiment", "Baking"]
-RECIPE_CUISINE_TAGS = ["New Zealand", "Japanese", "Korean", "Chinese", "Danish", "Scottish", "English", "French", "Italian", "Mexican", "Middle Eastern", "Indian", "Thai", "Vietnamese", "Mediterranean", "Fusion"]
-RECIPE_DISH_STYLE_TAGS = ["Agemono", "Zenzai", "Donburi", "Nabe", "Mezze Plate", "Gratin", "Bake", "Curry", "Taco", "Risotto", "Pasta", "Pie", "Salad Bowl", "Fritter", "Croquette", "Soup", "Stew", "Cake", "Biscuit", "Sauce"]
+RECIPE_COURSES = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert", "Side", "Sauce / Condiment", "Baking", "Drink", "Preserve"]
+# Kept for older Pathmark Sync sheets, but no longer shown as a recipe-finder filter.
+RECIPE_MEAL_CATEGORIES = []
+RECIPE_CUISINE_TAGS = ["Western", "New Zealand", "Italian", "French", "Japanese", "Chinese", "Korean", "Thai", "Vietnamese", "Indian", "Middle Eastern", "Mediterranean", "Mexican", "Fusion"]
+RECIPE_DISH_STYLE_TAGS = ["Zenzai", "Agemono", "Nimono", "Donburi", "Nabe", "Mezze", "Gratin", "Risotto", "Pasta", "Soup", "Curry", "Taco", "Pie", "Fritter", "Bowl", "Salad", "Dumpling", "Pickle", "Bread", "Cake"]
 RECIPE_DIETARY_TAGS = ["Vegetarian", "Vegan", "Gluten free", "Dairy free", "Nut free", "Contains egg", "Contains dairy", "Contains nuts", "Contains sesame", "Contains soy"]
 
 
@@ -11838,6 +11840,17 @@ def _grocery_table_options(sheet_id: str, table: str, label_col: str, fallback: 
         return list(fallback or [])
     values = sorted({str(v).strip() for v in df[label_col].tolist() if str(v).strip()})
     return values or list(fallback or [])
+
+
+def _with_categories_edit_option(options: list[str]) -> list[str]:
+    cleaned = [str(v).strip() for v in options if str(v).strip() and str(v).strip() != EDIT_IN_CATEGORIES_LABEL]
+    return cleaned + [EDIT_IN_CATEGORIES_LABEL]
+
+
+def _normal_filter_value(value: str, any_label: str) -> str:
+    if value in {any_label, EDIT_IN_CATEGORIES_LABEL}:
+        return any_label
+    return value
 
 
 def grocery_category_options(sheet_id: str) -> list[str]:
@@ -12980,6 +12993,257 @@ def create_pantry_expiry_google_task(ingredient: str, expiry_date: Any) -> tuple
         return False, "", "", f"Could not create the Google Task reminder: {exc}"
 
 
+
+
+def _parse_iso_date_for_widget(value: Any) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except Exception:
+            pass
+    return None
+
+
+def _split_search_terms(value: Any) -> list[str]:
+    text = str(value or "").strip()
+    if not text:
+        return []
+    parts = [p.strip() for p in re.split(r"[,;\n]", text) if p.strip()]
+    return parts or [text]
+
+
+def _contains_loose(haystack: str, needle: str) -> bool:
+    h = str(haystack or "").lower()
+    n = str(needle or "").strip().lower()
+    if not n:
+        return True
+    return n in h
+
+
+def _recipe_ingredient_text_map(ingredients: pd.DataFrame) -> dict[str, str]:
+    mapping: dict[str, list[str]] = {}
+    if ingredients is None or ingredients.empty:
+        return {}
+    for _, row in ingredients.iterrows():
+        bits = [
+            str(row.get("ingredient", "") or ""),
+            str(row.get("notes", "") or ""),
+            str(row.get("category_name", "") or ""),
+            str(row.get("suggested_substitute", "") or ""),
+        ]
+        joined = " ".join([b for b in bits if b]).strip()
+        for key in [str(row.get("recipe_id", "") or "").strip(), str(row.get("recipe_name", "") or "").strip().lower()]:
+            if key:
+                mapping.setdefault(key, []).append(joined)
+    return {k: " | ".join(v) for k, v in mapping.items()}
+
+
+def _recipe_search_text(row: pd.Series | dict[str, Any], ingredient_map: dict[str, str] | None = None) -> str:
+    getter = row.get if hasattr(row, "get") else (lambda k, d="": "")
+    rid = str(getter("recipe_id", "") or "").strip()
+    rname = str(getter("recipe_name", "") or "").strip()
+    fields = [
+        "recipe_name", "category_name", "course", "meal_categories", "cuisine_tags", "dish_style_tags", "dietary_tags",
+        "source_title", "author", "protein", "vegetarian_vegan", "gluten_free", "allergens", "months",
+        "seasonality_summary", "imported_notes", "frozen_or_canned_notes", "substitute_notes", "homegrown_notes",
+        "unavailable_notes", "notes",
+    ]
+    text_bits = [str(getter(c, "") or "") for c in fields]
+    if ingredient_map:
+        text_bits.append(ingredient_map.get(rid, ""))
+        text_bits.append(ingredient_map.get(rname.lower(), ""))
+    return " ".join([b for b in text_bits if b]).lower()
+
+
+def _field_text(row: pd.Series | dict[str, Any], field: str, ingredient_map: dict[str, str] | None = None) -> str:
+    getter = row.get if hasattr(row, "get") else (lambda k, d="": "")
+    f = str(field or "").strip().lower()
+    if f in {"culture", "cuisine", "style"}:
+        return str(getter("cuisine_tags", "") or "").lower()
+    if f in {"plate", "dish", "dish_style"}:
+        return str(getter("dish_style_tags", "") or "").lower()
+    if f in {"diet", "dietary", "requirement", "requirements"}:
+        return " ".join([str(getter("dietary_tags", "") or ""), str(getter("vegetarian_vegan", "") or ""), str(getter("gluten_free", "") or "")]).lower()
+    if f in {"ingredient", "ingredients", "produce"}:
+        rid = str(getter("recipe_id", "") or "").strip()
+        rname = str(getter("recipe_name", "") or "").strip().lower()
+        return " ".join([(ingredient_map or {}).get(rid, ""), (ingredient_map or {}).get(rname, "")]).lower()
+    if f in {"month", "season", "seasonality"}:
+        return " ".join([str(getter("months", "") or ""), str(getter("seasonality_summary", "") or "")]).lower()
+    if f in {"course"}:
+        return str(getter("course", "") or "").lower()
+    return str(getter(field, "") or "").lower()
+
+
+def _recipe_simple_token_match(row: pd.Series | dict[str, Any], token: str, ingredient_map: dict[str, str]) -> bool:
+    token = str(token or "").strip().strip('"\'')
+    if not token:
+        return True
+    getter = row.get if hasattr(row, "get") else (lambda k, d="": "")
+    low = token.lower()
+    m = re.match(r"^time\s*(<=|>=|<|>|=)\s*(\d+(?:\.\d+)?)$", low)
+    if m:
+        op, num_s = m.group(1), m.group(2)
+        try:
+            actual = float(str(getter("time_mins", "") or "nan"))
+            target = float(num_s)
+        except Exception:
+            return False
+        return {"<=": actual <= target, ">=": actual >= target, "<": actual < target, ">": actual > target, "=": actual == target}.get(op, False)
+    m = re.match(r"^(course|culture|cuisine|style|plate|dish|dish_style|diet|dietary|ingredient|ingredients|produce|month|season):(.+)$", token, flags=re.I)
+    if m:
+        return _contains_loose(_field_text(row, m.group(1), ingredient_map), m.group(2).replace("_", " "))
+    return _contains_loose(_recipe_search_text(row, ingredient_map), token.replace("_", " "))
+
+
+def _split_advanced_or(query: str) -> list[str]:
+    return [part.strip() for part in re.split(r"\s+OR\s+", str(query or ""), flags=re.I) if part.strip()]
+
+
+def _advanced_recipe_query_match(row: pd.Series | dict[str, Any], query: str, ingredient_map: dict[str, str]) -> bool:
+    q = str(query or "").strip()
+    if not q:
+        return True
+    # Lightweight Boolean support: OR separates alternatives; AND is optional; NOT negates the next token.
+    for alt in _split_advanced_or(q):
+        tokens = [t for t in re.split(r"\s+", alt.replace("(", " ").replace(")", " ").strip()) if t and t.upper() != "AND"]
+        negate = False
+        ok = True
+        for token in tokens:
+            if token.upper() == "NOT":
+                negate = True
+                continue
+            matched = _recipe_simple_token_match(row, token, ingredient_map)
+            if negate:
+                matched = not matched
+                negate = False
+            if not matched:
+                ok = False
+                break
+        if ok:
+            return True
+    return False
+
+
+def _shopping_item_title(row: pd.Series | dict[str, Any]) -> str:
+    qty = str(row.get("quantity", "") or "").strip()
+    unit = str(row.get("unit", "") or "").strip()
+    ingredient = str(row.get("ingredient", "") or "").strip()
+    return " ".join([x for x in [qty, unit, ingredient] if x]).strip() or ingredient or str(row.get("notes", "") or "").strip()
+
+
+def _shopping_recipe_source_text(row: pd.Series | dict[str, Any]) -> str:
+    recipe_name = str(row.get("recipe_name", "") or "").strip()
+    notes = str(row.get("notes", "") or "").strip()
+    sources: list[str] = []
+    if recipe_name:
+        sources.extend([p.strip() for p in re.split(r"[;|]", recipe_name) if p.strip()])
+    m = re.search(r"(?:used in|source(?:s)?):\s*(.+)$", notes, flags=re.I)
+    if m:
+        sources.extend([p.strip() for p in re.split(r"[;|]", m.group(1)) if p.strip()])
+    seen = []
+    for source in sources:
+        if source and source not in seen:
+            seen.append(source)
+    if len(seen) > 2:
+        return f"Used in {len(seen)} recipes: " + "; ".join(seen[:2]) + "..."
+    return "; ".join(seen)
+
+
+def _shopping_merge_key(row: pd.Series | dict[str, Any]) -> tuple[str, str, str, str]:
+    ingredient = _normalise_food_key(str(row.get("ingredient", "") or ""))
+    category = str(row.get("category_name", "") or "").strip().lower()
+    qty = str(row.get("quantity", "") or "").strip().lower()
+    unit = str(row.get("unit", "") or "").strip().lower()
+    # Exact quantity/unit matches can merge; unquantified repeated items such as salt and pepper also merge.
+    return (category, ingredient, qty, unit)
+
+
+def _combine_source_values(existing: str, incoming: str) -> str:
+    values: list[str] = []
+    for text in [existing, incoming]:
+        for part in re.split(r"[;|]", str(text or "")):
+            clean = part.strip()
+            if clean and clean not in values:
+                values.append(clean)
+    return "; ".join(values)
+
+
+def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) -> tuple[bool, str]:
+    if trolley_items is None or trolley_items.empty:
+        return False, "There are no trolley items to add to inventory."
+    current_inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
+    existing_by_key: dict[str, dict[str, Any]] = {}
+    if not current_inventory.empty:
+        for _, inv in current_inventory.iterrows():
+            key = _normalise_food_key(inv.get("item", ""))
+            if key:
+                existing_by_key[key] = inv.to_dict()
+    updates: dict[str, dict[str, Any]] = {}
+    new_records: list[dict[str, Any]] = []
+    for _, row in trolley_items.iterrows():
+        ingredient = str(row.get("ingredient", "") or "").strip()
+        if not ingredient:
+            continue
+        key = _normalise_food_key(ingredient)
+        category = str(row.get("category_name", "") or "").strip() or _grocery_category_for_item(ingredient) or "Produce"
+        qty = str(row.get("quantity", "") or "").strip()
+        unit = str(row.get("unit", "") or "").strip()
+        source = _shopping_recipe_source_text(row)
+        note = f"Added from shopping trolley" + (f". Used in: {source}" if source else ".")
+        existing = existing_by_key.get(key)
+        if existing:
+            inv_id = str(existing.get("inventory_id", "") or "").strip()
+            updates[inv_id] = {
+                "category_name": category or existing.get("category_name", ""),
+                "quantity": qty or existing.get("quantity", ""),
+                "unit": unit or existing.get("unit", ""),
+                "status": "active",
+                "notes": note,
+                "source": "Shopping trolley",
+            }
+        else:
+            inv_id = f"inventory-{uuid.uuid4().hex[:12]}"
+            existing_by_key[key] = {"inventory_id": inv_id, "item": ingredient}
+            new_records.append({
+                "inventory_id": inv_id,
+                "category_name": category,
+                "item": ingredient,
+                "quantity": qty,
+                "unit": unit,
+                "expiry_date": "",
+                "storage": "",
+                "is_frozen": "",
+                "requires_substitute": "",
+                "suggested_substitute": "",
+                "must_be_homegrown": "",
+                "unavailable": "",
+                "imported": "",
+                "canned": "",
+                "in_season": "",
+                "limited_in_season": "",
+                "months": "",
+                "notes": note,
+                "status": "active",
+                "source": "Shopping trolley",
+            })
+    ok_all = True
+    messages = []
+    if updates:
+        ok, msg = update_many_online_records(sheet_id, "grocery_inventory", updates)
+        ok_all = ok_all and ok
+        messages.append(msg)
+    if new_records:
+        ok, msg = append_many_online_records(sheet_id, {"grocery_inventory": new_records})
+        ok_all = ok_all and ok
+        messages.append(msg)
+    if not updates and not new_records:
+        return False, "No inventory items could be created from the trolley."
+    return ok_all, f"Added {len(new_records)} new item(s) and updated {len(updates)} existing item(s) in inventory."
+
 def render_ingredients_validation_tab(sheet_id: str) -> None:
     st.subheader("Ingredients")
     st.caption("Ingredient names and units used by recipes. This helps keep new recipe entry consistent, a bit like a materials list.")
@@ -13015,57 +13279,30 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
         st.info("No items in this list yet.")
         return
 
-    # Keep shopping interaction fast while users are walking around the supermarket.
-    # Checking/unchecking items updates the browser session immediately; the user can
-    # save those changes back to Pathmark Sync in one batch when they are ready.
     pending_key = f"shopping_checked_pending_{list_id}"
     pending_checked = st.session_state.setdefault(pending_key, {})
     if not isinstance(pending_checked, dict):
         pending_checked = {}
         st.session_state[pending_key] = pending_checked
 
-    st.caption("Shopping mode: taps update this page only. Pathmark Sync is updated only when you press Save shopping changes.")
+    st.caption("Shopping mode: taps stay on this device first. Press Save changes when you are finished shopping.")
 
     css = """
     <style>
-      .pm-shop-category {
-        margin-top: 1.05rem;
-        margin-bottom: 0.2rem;
-        font-weight: 760;
-        letter-spacing: -0.01em;
-      }
-      .pm-shop-item {
-        padding: 0.34rem 0 0.46rem 0;
-        border-bottom: 1px solid rgba(120, 120, 120, 0.16);
-      }
-      .pm-shop-title {
-        font-weight: 690;
-        line-height: 1.25;
-      }
-      .pm-shop-meta {
-        margin-top: 0.12rem;
-        color: rgba(120, 120, 120, 0.92);
-        font-size: 0.9rem;
-        line-height: 1.25;
-      }
-      .pm-shop-completed .pm-shop-title {
-        color: rgba(120, 120, 120, 0.78);
-        text-decoration: line-through;
-        text-decoration-thickness: 1.5px;
-      }
-      .pm-shop-completed .pm-shop-meta {
-        color: rgba(120, 120, 120, 0.62);
-      }
-      .pm-shop-section-muted {
-        color: rgba(120, 120, 120, 0.86);
-      }
+      .pm-shop-category { margin-top: 1rem; margin-bottom: 0.25rem; font-weight: 760; letter-spacing: -0.01em; }
+      .pm-shop-item { padding: 0.28rem 0 0.42rem 0; border-bottom: 1px solid rgba(120,120,120,0.14); }
+      .pm-shop-title { font-weight: 690; line-height: 1.25; }
+      .pm-shop-meta { margin-top: 0.12rem; color: rgba(120,120,120,0.92); font-size: 0.9rem; line-height: 1.25; }
+      .pm-shop-completed .pm-shop-title { color: rgba(120,120,120,0.78); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+      .pm-shop-completed .pm-shop-meta { color: rgba(120,120,120,0.62); }
+      .pm-shop-section-muted { color: rgba(120,120,120,0.86); }
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
 
     order = _category_order_map(sheet_id)
-    view = items.copy()
-    base_checked = view.get("checked", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"yes", "true", "1", "checked", "done"})
+    view = items.copy().reset_index(drop=True)
+    base_checked = view.get("checked", pd.Series([""] * len(view))).fillna("").astype(str).str.lower().isin({"yes", "true", "1", "checked", "done"})
     effective_checked = []
     for idx, row in view.iterrows():
         item_id = str(row.get("shopping_item_id", "") or "").strip()
@@ -13082,10 +13319,9 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
         effective_checked.append(effective)
     view["_checked_bool"] = effective_checked
     view["_base_checked_bool"] = list(base_checked)
-    view["_category_order"] = view.get("category_name", pd.Series(dtype=str)).map(lambda x: order.get(str(x), 9999))
-    view["_ingredient_sort"] = view.get("ingredient", pd.Series(dtype=str)).fillna("").astype(str).str.lower()
+    view["_category_order"] = view.get("category_name", pd.Series([""] * len(view))).map(lambda x: order.get(str(x), 9999))
+    view["_ingredient_sort"] = view.get("ingredient", pd.Series([""] * len(view))).fillna("").astype(str).str.lower()
 
-    # Update pending-change state from the current checkbox values.
     for _, row in view.iterrows():
         item_id = str(row.get("shopping_item_id", "") or "").strip()
         if not item_id:
@@ -13099,81 +13335,81 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     st.session_state[pending_key] = pending_checked
 
     pending_count = len(pending_checked)
-    if pending_count:
-        c_save, c_discard = st.columns([3, 1])
-        with c_save:
-            if st.button(f"Save {pending_count} shopping change{'s' if pending_count != 1 else ''} to Pathmark Sync", key=f"save_shop_pending_{list_id}", use_container_width=True):
-                updates = {item_id: {"checked": "Yes" if checked else ""} for item_id, checked in list(pending_checked.items())}
-                ok, msg = update_many_online_records(sheet_id, "shopping_items", updates)
-                if ok:
-                    st.success(msg)
-                else:
-                    st.warning(msg)
-                if ok:
-                    pending_checked.clear()
-                    st.session_state[pending_key] = pending_checked
-                    # Clear item checkbox keys so the next render reflects Pathmark Sync.
-                    for _, row in view.iterrows():
-                        item_id = str(row.get("shopping_item_id", "") or "").strip()
-                        st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
-                    st.rerun()
-        with c_discard:
-            if st.button("Discard", key=f"discard_shop_pending_{list_id}", use_container_width=True):
+    trolley_count = int(view["_checked_bool"].sum()) if "_checked_bool" in view.columns else 0
+    c_save, c_inventory, c_discard = st.columns([1.2, 1.2, 0.8])
+    with c_save:
+        if st.button("Save changes", key=f"save_shop_pending_{list_id}", use_container_width=True, disabled=not bool(pending_count)):
+            updates = {item_id: {"checked": "Yes" if checked else ""} for item_id, checked in list(pending_checked.items())}
+            ok, msg = update_many_online_records(sheet_id, "shopping_items", updates)
+            if ok:
+                st.success("Shopping changes saved.")
                 pending_checked.clear()
                 st.session_state[pending_key] = pending_checked
                 for _, row in view.iterrows():
                     item_id = str(row.get("shopping_item_id", "") or "").strip()
                     st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
                 st.rerun()
+            else:
+                st.warning(msg)
+    with c_inventory:
+        if st.button("Add trolley to inventory", key=f"add_trolley_inventory_{list_id}", use_container_width=True, disabled=trolley_count == 0):
+            trolley = view[view["_checked_bool"].eq(True)].copy()
+            ok, msg = _add_trolley_items_to_inventory(sheet_id, trolley)
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(safe_user_message(msg))
+    with c_discard:
+        if st.button("Discard", key=f"discard_shop_pending_{list_id}", use_container_width=True, disabled=not bool(pending_count)):
+            pending_checked.clear()
+            st.session_state[pending_key] = pending_checked
+            for _, row in view.iterrows():
+                item_id = str(row.get("shopping_item_id", "") or "").strip()
+                st.session_state.pop(f"shop_checked_{list_id}_{item_id}", None)
+            st.rerun()
 
-    for completed, label in [(False, "To buy"), (True, "Completed")]:
+    if pending_count:
+        st.caption(f"{pending_count} unsaved shopping change{'s' if pending_count != 1 else ''}.")
+
+    for completed, label in [(False, "To buy"), (True, "In trolley")]:
         subset = view[view["_checked_bool"].eq(completed)].sort_values(["_category_order", "category_name", "_ingredient_sort"])
         if subset.empty:
             continue
-        heading = label if not completed else "Completed"
-        st.markdown(f"#### {heading}" if not completed else f"#### <span class='pm-shop-section-muted'>{heading}</span>", unsafe_allow_html=True)
+        st.markdown(f"#### {label}" if not completed else f"#### <span class='pm-shop-section-muted'>{label}</span>", unsafe_allow_html=True)
         for category, group in subset.groupby("category_name", dropna=False, sort=False):
             cat = str(category or "Uncategorised").strip() or "Uncategorised"
             st.markdown(f"<div class='pm-shop-category'>{html.escape(cat)}</div>", unsafe_allow_html=True)
             for _, row in group.iterrows():
                 item_id = str(row.get("shopping_item_id", "") or "").strip()
-                qty = str(row.get("quantity", "") or "").strip()
-                unit = str(row.get("unit", "") or "").strip()
-                ingredient = str(row.get("ingredient", "") or "").strip()
-                recipe_name = str(row.get("recipe_name", "") or "").strip()
-                expiry = str(row.get("expiry_date", "") or "").strip()
-                title = " ".join([x for x in [qty, unit, ingredient] if x]).strip() or ingredient
-                meta = []
-                if recipe_name:
-                    meta.append(recipe_name)
-                if expiry:
-                    meta.append(f"Expiry: {expiry}")
+                title = _shopping_item_title(row)
+                source = _shopping_recipe_source_text(row)
+                notes = str(row.get("notes", "") or "").strip()
+                meta_bits = []
+                if source:
+                    meta_bits.append(source)
+                elif notes and notes.lower() != title.lower():
+                    meta_bits.append(notes)
                 checkbox_key = f"shop_checked_{list_id}_{item_id}"
-                c1, c2, c3 = st.columns([0.06, 0.78, 0.16])
+                c1, c2 = st.columns([0.06, 0.94])
                 with c1:
                     current_val = bool(row.get("_checked_bool", False))
-                    checked_now = st.checkbox("", value=current_val, key=checkbox_key, label_visibility="collapsed")
-                if checked_now != bool(row.get("_checked_bool", False)):
-                    # The checkbox state will be picked up at the top of the next rerun.
-                    pass
+                    st.checkbox("", value=current_val, key=checkbox_key, label_visibility="collapsed")
                 item_class = "pm-shop-item pm-shop-completed" if completed else "pm-shop-item"
                 with c2:
-                    meta_html = f"<div class='pm-shop-meta'>{html.escape(' · '.join(meta))}</div>" if meta else ""
+                    meta_html = f"<div class='pm-shop-meta'>{html.escape(' · '.join(meta_bits))}</div>" if meta_bits else ""
                     st.markdown(f"<div class='{item_class}'><div class='pm-shop-title'>{html.escape(title)}</div>{meta_html}</div>", unsafe_allow_html=True)
-                with c3:
-                    if not completed and st.button("Expiry", key=f"expiry_select_{item_id}"):
-                        st.session_state["shopping_expiry_item_id"] = item_id
-                        st.rerun()
+
 
 def render_grocery_categories_tab(sheet_id: str) -> None:
-    st.subheader("Grocery categories")
-    st.caption("These work like Areas for shopping lists. Items can be grouped under supermarket-style sections.")
+    st.subheader("Categories")
+    st.markdown("#### Shopping aisles")
+    st.caption("These are supermarket aisle/category groups for shopping lists. They stay separate from recipe discovery filters.")
     categories = active_online_df(read_online_table(sheet_id, "grocery_categories"))
     if not categories.empty:
         display_cols = [c for c in ["sort_order", "category_name", "description", "colour", "status"] if c in categories.columns]
         st.dataframe(categories[display_cols], use_container_width=True, hide_index=True)
     with st.form("add_grocery_category_form"):
-        st.markdown("#### Add category")
+        st.markdown("#### Add shopping aisle/category")
         c1, c2, c3 = st.columns([2, 3, 1])
         with c1:
             name = st.text_input("Category name")
@@ -13203,13 +13439,12 @@ def render_grocery_categories_tab(sheet_id: str) -> None:
                 st.warning(msg)
 
     st.markdown("#### Recipe classifications")
-    st.caption("Recipe categories are tag-style helpers for searching meal plans, recipes and future starter packs.")
+    st.caption("These are customisable recipe discovery filters. Shopping aisles stay separate from recipe filters.")
     recipe_tables = [
         ("Courses", "recipe_courses", "course_id", "course_name", "course"),
-        ("Meal categories", "recipe_meal_categories", "meal_category_id", "meal_category_name", "meal_category"),
-        ("Cuisine / tradition tags", "recipe_cuisine_tags", "cuisine_tag_id", "cuisine_tag_name", "cuisine_tag"),
-        ("Technique / dish-style tags", "recipe_dish_style_tags", "dish_style_tag_id", "dish_style_tag_name", "dish_style_tag"),
-        ("Dietary tags", "recipe_dietary_tags", "dietary_tag_id", "dietary_tag_name", "dietary_tag"),
+        ("Culture / style", "recipe_cuisine_tags", "cuisine_tag_id", "cuisine_tag_name", "cuisine_tag"),
+        ("Plate / dish style", "recipe_dish_style_tags", "dish_style_tag_id", "dish_style_tag_name", "dish_style_tag"),
+        ("Dietary requirements", "recipe_dietary_tags", "dietary_tag_id", "dietary_tag_name", "dietary_tag"),
     ]
     for label, table, id_col, name_col, prefix in recipe_tables:
         with st.expander(label, expanded=False):
@@ -13222,7 +13457,7 @@ def render_grocery_categories_tab(sheet_id: str) -> None:
                     new_name = st.text_input(f"Add {label[:-1].lower() if label.endswith('s') else label.lower()}", key=f"{table}_name")
                 with c2:
                     new_desc = st.text_input("Description", value="Meal Plan recipe classification.", key=f"{table}_desc")
-                add_tag = st.form_submit_button(f"Add {label[:-1] if label.endswith('s') else label}", use_container_width=True)
+                add_tag = st.form_submit_button("Add option", use_container_width=True)
             if add_tag:
                 if not new_name.strip():
                     st.warning("Enter a name.")
@@ -13245,7 +13480,7 @@ def render_grocery_categories_tab(sheet_id: str) -> None:
 
 def render_grocery_inventory_tab(sheet_id: str) -> None:
     st.subheader("Grocery inventory")
-    st.caption("Track what you have, expiry dates, storage, substitutions, seasonality and availability.")
+    st.caption("Track what you have, expiry dates, storage, substitutions, seasonality and availability. Pantry reminders are created from inventory, not from the shopping trolley.")
     categories = grocery_category_options(sheet_id)
     inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
     search = st.text_input("Search inventory", placeholder="e.g., mustard, tomato, rice")
@@ -13257,7 +13492,42 @@ def render_grocery_inventory_tab(sheet_id: str) -> None:
     if not view.empty and category_filter != "All categories":
         view = view[view["category_name"].fillna("").eq(category_filter)]
     display_cols = [c for c in ["category_name", "item", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes"] if c in view.columns]
-    st.dataframe(view[display_cols] if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=360)
+    st.dataframe(view[display_cols] if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=330)
+
+    if not inventory.empty:
+        st.markdown("#### Inventory actions")
+        item_options = [str(x).strip() for x in inventory.get("item", pd.Series(dtype=str)).tolist() if str(x).strip()]
+        selected_item = st.selectbox("Choose inventory item", item_options, key="inventory_action_item")
+        selected_df = inventory[inventory.get("item", pd.Series(dtype=str)).fillna("").astype(str).eq(selected_item)]
+        if not selected_df.empty:
+            selected = selected_df.iloc[0].to_dict()
+            inv_id = str(selected.get("inventory_id", "") or "")
+            c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+            with c1:
+                action_qty = st.text_input("Quantity", value=str(selected.get("quantity", "") or ""), key=f"inventory_action_qty_{inv_id}")
+            with c2:
+                action_unit = st.text_input("Unit", value=str(selected.get("unit", "") or ""), key=f"inventory_action_unit_{inv_id}")
+            with c3:
+                action_expiry = st.date_input("Expiry / remove-by", value=_parse_iso_date_for_widget(selected.get("expiry_date", "")), key=f"inventory_action_expiry_{inv_id}")
+            with c4:
+                action_status = st.selectbox("Status", ["active", "low", "used", "removed"], index=0, key=f"inventory_action_status_{inv_id}")
+            csave, ctask = st.columns([1, 1])
+            with csave:
+                if st.button("Save inventory details", use_container_width=True, key=f"save_inventory_action_{inv_id}"):
+                    ok, msg = update_online_record(sheet_id, "grocery_inventory", inv_id, {"quantity": action_qty, "unit": action_unit, "expiry_date": str(action_expiry or ""), "status": action_status, "source": "Inventory"})
+                    if ok:
+                        st.success("Inventory details saved.")
+                        st.rerun()
+                    else:
+                        st.warning(safe_user_message(msg))
+            with ctask:
+                if st.button("Create pantry reminder", use_container_width=True, key=f"create_inventory_task_{inv_id}"):
+                    ok_task, list_task_id, task_id, task_msg = create_pantry_expiry_google_task(selected_item, action_expiry)
+                    if ok_task:
+                        st.success(task_msg)
+                    else:
+                        st.warning(safe_user_message(task_msg))
+
     with st.form("add_grocery_inventory_form"):
         st.markdown("#### Add or update inventory item")
         c1, c2, c3 = st.columns([2, 2, 1])
@@ -13297,7 +13567,7 @@ def render_grocery_inventory_tab(sheet_id: str) -> None:
                 "item": item.strip(),
                 "quantity": quantity.strip(),
                 "unit": unit.strip(),
-                "expiry_date": str(expiry_date or ""),
+                "expiry_date": "",
                 "storage": storage,
                 "is_frozen": _grocery_bool_text(is_frozen),
                 "requires_substitute": _grocery_bool_text(requires_substitute),
@@ -13325,35 +13595,70 @@ def render_grocery_inventory_tab(sheet_id: str) -> None:
                 st.warning(msg)
 
 
-def _recipe_filter_mask(recipes: pd.DataFrame, *, month: str, course: str, meal_category: str, cuisine: str, dish_style: str, dietary: str, produce: str, vegetarian_only: bool, vegan_only: bool, gluten_free_only: bool, in_season_only: bool, avoid_unavailable: bool) -> pd.Series:
+def _recipe_filter_mask(
+    recipes: pd.DataFrame,
+    ingredients: pd.DataFrame,
+    *,
+    months: list[str],
+    courses: list[str],
+    cultures: list[str],
+    plates: list[str],
+    dietary: list[str],
+    include_terms: str,
+    exclude_terms: str,
+    advanced_query: str,
+    time_limit: str,
+    vegetarian_only: bool,
+    vegan_only: bool,
+    gluten_free_only: bool,
+    in_season_only: bool,
+    avoid_unavailable: bool,
+) -> pd.Series:
     if recipes.empty:
         return pd.Series(dtype=bool)
+    ingredient_map = _recipe_ingredient_text_map(ingredients)
     mask = pd.Series([True] * len(recipes), index=recipes.index)
-    if month and month != "Any month":
-        mask &= recipes.apply(lambda r: month.lower() in _split_tag_text(r.get("months", "")) or month.lower() in _split_tag_text(r.get("seasonality_summary", "")), axis=1)
-    if course and course != "Any course":
-        mask &= recipes["course"].fillna("").astype(str).str.lower().str.contains(re.escape(course.lower()), na=False)
-    if meal_category and meal_category != "Any meal category":
-        mask &= recipes["meal_categories"].fillna("").astype(str).str.lower().str.contains(re.escape(meal_category.lower()), na=False)
-    if cuisine and cuisine != "Any cuisine / style":
-        mask &= recipes["cuisine_tags"].fillna("").astype(str).str.lower().str.contains(re.escape(cuisine.lower()), na=False)
-    if dish_style and dish_style != "Any dish style":
-        mask &= recipes["dish_style_tags"].fillna("").astype(str).str.lower().str.contains(re.escape(dish_style.lower()), na=False)
-    if dietary and dietary != "Any dietary tag":
-        mask &= recipes["dietary_tags"].fillna("").astype(str).str.lower().str.contains(re.escape(dietary.lower()), na=False)
+
+    if months:
+        month_lowers = {m.lower() for m in months if m and m != "Any month"}
+        if month_lowers and in_season_only:
+            mask &= recipes.apply(lambda r: bool(month_lowers & (_split_tag_text(r.get("months", "")) | _split_tag_text(r.get("seasonality_summary", "")))), axis=1)
+    if courses:
+        wanted = [c.lower() for c in courses if c]
+        mask &= recipes["course"].fillna("").astype(str).str.lower().map(lambda text: any(w in text for w in wanted))
+    if cultures:
+        wanted = [c.lower() for c in cultures if c]
+        mask &= recipes["cuisine_tags"].fillna("").astype(str).str.lower().map(lambda text: any(w in text for w in wanted))
+    if plates:
+        wanted = [p.lower() for p in plates if p]
+        mask &= recipes["dish_style_tags"].fillna("").astype(str).str.lower().map(lambda text: any(w in text for w in wanted))
+    if dietary:
+        wanted = [d.lower() for d in dietary if d]
+        mask &= recipes.apply(lambda r: any(w in _field_text(r, "dietary", ingredient_map) for w in wanted), axis=1)
+    if time_limit and time_limit != "Any time":
+        limit_map = {"15 minutes or less": 15, "30 minutes or less": 30, "45 minutes or less": 45, "1 hour or less": 60, "Over 1 hour": None}
+        numeric_time = pd.to_numeric(recipes.get("time_mins", pd.Series([None] * len(recipes), index=recipes.index)), errors="coerce")
+        if time_limit == "Over 1 hour":
+            mask &= numeric_time.gt(60)
+        elif time_limit in limit_map and limit_map[time_limit] is not None:
+            mask &= numeric_time.le(limit_map[time_limit])
     if vegetarian_only:
-        mask &= recipes.apply(lambda r: "vegetarian" in str(r.get("vegetarian_vegan", "") or "").lower() or str(r.get("vegetarian", "") or "").strip().lower() in {"yes", "true", "1"}, axis=1)
+        mask &= recipes.apply(lambda r: "vegetarian" in _field_text(r, "dietary", ingredient_map) or str(r.get("vegetarian", "") or "").strip().lower() in {"yes", "true", "1"}, axis=1)
     if vegan_only:
-        mask &= recipes.apply(lambda r: "vegan" in str(r.get("vegetarian_vegan", "") or "").lower() or str(r.get("vegan", "") or "").strip().lower() in {"yes", "true", "1"}, axis=1)
+        mask &= recipes.apply(lambda r: "vegan" in _field_text(r, "dietary", ingredient_map) or str(r.get("vegan", "") or "").strip().lower() in {"yes", "true", "1"}, axis=1)
     if gluten_free_only:
-        mask &= recipes.apply(lambda r: "gluten" in str(r.get("gluten_free", "") or "").lower() or "gluten free" in str(r.get("dietary_tags", "") or "").lower(), axis=1)
+        mask &= recipes.apply(lambda r: "gluten free" in _field_text(r, "dietary", ingredient_map) or "gluten" in str(r.get("gluten_free", "") or "").lower(), axis=1)
     if avoid_unavailable:
         mask &= ~recipes.apply(lambda r: "unavailable" in (str(r.get("unavailable_notes", "") or "") + " " + str(r.get("seasonality_summary", "") or "")).lower(), axis=1)
-    if in_season_only and month and month != "Any month":
-        mask &= recipes.apply(lambda r: month.lower() in str(r.get("months", "") or "").lower(), axis=1)
-    if produce.strip():
-        ptxt = produce.strip().lower()
-        mask &= recipes.apply(lambda r: ptxt in " ".join(str(r.get(c, "") or "") for c in ["recipe_name", "notes", "seasonality_summary", "substitute_notes", "imported_notes", "unavailable_notes"]).lower(), axis=1)
+
+    include = _split_search_terms(include_terms)
+    exclude = _split_search_terms(exclude_terms)
+    if include:
+        mask &= recipes.apply(lambda r: all(_contains_loose(_recipe_search_text(r, ingredient_map), term) for term in include), axis=1)
+    if exclude:
+        mask &= ~recipes.apply(lambda r: any(_contains_loose(_recipe_search_text(r, ingredient_map), term) for term in exclude), axis=1)
+    if str(advanced_query or "").strip():
+        mask &= recipes.apply(lambda r: _advanced_recipe_query_match(r, advanced_query, ingredient_map), axis=1)
     return mask
 
 
@@ -13362,38 +13667,84 @@ def render_recipes_tab(sheet_id: str) -> None:
     st.caption("Search, classify and build recipes with seasonality, nutrition and approximate cost estimates. Recipe starter packs can be imported from Supabase without storing curated recipe data in GitHub.")
     categories = grocery_category_options(sheet_id)
     course_options = recipe_course_options(sheet_id)
-    meal_category_options = recipe_meal_category_options(sheet_id)
     cuisine_options = recipe_cuisine_tag_options(sheet_id)
     dish_style_options = recipe_dish_style_options(sheet_id)
     dietary_options = recipe_dietary_tag_options(sheet_id)
     recipes = active_online_df(read_online_table(sheet_id, "recipes"))
     ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
 
+    time_filter_options = ["Any time", "15 minutes or less", "30 minutes or less", "45 minutes or less", "1 hour or less", "Over 1 hour"]
+    time_sort_options = ["No time sort", "Quickest first", "Longest first"]
     with st.expander("Find recipes", expanded=not recipes.empty):
         c1, c2, c3 = st.columns(3)
         with c1:
-            filter_month = st.selectbox("Month", ["Any month"] + GROCERY_MONTHS, key="recipe_filter_month")
-            filter_course = st.selectbox("Course", ["Any course"] + course_options, key="recipe_filter_course")
-            filter_meal_category = st.selectbox("Meal category", ["Any meal category"] + meal_category_options, key="recipe_filter_meal_category")
+            filter_courses_raw = st.multiselect("Course", _with_categories_edit_option(course_options), key="recipe_filter_courses")
+            filter_cultures_raw = st.multiselect("Culture / style", _with_categories_edit_option(cuisine_options), key="recipe_filter_cultures")
+            filter_plates_raw = st.multiselect("Plate / dish style", _with_categories_edit_option(dish_style_options), key="recipe_filter_plates")
         with c2:
-            filter_cuisine = st.selectbox("Cuisine / style", ["Any cuisine / style"] + cuisine_options, key="recipe_filter_cuisine")
-            filter_dish_style = st.selectbox("Dish style", ["Any dish style"] + dish_style_options, key="recipe_filter_dish_style")
-            filter_dietary = st.selectbox("Dietary tag", ["Any dietary tag"] + dietary_options, key="recipe_filter_dietary")
+            filter_time = st.selectbox("Time", time_filter_options, key="recipe_filter_time")
+            filter_time_sort = st.selectbox("Time sort", time_sort_options, key="recipe_filter_time_sort")
+            filter_months = st.multiselect("Month / season", GROCERY_MONTHS, key="recipe_filter_months")
         with c3:
-            filter_produce = st.text_input("Ingredient or produce", placeholder="e.g., Eggplant, Lime, Coriander")
+            include_terms = st.text_input("Include ingredients or words", placeholder="e.g., tofu, eggplant")
+            exclude_terms = st.text_input("Exclude ingredients or words", placeholder="e.g., mushroom, fish")
+            filter_dietary_raw = st.multiselect("Dietary requirements", _with_categories_edit_option(dietary_options), key="recipe_filter_dietary_multi")
             vegetarian_only = st.checkbox("Vegetarian", value=False, key="recipe_filter_vegetarian")
             vegan_only = st.checkbox("Vegan", value=False, key="recipe_filter_vegan")
             gluten_free_only = st.checkbox("Gluten free", value=False, key="recipe_filter_gf")
-            in_season_only = st.checkbox("Only recipes tagged for selected month", value=False, key="recipe_filter_season")
-            avoid_unavailable = st.checkbox("Avoid unavailable produce", value=False, key="recipe_filter_unavailable")
+            in_season_only = st.checkbox("Show seasonal recipes only", value=False, key="recipe_filter_season")
+            avoid_unavailable = st.checkbox("Exclude unavailable produce", value=False, key="recipe_filter_unavailable")
+        with st.expander("Advanced search", expanded=False):
+            advanced_query = st.text_input("Boolean-style search", placeholder="japanese AND vegetarian NOT mushroom", key="recipe_advanced_query")
+            st.caption("Supports AND, OR, NOT and simple fields such as course:dinner, culture:japanese, plate:nimono, ingredient:tofu, month:june, time<=45.")
+        edit_hint_needed = EDIT_IN_CATEGORIES_LABEL in set(filter_courses_raw + filter_cultures_raw + filter_plates_raw + filter_dietary_raw)
+        if edit_hint_needed:
+            st.info("These options can be edited in Nutrition → Categories. This selection is a shortcut, not a filter.")
+        filter_courses = [v for v in filter_courses_raw if v != EDIT_IN_CATEGORIES_LABEL]
+        filter_cultures = [v for v in filter_cultures_raw if v != EDIT_IN_CATEGORIES_LABEL]
+        filter_plates = [v for v in filter_plates_raw if v != EDIT_IN_CATEGORIES_LABEL]
+        filter_dietary = [v for v in filter_dietary_raw if v != EDIT_IN_CATEGORIES_LABEL]
+        active_chips = []
+        for label, values in [("Course", filter_courses), ("Culture", filter_cultures), ("Plate", filter_plates), ("Dietary", filter_dietary), ("Month", filter_months)]:
+            active_chips.extend([f"{label}: {v}" for v in values])
+        if filter_time != "Any time":
+            active_chips.append(f"Time: {filter_time}")
+        if include_terms.strip():
+            active_chips.append(f"Include: {include_terms.strip()}")
+        if exclude_terms.strip():
+            active_chips.append(f"Exclude: {exclude_terms.strip()}")
+        if advanced_query.strip():
+            active_chips.append(f"Advanced: {advanced_query.strip()}")
+        if active_chips:
+            st.caption("Active filters: " + " · ".join(active_chips))
     filtered = recipes.copy()
     if not recipes.empty:
-        mask = _recipe_filter_mask(recipes, month=filter_month, course=filter_course, meal_category=filter_meal_category, cuisine=filter_cuisine, dish_style=filter_dish_style, dietary=filter_dietary, produce=filter_produce, vegetarian_only=vegetarian_only, vegan_only=vegan_only, gluten_free_only=gluten_free_only, in_season_only=in_season_only, avoid_unavailable=avoid_unavailable)
+        mask = _recipe_filter_mask(
+            recipes,
+            ingredients,
+            months=filter_months,
+            courses=filter_courses,
+            cultures=filter_cultures,
+            plates=filter_plates,
+            dietary=filter_dietary,
+            include_terms=include_terms,
+            exclude_terms=exclude_terms,
+            advanced_query=advanced_query,
+            time_limit=filter_time,
+            vegetarian_only=vegetarian_only,
+            vegan_only=vegan_only,
+            gluten_free_only=gluten_free_only,
+            in_season_only=in_season_only,
+            avoid_unavailable=avoid_unavailable,
+        )
         filtered = recipes[mask].copy()
+        if filter_time_sort != "No time sort" and "time_mins" in filtered.columns:
+            filtered["_time_sort"] = pd.to_numeric(filtered["time_mins"], errors="coerce")
+            filtered = filtered.sort_values("_time_sort", ascending=(filter_time_sort == "Quickest first"), na_position="last").drop(columns=["_time_sort"])
     if filtered.empty:
         st.info("No recipes match those filters yet. Add a recipe below or import a recipe starter pack.")
     else:
-        show_cols = [c for c in ["recipe_name", "course", "meal_categories", "cuisine_tags", "dish_style_tags", "dietary_tags", "servings", "time_mins", "months", "source_title", "page"] if c in filtered.columns]
+        show_cols = [c for c in ["recipe_name", "course", "cuisine_tags", "dish_style_tags", "dietary_tags", "servings", "time_mins", "months", "source_title", "page"] if c in filtered.columns]
         st.dataframe(filtered[show_cols], use_container_width=True, hide_index=True, height=320)
 
     with st.form("add_recipe_form"):
@@ -13401,7 +13752,7 @@ def render_recipes_tab(sheet_id: str) -> None:
         c1, c2, c3 = st.columns([2, 1, 1])
         with c1:
             recipe_name = st.text_input("Recipe name")
-            recipe_category = st.selectbox("Primary grocery/category", categories, key="recipe_category")
+            recipe_category = st.selectbox("Primary shopping aisle/category", categories, key="recipe_category")
             course = st.selectbox("Course", course_options, key="recipe_course")
         with c2:
             servings = st.text_input("Servings", placeholder="4-6")
@@ -13411,10 +13762,9 @@ def render_recipes_tab(sheet_id: str) -> None:
             source_title = st.text_input("Source / book")
             source_url = st.text_input("Source URL")
             author = st.text_input("Author")
-        meal_tags = st.multiselect("Meal categories", meal_category_options, key="recipe_meal_tags")
-        cuisine_tags = st.multiselect("Cuisine / tradition tags", cuisine_options, key="recipe_cuisine_tags")
-        dish_tags = st.multiselect("Technique / dish-style tags", dish_style_options, key="recipe_dish_tags")
-        dietary_tags = st.multiselect("Dietary tags", dietary_options, key="recipe_dietary_tags")
+        culture_tags = st.multiselect("Culture / style", cuisine_options, key="recipe_culture_tags")
+        dish_tags = st.multiselect("Plate / dish style", dish_style_options, key="recipe_dish_tags")
+        dietary_tags = st.multiselect("Dietary requirements", dietary_options, key="recipe_dietary_tags")
         months = st.multiselect("Best months", GROCERY_MONTHS, key="recipe_months")
         c4, c5, c6 = st.columns(3)
         with c4:
@@ -13442,8 +13792,8 @@ def render_recipes_tab(sheet_id: str) -> None:
                 "recipe_name": recipe_name.strip(),
                 "category_name": recipe_category,
                 "course": course,
-                "meal_categories": _join_tags(meal_tags),
-                "cuisine_tags": _join_tags(cuisine_tags),
+                "meal_categories": "",
+                "cuisine_tags": _join_tags(culture_tags),
                 "dish_style_tags": _join_tags(dish_tags),
                 "dietary_tags": _join_tags(dietary_tags),
                 "servings": servings.strip(),
@@ -13625,7 +13975,7 @@ def render_recipes_tab(sheet_id: str) -> None:
 
 def render_shopping_lists_tab(sheet_id: str) -> None:
     st.subheader("Shopping lists")
-    st.caption("Create supermarket-aisle shopping lists from recipes or individual ingredients. Bought items move to a completed section at the bottom and can be brought back with one click.")
+    st.caption("Create supermarket-aisle shopping lists from recipes or individual ingredients. Bought items move to In trolley and can be brought back with one click.")
     categories = grocery_category_options(sheet_id)
     lists = active_online_df(read_online_table(sheet_id, "shopping_lists"))
     items = active_online_df(read_online_table(sheet_id, "shopping_items"))
@@ -13665,39 +14015,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
     this_items = _shopping_items_for_list(sheet_id, list_id)
     render_shopping_items_as_planner(sheet_id, list_id, selected_list, this_items)
 
-    selected_expiry_item_id = str(st.session_state.get("shopping_expiry_item_id", "") or "").strip()
-    if selected_expiry_item_id and not this_items.empty:
-        selected_row_df = this_items[this_items.get("shopping_item_id", pd.Series(dtype=str)).fillna("").eq(selected_expiry_item_id)]
-        if not selected_row_df.empty:
-            row = selected_row_df.iloc[0].to_dict()
-            ingredient = str(row.get("ingredient", "") or "").strip()
-            with st.expander(f"Purchase details: {ingredient}", expanded=True):
-                st.caption("Add an expiry date when you put this item into stock. Pathmark can also create a Google Task reminding you to remove it from the pantry/fridge.")
-                c1, c2, c3 = st.columns([1, 1, 1])
-                with c1:
-                    bought_qty = st.text_input("Stock quantity", value=str(row.get("quantity", "") or ""), key=f"stock_qty_{selected_expiry_item_id}")
-                with c2:
-                    bought_unit = st.text_input("Stock unit", value=str(row.get("unit", "") or ""), key=f"stock_unit_{selected_expiry_item_id}")
-                with c3:
-                    expiry_date = st.date_input("Expiry/remove-by date", value=None, key=f"stock_expiry_{selected_expiry_item_id}")
-                create_task = st.checkbox("Create Google Task to remove this item from stock", value=False, key=f"stock_expiry_task_{selected_expiry_item_id}")
-                if st.button("Save purchase details", use_container_width=True, key=f"save_stock_{selected_expiry_item_id}"):
-                    category = str(row.get("category_name", "") or _grocery_category_for_item(ingredient))
-                    inv_id = _add_inventory_item_if_needed(sheet_id, ingredient, category, unit=bought_unit, notes="Added from shopping list purchase.")
-                    if inv_id:
-                        update_online_record(sheet_id, "grocery_inventory", inv_id, {"quantity": bought_qty, "unit": bought_unit, "expiry_date": str(expiry_date or ""), "source": "Shopping list purchase"})
-                    updates = {"checked": "Yes", "expiry_date": str(expiry_date or "")}
-                    if create_task and expiry_date:
-                        ok_task, list_task_id, task_id, task_msg = create_pantry_expiry_google_task(ingredient, expiry_date)
-                        if ok_task:
-                            updates.update({"pantry_task_list_id": list_task_id, "pantry_task_id": task_id, "pantry_task_due": str(expiry_date)})
-                            st.success(task_msg)
-                        else:
-                            st.warning(safe_user_message(task_msg))
-                    update_online_record(sheet_id, "shopping_items", selected_expiry_item_id, updates)
-                    st.session_state.pop("shopping_expiry_item_id", None)
-                    st.success("Purchase details saved.")
-                    st.rerun()
+    # Expiry dates and pantry reminders are handled from the Inventory tab after shopping.
 
     inv_options = grocery_inventory_options(sheet_id)
     with st.form("add_shopping_item_form"):
@@ -13714,11 +14032,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
             if ingredient_choice == "+ Add new ingredient":
                 new_item = st.text_input("New ingredient")
         category = st.selectbox("Category", categories, key="shopping_item_category")
-        c4, c5 = st.columns([1, 2])
-        with c4:
-            expiry_date = st.date_input("Expiry date after purchase", value=None, key="shopping_item_expiry")
-        with c5:
-            notes = st.text_input("Notes")
+        notes = st.text_input("Notes")
         add_to_inventory = st.checkbox("Add new ingredient to ingredients/inventory", value=True)
         save_item = st.form_submit_button("Add item to shopping list", use_container_width=True)
     if save_item:
@@ -13741,7 +14055,7 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                 "recipe_id": "",
                 "recipe_name": "",
                 "checked": "",
-                "expiry_date": str(expiry_date or ""),
+                "expiry_date": "",
                 "notes": notes.strip(),
                 "status": "active",
                 "source": "Meal Plan",
@@ -13762,34 +14076,69 @@ def render_shopping_lists_tab(sheet_id: str) -> None:
                 recipe_row = recipes[recipes["recipe_name"].fillna("").eq(recipe_name)].iloc[0].to_dict()
                 recipe_id = str(recipe_row.get("recipe_id", ""))
                 rows = recipe_ingredients[recipe_ingredients["recipe_id"].fillna("").eq(recipe_id)] if not recipe_ingredients.empty else pd.DataFrame()
+                current_items = _shopping_items_for_list(sheet_id, list_id)
+                existing_by_key: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+                if not current_items.empty:
+                    for _, existing_row in current_items.iterrows():
+                        key = _shopping_merge_key(existing_row)
+                        if key[1]:
+                            existing_by_key[key] = existing_row.to_dict()
                 records = []
+                updates = {}
                 for _, row in rows.iterrows():
-                    records.append({
-                        "shopping_item_id": f"shopping-item-{uuid.uuid4().hex[:12]}",
-                        "shopping_list_id": list_id,
-                        "shopping_list_name": selected_list,
+                    candidate = {
                         "category_name": str(row.get("category_name", "") or "Produce"),
                         "quantity": str(row.get("quantity", "") or ""),
                         "unit": str(row.get("unit", "") or ""),
                         "ingredient": str(row.get("ingredient", "") or ""),
+                    }
+                    key = _shopping_merge_key(candidate)
+                    existing = existing_by_key.get(key)
+                    original_notes = str(row.get("notes", "") or "")
+                    if existing:
+                        existing_id = str(existing.get("shopping_item_id", "") or "")
+                        if existing_id:
+                            updates[existing_id] = {
+                                "recipe_name": _combine_source_values(str(existing.get("recipe_name", "") or ""), recipe_name),
+                                "notes": original_notes or str(existing.get("notes", "") or ""),
+                            }
+                        continue
+                    new_record = {
+                        "shopping_item_id": f"shopping-item-{uuid.uuid4().hex[:12]}",
+                        "shopping_list_id": list_id,
+                        "shopping_list_name": selected_list,
+                        "category_name": candidate["category_name"],
+                        "quantity": candidate["quantity"],
+                        "unit": candidate["unit"],
+                        "ingredient": candidate["ingredient"],
                         "inventory_id": str(row.get("inventory_id", "") or ""),
                         "recipe_id": recipe_id,
                         "recipe_name": recipe_name,
                         "checked": "",
                         "expiry_date": "",
-                        "notes": str(row.get("notes", "") or ""),
+                        "notes": original_notes,
                         "status": "active",
                         "source": "Meal Plan recipe add",
-                    })
-                if not records:
-                    st.warning("This recipe has no ingredients yet.")
+                    }
+                    records.append(new_record)
+                    existing_by_key[key] = new_record
+                ok = True
+                messages = []
+                if records:
+                    ok_append, msg_append = append_many_online_records(sheet_id, {"shopping_items": records})
+                    ok = ok and ok_append
+                    messages.append(msg_append)
+                if updates:
+                    ok_update, msg_update = update_many_online_records(sheet_id, "shopping_items", updates)
+                    ok = ok and ok_update
+                    messages.append(msg_update)
+                if not records and not updates:
+                    st.warning("This recipe has no new ingredients to add to the shopping list.")
+                elif ok:
+                    st.success(f"Added {len(records)} new item(s) and updated {len(updates)} existing item(s).")
+                    st.rerun()
                 else:
-                    ok, msg = append_many_online_records(sheet_id, {"shopping_items": records})
-                    if ok:
-                        st.success(f"Added {len(records)} recipe item(s) to the shopping list.")
-                        st.rerun()
-                    else:
-                        st.warning(msg)
+                    st.warning(" ".join(messages))
 
 
 def render_shopping_list_manager(sheet_id: str) -> None:
