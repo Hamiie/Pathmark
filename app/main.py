@@ -134,7 +134,10 @@ ONLINE_TABLES = {
     "spending_expenses": ["expense_id", "expense_kind", "group_name", "item", "weekly_amount", "fortnightly_amount", "monthly_amount", "quarterly_amount", "yearly_amount", "annual_amount", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "spending_accounts": ["account_id", "account_name", "purpose", "bank", "account_number_hint", "transfer_per_week", "target_balance", "current_balance", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "grocery_categories": ["category_id", "category_name", "description", "colour", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "grocery_inventory": ["inventory_id", "category_name", "item", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_inventory": ["inventory_id", "category_name", "item", "quantity", "unit", "target_quantity", "target_unit", "expiry_date", "purchased_date", "opened_date", "storage", "pantry_location", "pantry_zone", "container_id", "container_name", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_locations": ["location_id", "storage_area", "zone_name", "shelf_or_bin", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_containers": ["container_id", "container_name", "capacity", "capacity_unit", "material", "airtight", "freezer_safe", "microwave_safe", "oven_safe", "dishwasher_safe", "leakproof", "stackable", "current_contents", "location", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "grocery_movements": ["movement_id", "movement_date", "movement_type", "inventory_id", "item", "quantity", "unit", "source_ref", "source_type", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "grocery_nutrition": ["nutrition_id", "item", "category_name", "portion_quantity", "portion_unit", "kcal_per_portion", "total_carbohydrate", "total_fat", "protein", "saturated_fat", "trans_fat", "monounsat_fat", "polyunsat_fat", "cholesterol", "sodium", "potassium", "dietary_fibre", "sugars", "vitamin_a", "vitamin_c", "calcium", "iron", "vitamin_d", "caffeine", "magnesium", "phosphorus", "zinc", "copper", "manganese", "thiamine", "riboflavin", "niacin", "folate", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipes": ["recipe_id", "recipe_name", "category_name", "course", "meal_categories", "cuisine_tags", "dish_style_tags", "dietary_tags", "servings", "time_mins", "source_url", "source_title", "page", "author", "protein", "vegetarian_vegan", "vegetarian", "vegan", "gluten_free", "allergens", "months", "seasonality_summary", "imported_notes", "frozen_or_canned_notes", "substitute_notes", "homegrown_notes", "unavailable_notes", "notes", "exported_goal_id", "exported_action_id", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_ingredients": ["recipe_ingredient_id", "recipe_id", "recipe_name", "inventory_id", "ingredient", "quantity", "unit", "category_name", "is_fresh_produce", "lookup_seasonality", "seasonality_status", "substitute_required", "suggested_substitute", "purchased_quantity", "purchased_unit", "purchased_price", "cost_estimate", "missing_price_data", "kcal_estimate", "nutrition_status", "missing_nutrition_data", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
@@ -2507,6 +2510,9 @@ ONLINE_ID_COLUMNS = {
     "task_prompts": "prompt_id",
     "grocery_categories": "category_id",
     "grocery_inventory": "inventory_id",
+    "grocery_locations": "location_id",
+    "grocery_containers": "container_id",
+    "grocery_movements": "movement_id",
     "grocery_nutrition": "nutrition_id",
     "recipes": "recipe_id",
     "recipe_ingredients": "recipe_ingredient_id",
@@ -11907,6 +11913,38 @@ def grocery_category_options(sheet_id: str) -> list[str]:
     return values or GROCERY_CATEGORIES
 
 
+def grocery_location_records(sheet_id: str) -> pd.DataFrame:
+    return active_online_df(read_online_table(sheet_id, "grocery_locations"))
+
+
+def grocery_container_records(sheet_id: str) -> pd.DataFrame:
+    return active_online_df(read_online_table(sheet_id, "grocery_containers"))
+
+
+def grocery_location_options(sheet_id: str) -> list[str]:
+    locations = grocery_location_records(sheet_id)
+    values: list[str] = []
+    if not locations.empty:
+        for _, row in locations.iterrows():
+            bits = [str(row.get("storage_area", "") or "").strip(), str(row.get("zone_name", "") or "").strip(), str(row.get("shelf_or_bin", "") or "").strip()]
+            label = " / ".join([b for b in bits if b])
+            if label and label not in values:
+                values.append(label)
+    fallback = ["Pantry / Grains", "Pantry / Breakfast and spreads", "Pantry / Baking", "Pantry / Oils and vinegars", "Pantry / Spices", "Fridge / Fresh produce", "Freezer / Frozen"]
+    return values or fallback
+
+
+def grocery_container_options(sheet_id: str) -> list[str]:
+    containers = grocery_container_records(sheet_id)
+    values: list[str] = []
+    if not containers.empty:
+        for _, row in containers.iterrows():
+            label = str(row.get("container_name", "") or "").strip()
+            if label and label not in values:
+                values.append(label)
+    return values
+
+
 def grocery_inventory_options(sheet_id: str) -> list[str]:
     return _grocery_table_options(sheet_id, "grocery_inventory", "item", [])
 
@@ -11960,8 +11998,16 @@ def _add_inventory_item_if_needed(sheet_id: str, ingredient: str, category: str,
         "item": ingredient,
         "quantity": "0",
         "unit": unit,
+        "target_quantity": "",
+        "target_unit": unit,
         "expiry_date": "",
+        "purchased_date": "",
+        "opened_date": "",
         "storage": "",
+        "pantry_location": "",
+        "pantry_zone": "",
+        "container_id": "",
+        "container_name": "",
         "is_frozen": "",
         "requires_substitute": "",
         "suggested_substitute": "",
@@ -13221,6 +13267,51 @@ def _combine_source_values(existing: str, incoming: str) -> str:
     return "; ".join(values)
 
 
+def _to_float_or_none(value: Any) -> float | None:
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except Exception:
+        return None
+
+
+def _format_quantity_value(value: float) -> str:
+    if abs(value - round(value)) < 0.0001:
+        return str(int(round(value)))
+    return (f"{value:.2f}").rstrip("0").rstrip(".")
+
+
+def _combine_quantity(existing_qty: Any, incoming_qty: Any, existing_unit: Any, incoming_unit: Any) -> str:
+    existing_num = _to_float_or_none(existing_qty)
+    incoming_num = _to_float_or_none(incoming_qty)
+    if existing_num is not None and incoming_num is not None and str(existing_unit or "").strip().lower() == str(incoming_unit or "").strip().lower():
+        return _format_quantity_value(existing_num + incoming_num)
+    return str(existing_qty or "").strip() or str(incoming_qty or "").strip()
+
+
+def _append_inventory_movement_record(sheet_id: str, *, movement_type: str, inventory_id: str = "", item: str = "", quantity: str = "", unit: str = "", source_ref: str = "", source_type: str = "", notes: str = "") -> None:
+    try:
+        append_online_record(sheet_id, "grocery_movements", {
+            "movement_id": f"movement-{uuid.uuid4().hex[:12]}",
+            "movement_date": str(date.today()),
+            "movement_type": movement_type,
+            "inventory_id": inventory_id,
+            "item": item,
+            "quantity": quantity,
+            "unit": unit,
+            "source_ref": source_ref,
+            "source_type": source_type,
+            "notes": notes,
+            "status": "active",
+            "source": "Meal Plan inventory",
+        })
+    except Exception:
+        # Movements are useful audit data, but should not block the main shopping/inventory action.
+        pass
+
+
 def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) -> tuple[bool, str]:
     if trolley_items is None or trolley_items.empty:
         return False, "There are no trolley items to add to inventory."
@@ -13233,6 +13324,7 @@ def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) 
                 existing_by_key[key] = inv.to_dict()
     updates: dict[str, dict[str, Any]] = {}
     new_records: list[dict[str, Any]] = []
+    movement_rows: list[dict[str, Any]] = []
     for _, row in trolley_items.iterrows():
         ingredient = str(row.get("ingredient", "") or "").strip()
         if not ingredient:
@@ -13243,13 +13335,15 @@ def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) 
         unit = str(row.get("unit", "") or "").strip()
         source = _shopping_recipe_source_text(row)
         note = f"Added from shopping trolley" + (f". Used in: {source}" if source else ".")
+        source_ref = str(row.get("shopping_item_id", "") or "").strip()
         existing = existing_by_key.get(key)
         if existing:
             inv_id = str(existing.get("inventory_id", "") or "").strip()
+            combined_qty = _combine_quantity(existing.get("quantity", ""), qty, existing.get("unit", ""), unit)
             updates[inv_id] = {
                 "category_name": category or existing.get("category_name", ""),
-                "quantity": qty or existing.get("quantity", ""),
-                "unit": unit or existing.get("unit", ""),
+                "quantity": combined_qty,
+                "unit": str(existing.get("unit", "") or "").strip() or unit,
                 "status": "active",
                 "notes": note,
                 "source": "Shopping trolley",
@@ -13263,8 +13357,16 @@ def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) 
                 "item": ingredient,
                 "quantity": qty,
                 "unit": unit,
+                "target_quantity": "",
+                "target_unit": unit,
                 "expiry_date": "",
+                "purchased_date": str(date.today()),
+                "opened_date": "",
                 "storage": "",
+                "pantry_location": "",
+                "pantry_zone": "",
+                "container_id": "",
+                "container_name": "",
                 "is_frozen": "",
                 "requires_substitute": "",
                 "suggested_substitute": "",
@@ -13279,19 +13381,38 @@ def _add_trolley_items_to_inventory(sheet_id: str, trolley_items: pd.DataFrame) 
                 "status": "active",
                 "source": "Shopping trolley",
             })
+        movement_rows.append({
+            "movement_id": f"movement-{uuid.uuid4().hex[:12]}",
+            "movement_date": str(date.today()),
+            "movement_type": "inflow",
+            "inventory_id": inv_id,
+            "item": ingredient,
+            "quantity": qty,
+            "unit": unit,
+            "source_ref": source_ref,
+            "source_type": "Shopping trolley",
+            "notes": note,
+            "status": "active",
+            "source": "Shopping trolley",
+        })
     ok_all = True
     messages = []
     if updates:
         ok, msg = update_many_online_records(sheet_id, "grocery_inventory", updates)
         ok_all = ok_all and ok
         messages.append(msg)
+    records_by_table: dict[str, list[dict[str, Any]]] = {}
     if new_records:
-        ok, msg = append_many_online_records(sheet_id, {"grocery_inventory": new_records})
+        records_by_table["grocery_inventory"] = new_records
+    if movement_rows:
+        records_by_table["grocery_movements"] = movement_rows
+    if records_by_table:
+        ok, msg = append_many_online_records(sheet_id, records_by_table)
         ok_all = ok_all and ok
         messages.append(msg)
     if not updates and not new_records:
         return False, "No inventory items could be created from the trolley."
-    return ok_all, f"Added {len(new_records)} new item(s) and updated {len(updates)} existing item(s) in inventory."
+    return ok_all, f"Added {len(new_records)} new item(s), updated {len(updates)} existing item(s), and recorded {len(movement_rows)} stock movement(s)."
 
 def render_ingredients_validation_tab(sheet_id: str) -> None:
     st.subheader("Ingredients")
@@ -13533,121 +13654,315 @@ def render_grocery_categories_tab(sheet_id: str) -> None:
                         st.warning(msg)
 
 
-def render_grocery_inventory_tab(sheet_id: str) -> None:
-    st.subheader("Grocery inventory")
-    st.caption("Track what you have, expiry dates, storage, substitutions, seasonality and availability. Pantry reminders are created from inventory, not from the shopping trolley.")
+def _inventory_status_options() -> list[str]:
+    return ["active", "low", "used", "expired", "discarded", "removed"]
+
+
+def _container_label_to_id(sheet_id: str, label: str) -> str:
+    containers = grocery_container_records(sheet_id)
+    if containers.empty:
+        return ""
+    for _, row in containers.iterrows():
+        if str(row.get("container_name", "") or "").strip() == str(label or "").strip():
+            return str(row.get("container_id", "") or "").strip()
+    return ""
+
+
+def render_inventory_stock_subtab(sheet_id: str) -> None:
+    st.markdown("#### Stock")
+    st.caption("This is the current pantry, fridge and freezer view. Shopping trolley items, manual additions and later recipe use should all flow through this stock list.")
     categories = grocery_category_options(sheet_id)
     inventory = active_online_df(read_online_table(sheet_id, "grocery_inventory"))
-    search = st.text_input("Search inventory", placeholder="e.g., mustard, tomato, rice")
-    category_filter = st.selectbox("Category filter", ["All categories"] + categories, key="grocery_inventory_category_filter")
+    search = st.text_input("Search stock", placeholder="e.g., mustard, tomato, rice", key="inventory_stock_search")
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        category_filter = st.selectbox("Shopping aisle/category", ["All categories"] + categories, key="grocery_inventory_category_filter")
+    with c2:
+        status_filter = st.selectbox("Status", ["Current stock", "All statuses"] + _inventory_status_options(), key="inventory_stock_status_filter")
+    with c3:
+        location_filter = st.selectbox("Pantry location", ["All locations"] + grocery_location_options(sheet_id), key="inventory_stock_location_filter")
     view = inventory.copy()
     if not view.empty and search.strip():
         mask = view.apply(lambda row: search.strip().lower() in " ".join(str(v).lower() for v in row.values), axis=1)
         view = view[mask]
     if not view.empty and category_filter != "All categories":
         view = view[view["category_name"].fillna("").eq(category_filter)]
-    display_cols = [c for c in ["category_name", "item", "quantity", "unit", "expiry_date", "storage", "is_frozen", "requires_substitute", "suggested_substitute", "must_be_homegrown", "unavailable", "imported", "canned", "in_season", "limited_in_season", "months", "notes"] if c in view.columns]
-    st.dataframe(view[display_cols] if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=330)
+    if not view.empty and status_filter == "Current stock":
+        view = view[~view.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().isin({"used", "discarded", "removed", "archived"})]
+    elif not view.empty and status_filter != "All statuses":
+        view = view[view.get("status", pd.Series(dtype=str)).fillna("").astype(str).str.lower().eq(status_filter)]
+    if not view.empty and location_filter != "All locations":
+        view = view[view.get("pantry_location", pd.Series(dtype=str)).fillna("").astype(str).eq(location_filter)]
+    display_cols = [c for c in ["item", "quantity", "unit", "target_quantity", "target_unit", "expiry_date", "pantry_location", "pantry_zone", "container_name", "category_name", "status", "notes"] if c in view.columns]
+    st.dataframe(view[display_cols].sort_values([c for c in ["pantry_location", "pantry_zone", "category_name", "item"] if c in display_cols]) if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=360)
 
-    if not inventory.empty:
-        st.markdown("#### Inventory actions")
-        item_options = [str(x).strip() for x in inventory.get("item", pd.Series(dtype=str)).tolist() if str(x).strip()]
-        selected_item = st.selectbox("Choose inventory item", item_options, key="inventory_action_item")
-        selected_df = inventory[inventory.get("item", pd.Series(dtype=str)).fillna("").astype(str).eq(selected_item)]
-        if not selected_df.empty:
-            selected = selected_df.iloc[0].to_dict()
-            inv_id = str(selected.get("inventory_id", "") or "")
-            c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
-            with c1:
-                action_qty = st.text_input("Quantity", value=str(selected.get("quantity", "") or ""), key=f"inventory_action_qty_{inv_id}")
-            with c2:
-                action_unit = st.text_input("Unit", value=str(selected.get("unit", "") or ""), key=f"inventory_action_unit_{inv_id}")
-            with c3:
-                action_expiry = st.date_input("Expiry / remove-by", value=_parse_iso_date_for_widget(selected.get("expiry_date", "")), key=f"inventory_action_expiry_{inv_id}")
-            with c4:
-                action_status = st.selectbox("Status", ["active", "low", "used", "removed"], index=0, key=f"inventory_action_status_{inv_id}")
-            csave, ctask = st.columns([1, 1])
-            with csave:
-                if st.button("Save inventory details", use_container_width=True, key=f"save_inventory_action_{inv_id}"):
-                    ok, msg = update_online_record(sheet_id, "grocery_inventory", inv_id, {"quantity": action_qty, "unit": action_unit, "expiry_date": str(action_expiry or ""), "status": action_status, "source": "Inventory"})
-                    if ok:
-                        st.success("Inventory details saved.")
-                        st.rerun()
-                    else:
-                        st.warning(safe_user_message(msg))
-            with ctask:
-                if st.button("Create pantry reminder", use_container_width=True, key=f"create_inventory_task_{inv_id}"):
-                    ok_task, list_task_id, task_id, task_msg = create_pantry_expiry_google_task(selected_item, action_expiry)
-                    if ok_task:
-                        st.success(task_msg)
-                    else:
-                        st.warning(safe_user_message(task_msg))
+    if inventory.empty:
+        st.info("Add stock manually or send your shopping trolley to inventory to begin tracking what you have.")
+        return
 
+    st.markdown("#### Edit stock item")
+    item_options = [str(x).strip() for x in inventory.get("item", pd.Series(dtype=str)).tolist() if str(x).strip()]
+    selected_item = st.selectbox("Choose stock item", item_options, key="inventory_action_item")
+    selected_df = inventory[inventory.get("item", pd.Series(dtype=str)).fillna("").astype(str).eq(selected_item)]
+    if selected_df.empty:
+        return
+    selected = selected_df.iloc[0].to_dict()
+    inv_id = str(selected.get("inventory_id", "") or "")
+    container_options = [""] + grocery_container_options(sheet_id)
+    location_options = [""] + grocery_location_options(sheet_id)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    with c1:
+        action_qty = st.text_input("Current quantity", value=str(selected.get("quantity", "") or ""), key=f"inventory_action_qty_{inv_id}")
+        action_target_qty = st.text_input("Target quantity", value=str(selected.get("target_quantity", "") or ""), key=f"inventory_action_target_qty_{inv_id}")
+    with c2:
+        action_unit = st.text_input("Unit", value=str(selected.get("unit", "") or ""), key=f"inventory_action_unit_{inv_id}")
+        action_target_unit = st.text_input("Target unit", value=str(selected.get("target_unit", "") or selected.get("unit", "") or ""), key=f"inventory_action_target_unit_{inv_id}")
+    with c3:
+        action_expiry = st.date_input("Expiry / remove-by", value=_parse_iso_date_for_widget(selected.get("expiry_date", "")), key=f"inventory_action_expiry_{inv_id}")
+        action_status = st.selectbox("Status", _inventory_status_options(), index=_inventory_status_options().index(str(selected.get("status", "active") or "active")) if str(selected.get("status", "active") or "active") in _inventory_status_options() else 0, key=f"inventory_action_status_{inv_id}")
+    with c4:
+        current_loc = str(selected.get("pantry_location", "") or "")
+        action_location = st.selectbox("Pantry location", location_options, index=location_options.index(current_loc) if current_loc in location_options else 0, key=f"inventory_action_location_{inv_id}")
+        current_container = str(selected.get("container_name", "") or "")
+        action_container = st.selectbox("Container", container_options, index=container_options.index(current_container) if current_container in container_options else 0, key=f"inventory_action_container_{inv_id}")
+    action_notes = st.text_area("Notes", value=str(selected.get("notes", "") or ""), key=f"inventory_action_notes_{inv_id}")
+    csave, ctask, cmove = st.columns([1, 1, 1])
+    with csave:
+        if st.button("Save stock details", use_container_width=True, key=f"save_inventory_action_{inv_id}"):
+            updates = {
+                "quantity": action_qty,
+                "unit": action_unit,
+                "target_quantity": action_target_qty,
+                "target_unit": action_target_unit,
+                "expiry_date": str(action_expiry or ""),
+                "pantry_location": action_location,
+                "pantry_zone": action_location.split(" / ", 1)[1] if " / " in action_location else "",
+                "container_id": _container_label_to_id(sheet_id, action_container),
+                "container_name": action_container,
+                "status": action_status,
+                "notes": action_notes,
+                "source": "Inventory",
+            }
+            ok, msg = update_online_record(sheet_id, "grocery_inventory", inv_id, updates)
+            if ok:
+                _append_inventory_movement_record(sheet_id, movement_type="metadata", inventory_id=inv_id, item=selected_item, quantity=action_qty, unit=action_unit, source_type="Inventory edit", notes="Updated stock metadata.")
+                st.success("Stock details saved.")
+                st.rerun()
+            else:
+                st.warning(safe_user_message(msg))
+    with ctask:
+        if st.button("Create pantry reminder", use_container_width=True, key=f"create_inventory_task_{inv_id}"):
+            ok_task, list_task_id, task_id, task_msg = create_pantry_expiry_google_task(selected_item, action_expiry)
+            if ok_task:
+                st.success(task_msg)
+            else:
+                st.warning(safe_user_message(task_msg))
+    with cmove:
+        st.caption("Recipe outflows will use this stock movement model in the next step.")
+
+
+def render_inventory_add_stock_subtab(sheet_id: str) -> None:
+    st.markdown("#### Add stock")
+    st.caption("Use this for food already in your pantry, fridge or freezer, or anything bought outside a Pathmark shopping list.")
+    categories = grocery_category_options(sheet_id)
+    container_options = [""] + grocery_container_options(sheet_id)
+    location_options = [""] + grocery_location_options(sheet_id)
     with st.form("add_grocery_inventory_form"):
-        st.markdown("#### Add or update inventory item")
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2, c3 = st.columns([2, 1.2, 1.4])
         with c1:
             item = st.text_input("Ingredient / item")
-            category = st.selectbox("Category", categories, key="add_inventory_category")
-            storage = st.selectbox("Storage", ["", "Pantry", "Fridge", "Freezer", "Fresh", "Other"])
+            category = st.selectbox("Shopping aisle/category", categories, key="add_inventory_category")
+            pantry_location = st.selectbox("Pantry location", location_options, key="add_inventory_location")
         with c2:
             quantity = st.text_input("Quantity", placeholder="e.g., 1")
             unit = st.text_input("Unit", placeholder="e.g., kg, tin, bunch")
-            expiry_date = st.date_input("Expiry date", value=None)
+            target_quantity = st.text_input("Target quantity", placeholder="optional")
+            target_unit = st.text_input("Target unit", placeholder="optional")
         with c3:
+            expiry_date = st.date_input("Expiry / remove-by", value=None, key="add_inventory_expiry")
+            purchased_date = st.date_input("Purchased date", value=date.today(), key="add_inventory_purchased")
+            opened_date = st.date_input("Opened date", value=None, key="add_inventory_opened")
+            container_name = st.selectbox("Container", container_options, key="add_inventory_container")
+        c4, c5, c6 = st.columns([1, 1, 2])
+        with c4:
+            storage = st.selectbox("Storage", ["", "Pantry", "Fridge", "Freezer", "Cupboard", "Bench", "Other"], key="add_inventory_storage")
             is_frozen = st.checkbox("Frozen")
+        with c5:
             requires_substitute = st.checkbox("Requires substitute")
             substitute = st.text_input("Suggested substitute")
-        c4, c5, c6, c7, c8 = st.columns(5)
-        with c4:
-            homegrown = st.checkbox("Must be homegrown")
-        with c5:
-            unavailable = st.checkbox("Unavailable")
         with c6:
-            imported = st.checkbox("Imported")
-        with c7:
-            canned = st.checkbox("Canned")
-        with c8:
-            limited = st.checkbox("Limited in season")
-        months = st.multiselect("Months in season", GROCERY_MONTHS, default=[])
-        notes = st.text_area("Notes")
-        submitted = st.form_submit_button("Save inventory item", use_container_width=True)
+            months = st.multiselect("Months in season", GROCERY_MONTHS, default=[])
+            notes = st.text_area("Notes")
+        submitted = st.form_submit_button("Save stock item", use_container_width=True)
     if submitted:
         if not item.strip():
             st.warning("Enter an item name.")
+            return
+        existing = _find_grocery_inventory_record(sheet_id, item)
+        record = {
+            "category_name": category,
+            "item": item.strip(),
+            "quantity": quantity.strip(),
+            "unit": unit.strip(),
+            "target_quantity": target_quantity.strip(),
+            "target_unit": target_unit.strip() or unit.strip(),
+            "expiry_date": str(expiry_date or ""),
+            "purchased_date": str(purchased_date or ""),
+            "opened_date": str(opened_date or ""),
+            "storage": storage,
+            "pantry_location": pantry_location,
+            "pantry_zone": pantry_location.split(" / ", 1)[1] if " / " in pantry_location else "",
+            "container_id": _container_label_to_id(sheet_id, container_name),
+            "container_name": container_name,
+            "is_frozen": _grocery_bool_text(is_frozen),
+            "requires_substitute": _grocery_bool_text(requires_substitute),
+            "suggested_substitute": substitute.strip(),
+            "must_be_homegrown": "",
+            "unavailable": "",
+            "imported": "",
+            "canned": "",
+            "in_season": _grocery_bool_text(bool(months)),
+            "limited_in_season": "",
+            "months": ", ".join(months),
+            "notes": notes.strip(),
+            "status": "active",
+            "source": "Inventory manual add",
+        }
+        if existing:
+            inv_id = str(existing.get("inventory_id", ""))
+            ok, msg = update_online_record(sheet_id, "grocery_inventory", inv_id, record)
         else:
-            existing = _find_grocery_inventory_record(sheet_id, item)
-            record = {
-                "category_name": category,
-                "item": item.strip(),
-                "quantity": quantity.strip(),
-                "unit": unit.strip(),
-                "expiry_date": "",
-                "storage": storage,
-                "is_frozen": _grocery_bool_text(is_frozen),
-                "requires_substitute": _grocery_bool_text(requires_substitute),
-                "suggested_substitute": substitute.strip(),
-                "must_be_homegrown": _grocery_bool_text(homegrown),
-                "unavailable": _grocery_bool_text(unavailable),
-                "imported": _grocery_bool_text(imported),
-                "canned": _grocery_bool_text(canned),
-                "in_season": _grocery_bool_text(bool(months) and not unavailable),
-                "limited_in_season": _grocery_bool_text(limited),
-                "months": ", ".join(months),
-                "notes": notes.strip(),
-                "status": "active",
-                "source": "Meal Plan",
-            }
-            if existing:
-                ok, msg = update_online_record(sheet_id, "grocery_inventory", str(existing.get("inventory_id", "")), record)
-            else:
-                record["inventory_id"] = f"inventory-{uuid.uuid4().hex[:12]}"
-                ok, msg = append_online_record(sheet_id, "grocery_inventory", record)
-            if ok:
-                st.success("Inventory item saved.")
-                st.rerun()
-            else:
-                st.warning(msg)
+            inv_id = f"inventory-{uuid.uuid4().hex[:12]}"
+            record["inventory_id"] = inv_id
+            ok, msg = append_online_record(sheet_id, "grocery_inventory", record)
+        if ok:
+            _append_inventory_movement_record(sheet_id, movement_type="inflow", inventory_id=inv_id, item=item.strip(), quantity=quantity.strip(), unit=unit.strip(), source_type="Manual stock entry", notes="Manual stock entry.")
+            st.success("Stock item saved.")
+            st.rerun()
+        else:
+            st.warning(msg)
+
+
+def render_inventory_locations_subtab(sheet_id: str) -> None:
+    st.markdown("#### Locations")
+    st.caption("Pantry locations are where you store items. They are separate from shopping aisles, which are where you buy items.")
+    locations = active_online_df(read_online_table(sheet_id, "grocery_locations"))
+    cols = [c for c in ["storage_area", "zone_name", "shelf_or_bin", "description", "sort_order", "status"] if c in locations.columns]
+    st.dataframe(locations[cols].sort_values([c for c in ["storage_area", "zone_name", "shelf_or_bin"] if c in cols]) if not locations.empty else pd.DataFrame(columns=cols), use_container_width=True, hide_index=True, height=260)
+    with st.form("add_inventory_location_form"):
+        c1, c2, c3, c4 = st.columns([1, 1.2, 1.2, 2])
+        with c1:
+            storage_area = st.selectbox("Storage area", ["Pantry", "Fridge", "Freezer", "Cupboard", "Bench", "Garage", "Other"], key="location_storage_area")
+        with c2:
+            zone_name = st.text_input("Zone", placeholder="Grains, baking, breakfast")
+        with c3:
+            shelf_or_bin = st.text_input("Shelf / bin", placeholder="Top shelf, drawer 2")
+        with c4:
+            description = st.text_input("Description")
+        add_location = st.form_submit_button("Add location", use_container_width=True)
+    if add_location:
+        if not zone_name.strip() and not shelf_or_bin.strip():
+            st.warning("Enter a zone or shelf/bin.")
+            return
+        record = {
+            "location_id": f"location-{uuid.uuid4().hex[:12]}",
+            "storage_area": storage_area,
+            "zone_name": zone_name.strip(),
+            "shelf_or_bin": shelf_or_bin.strip(),
+            "description": description.strip(),
+            "sort_order": str(len(locations) + 1 if not locations.empty else 1),
+            "status": "active",
+            "source": "Inventory locations",
+        }
+        ok, msg = append_online_record(sheet_id, "grocery_locations", record)
+        if ok:
+            st.success("Location added.")
+            st.rerun()
+        else:
+            st.warning(msg)
+
+
+def render_inventory_containers_subtab(sheet_id: str) -> None:
+    st.markdown("#### Containers")
+    st.caption("Track jars, boxes, tupperware and storage vessels so Pathmark can later help match food and recipes to suitable storage.")
+    containers = active_online_df(read_online_table(sheet_id, "grocery_containers"))
+    display_cols = [c for c in ["container_name", "capacity", "capacity_unit", "material", "airtight", "freezer_safe", "microwave_safe", "oven_safe", "dishwasher_safe", "leakproof", "stackable", "current_contents", "location", "status"] if c in containers.columns]
+    st.dataframe(containers[display_cols].sort_values([c for c in ["location", "container_name"] if c in display_cols]) if not containers.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=300)
+    with st.form("add_inventory_container_form"):
+        c1, c2, c3 = st.columns([2, 1, 1.4])
+        with c1:
+            container_name = st.text_input("Container name", placeholder="Large glass jar, freezer box")
+            material = st.selectbox("Material", ["", "Glass", "Plastic", "Stainless steel", "Ceramic", "Silicone", "Other"], key="container_material")
+            location = st.selectbox("Location", [""] + grocery_location_options(sheet_id), key="container_location")
+        with c2:
+            capacity = st.text_input("Capacity", placeholder="750")
+            capacity_unit = st.selectbox("Capacity unit", ["", "ml", "L", "g", "kg", "cups", "portions"], key="container_capacity_unit")
+            current_contents = st.text_input("Current contents")
+        with c3:
+            airtight = st.checkbox("Airtight")
+            freezer_safe = st.checkbox("Freezer safe")
+            microwave_safe = st.checkbox("Microwave safe")
+            oven_safe = st.checkbox("Oven safe")
+            dishwasher_safe = st.checkbox("Dishwasher safe")
+            leakproof = st.checkbox("Leakproof")
+            stackable = st.checkbox("Stackable")
+        notes = st.text_area("Notes", key="container_notes")
+        add_container = st.form_submit_button("Add container", use_container_width=True)
+    if add_container:
+        if not container_name.strip():
+            st.warning("Enter a container name.")
+            return
+        record = {
+            "container_id": f"container-{uuid.uuid4().hex[:12]}",
+            "container_name": container_name.strip(),
+            "capacity": capacity.strip(),
+            "capacity_unit": capacity_unit,
+            "material": material,
+            "airtight": _grocery_bool_text(airtight),
+            "freezer_safe": _grocery_bool_text(freezer_safe),
+            "microwave_safe": _grocery_bool_text(microwave_safe),
+            "oven_safe": _grocery_bool_text(oven_safe),
+            "dishwasher_safe": _grocery_bool_text(dishwasher_safe),
+            "leakproof": _grocery_bool_text(leakproof),
+            "stackable": _grocery_bool_text(stackable),
+            "current_contents": current_contents.strip(),
+            "location": location,
+            "notes": notes.strip(),
+            "status": "active",
+            "source": "Inventory containers",
+        }
+        ok, msg = append_online_record(sheet_id, "grocery_containers", record)
+        if ok:
+            st.success("Container added.")
+            st.rerun()
+        else:
+            st.warning(msg)
+
+
+def render_inventory_movements_subtab(sheet_id: str) -> None:
+    st.markdown("#### Movements")
+    st.caption("A quiet audit trail of stock inflows, edits and later outflows. This is the foundation for recipe use subtracting from inventory.")
+    movements = active_online_df(read_online_table(sheet_id, "grocery_movements"))
+    display_cols = [c for c in ["movement_date", "movement_type", "item", "quantity", "unit", "source_type", "notes", "status"] if c in movements.columns]
+    if movements.empty:
+        st.info("No stock movements have been recorded yet.")
+    else:
+        st.dataframe(movements[display_cols].sort_values("movement_date", ascending=False) if "movement_date" in display_cols else movements[display_cols], use_container_width=True, hide_index=True, height=420)
+
+
+def render_grocery_inventory_tab(sheet_id: str) -> None:
+    st.subheader("Grocery inventory")
+    st.caption("Track stock, target quantities, pantry locations, containers, expiry dates and stock movements. Shopping trolley items are inflows; recipe use will become outflows.")
+    subtab_names = ["Stock", "Add stock", "Locations", "Containers", "Movements"]
+    choice = _pm_select_section("Inventory section", subtab_names, key="inventory_section_select", default="Stock")
+    dispatch = {
+        "Stock": render_inventory_stock_subtab,
+        "Add stock": render_inventory_add_stock_subtab,
+        "Locations": render_inventory_locations_subtab,
+        "Containers": render_inventory_containers_subtab,
+        "Movements": render_inventory_movements_subtab,
+    }
+    render_safe_section(choice, dispatch.get(choice, render_inventory_stock_subtab), sheet_id)
 
 
 def _recipe_filter_mask(
