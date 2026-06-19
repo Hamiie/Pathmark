@@ -15,15 +15,7 @@ app/core/session_state.py
 app/data/__init__.py
 app/data/cache.py
 app/main.py
-app/static/favicon.ico
-app/static/pathmark-icon-128.png
-app/static/pathmark-icon-16.png
-app/static/pathmark-icon-192.png
-app/static/pathmark-icon-32.png
-app/static/pathmark-icon-48.png
-app/static/pathmark-icon-512.png
-app/static/pathmark-icon-64.png
-downloads/Pathmark_Local_App_Windows_v0_7_24.zip
+downloads/Pathmark_Local_App_Windows_v0_7_26.zip
 latest_version.json
 requirements.txt
 static/favicon.ico
@@ -38,3 +30,4 @@ supabase/README.md
 supabase/migrations/20260531000000_create_pathmark_access_tables.sql
 supabase/migrations/20260601000000_add_pathmark_user_theme_preference.sql
 supabase/migrations/20260607000000_add_starter_pack_tables.sql
+supabase/migrations/20260620000000_add_shared_ingredient_catalogue.sql

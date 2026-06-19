@@ -15743,6 +15743,111 @@ def render_public_oauth_branding_page_if_requested() -> bool:
     return True
 
 
+def _set_pathmark_view(view: str) -> None:
+    """Move between the signed-in Pathmark home, workspaces and utility pages."""
+    st.session_state["pathmark_app_view"] = str(view or "home").strip().lower() or "home"
+    try:
+        st.rerun()
+    except Exception:
+        return
+
+
+def _workspace_button(label: str, view: str, *, key: str, help_text: str = "") -> None:
+    if st.button(label, key=key, use_container_width=True, help=help_text or None):
+        _set_pathmark_view(view)
+
+
+def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any]) -> None:
+    """Operational signed-in home.
+
+    Public Home remains the signed-out release/download page. Once signed in,
+    Pathmark should feel like one hub with several focused workspaces rather than
+    two competing rows of navigation.
+    """
+    email = str(user.get("email", "") or "")
+    credentials = google_credentials_from_session()
+    sheet_id = str(st.session_state.get("sync_sheet_id", "") or "")
+    if credentials and sheet_id:
+        try:
+            apply_online_theme(sheet_id)
+        except Exception:
+            pass
+    render_seasonal_banner(compact=True, force=True)
+
+    st.markdown("<div class='kicker'>Pathmark Home</div>", unsafe_allow_html=True)
+    st.title("What are you working on?")
+    st.write("Choose a workspace. Each area stays focused, but they all connect through Pathmark Sync.")
+
+    if credentials and sheet_id:
+        st.markdown("<div class='connection-strip'><strong>Ready</strong> Pathmark Sync is connected for this session.</div>", unsafe_allow_html=True)
+    elif credentials:
+        st.markdown("<div class='connection-strip'><strong>Google connected</strong> Open a workspace to finish preparing Pathmark Sync.</div>", unsafe_allow_html=True)
+    else:
+        st.info("Open a workspace to connect Google and prepare Pathmark Sync.")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("""
+        <div class="card workspace-home-card">
+          <h3>Planning</h3>
+          <p>Protect routines, move projects forward, build tasklists, and sync Calendar or Tasks.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        _workspace_button("Open Planning", "planning", key="home_open_planning")
+    with c2:
+        st.markdown("""
+        <div class="card workspace-home-card">
+          <h3>Nutrition</h3>
+          <p>Find meals, create shopping lists, check the pantry, manage inventory and ingredient data.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        _workspace_button("Open Nutrition", "nutrition", key="home_open_nutrition")
+    with c3:
+        st.markdown("""
+        <div class="card workspace-home-card">
+          <h3>Finance</h3>
+          <p>Plan money flow, account roles, projections and expected shopping-list costs.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        _workspace_button("Open Finance", "finance", key="home_open_finance")
+
+    st.markdown("---")
+    st.markdown("#### Utilities")
+    u1, u2, u3, u4 = st.columns(4)
+    with u1:
+        _workspace_button("Appearance", "theme", key="home_open_theme")
+    with u2:
+        _workspace_button("About & Privacy", "about", key="home_open_about")
+    with u3:
+        _workspace_button("Public Home / Download", "download", key="home_open_public_home")
+    with u4:
+        if role_can_develop(role, status):
+            _workspace_button("Developer", "developer", key="home_open_developer")
+        else:
+            st.caption(f"Signed in as {html.escape(email)}")
+
+
+def render_pathmark_workspace_shell(title: str, render_body, *, view_key: str) -> None:
+    """Render one focused workspace with a route back to Pathmark Home."""
+    top = st.columns([1, 4])
+    with top[0]:
+        if st.button("← Pathmark Home", key=f"back_home_{view_key}", use_container_width=True):
+            _set_pathmark_view("home")
+    with top[1]:
+        st.markdown(f"<div class='kicker'>Pathmark / {html.escape(title)}</div>", unsafe_allow_html=True)
+    render_body()
+
+
+def render_pathmark_utility_shell(title: str, render_body, *, view_key: str) -> None:
+    top = st.columns([1, 4])
+    with top[0]:
+        if st.button("← Pathmark Home", key=f"back_home_{view_key}", use_container_width=True):
+            _set_pathmark_view("home")
+    with top[1]:
+        st.markdown(f"<div class='kicker'>Pathmark / {html.escape(title)}</div>", unsafe_allow_html=True)
+    render_body()
+
+
 def render_app() -> None:
     begin_perf_run("render_app")
     if render_public_oauth_branding_page_if_requested():
@@ -15771,35 +15876,56 @@ def render_app() -> None:
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
 
+    signed_in_workspace = bool(user.get("email") and role_can_use_on_the_go(role, status))
+    if signed_in_workspace:
+        allowed_views = {"home", "planning", "finance", "nutrition", "theme", "about", "download"}
+        if role_can_develop(role, status):
+            allowed_views.add("developer")
+        current_view = str(st.session_state.get("pathmark_app_view") or "home").lower()
+        # If this is the first signed-in run after the older tabbed shell, land
+        # on Pathmark Home rather than inside Planning. The old pathmark_top_nav
+        # key can remain in session state, but it no longer drives navigation.
+        if current_view not in allowed_views:
+            current_view = "home"
+            st.session_state["pathmark_app_view"] = current_view
 
-    # After login, land the user in Planner by making it the first tab,
-    # but keep the rest of the top-level navigation available. This avoids the
-    # earlier hard redirect that hid About & Privacy, Theme and Spending Plan.
-    post_login_landing = bool(user.get("email") and role_can_use_on_the_go(role, status))
-    if post_login_landing:
-        tabs = ["Planning", "Finance", "Nutrition", "Home", "Theme", "About & Privacy"]
-    else:
-        tabs = ["Home", "Theme", "About & Privacy"]
+        if current_view == "home":
+            render_signed_in_pathmark_home(role, status, user)
+        elif current_view == "planning":
+            render_pathmark_workspace_shell("Planning", on_the_go_tab, view_key="planning")
+        elif current_view == "finance":
+            render_pathmark_workspace_shell("Finance", spending_plan_beta_tab, view_key="finance")
+        elif current_view == "nutrition":
+            render_pathmark_workspace_shell("Nutrition", shopping_list_beta_tab, view_key="nutrition")
+        elif current_view == "theme":
+            render_pathmark_utility_shell("Appearance", theme_tab, view_key="theme")
+        elif current_view == "about":
+            render_pathmark_utility_shell("About & Privacy", about_privacy_tab, view_key="about")
+        elif current_view == "download":
+            render_pathmark_utility_shell("Public Home / Download", download_tab, view_key="download")
+        elif current_view == "developer" and role_can_develop(role, status):
+            render_pathmark_utility_shell("Developer", developer_tab, view_key="developer")
+        else:
+            st.session_state["pathmark_app_view"] = "home"
+            render_signed_in_pathmark_home(role, status, user)
+        return
+
+    # Signed-out users keep the simple public navigation for release information,
+    # appearance preview, and public privacy/OAuth pages.
+    tabs = ["Home", "Theme", "About & Privacy"]
     if role_can_develop(role, status):
         tabs.append("Developer")
-
-    tab_name = _pm_select_section("Pathmark section", tabs, key="pathmark_top_nav", default=tabs[0])
+    tab_name = _pm_select_section("Pathmark section", tabs, key="pathmark_top_nav", default="Home")
     if tab_name == "Home":
         download_tab()
     elif tab_name == "Theme":
         theme_tab()
     elif tab_name == "About & Privacy":
         about_privacy_tab()
-    elif tab_name == "Planning":
-        on_the_go_tab()
-    elif tab_name == "Finance":
-        spending_plan_beta_tab()
-    elif tab_name == "Nutrition":
-        shopping_list_beta_tab()
     elif tab_name == "Developer":
         developer_tab()
 
 
 render_app()
 
-st.caption("Pathmark release hub. Sign in to use Planning, Finance and Nutrition when enabled for your account.")
+st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces from there.")

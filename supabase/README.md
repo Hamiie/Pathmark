@@ -1,63 +1,37 @@
 # Supabase schema for Pathmark
 
-This folder contains the Supabase schema used by the hosted Pathmark app.
+This folder contains the Supabase database schema used by the hosted Pathmark release hub.
 
-Pathmark uses Supabase for two different kinds of hosted data:
+Pathmark uses Supabase only for hosted access control:
 
-1. **Access/profile metadata**
-   - user email
-   - role
-   - status
-   - feature flags
-   - audit logs
-   - optional theme preference
+- user email
+- role
+- status
+- feature flags
+- audit logs
 
-2. **Shared reference/library data**
-   - optional starter-pack rows
-   - shared ingredient catalogue
-   - ingredient aliases
-   - produce seasonality reference data
-   - nutrition reference data
+It must not store goals, routines, Google Tasks prompts, calendar blocks, Workspace files, backups, Markdown files, OAuth tokens, or on-the-go planning entries.
 
-Pathmark should not store user-owned planning, finance, shopping, inventory, recipe edits, calendar rows, Google Tasks prompts, Workspace files, backups, OAuth tokens or private Google Sheet content in Supabase. Those remain in the user's own Pathmark Sync Google Sheet or Google account.
+## Migration
 
-## Migrations
+The migration in `migrations/20260531000000_create_pathmark_access_tables.sql` creates:
 
-Run the SQL files in `supabase/migrations/` in filename order:
+- `public.pathmark_users`
+- `public.pathmark_feature_flags`
+- `public.pathmark_audit_log`
 
-1. `20260531000000_create_pathmark_access_tables.sql`
-2. `20260601000000_add_pathmark_user_theme_preference.sql`
-3. `20260607000000_add_starter_pack_tables.sql`
-4. `20260620000000_add_shared_ingredient_catalogue.sql`
-
-The v0.7.25 migration creates:
-
-- `public.pathmark_ingredients`
-- `public.pathmark_ingredient_aliases`
-- `public.pathmark_produce_seasonality`
-- `public.pathmark_nutrition_reference`
-
-These tables are read by Pathmark as shared reference data. Users can override or add their own ingredient details in their own Pathmark Sync sheet; those user overrides are not written back to Supabase.
-
-## Required Streamlit secrets
-
-Use Streamlit Cloud secrets, not committed files:
-
-```toml
-[supabase]
-url = "https://YOUR_PROJECT_ID.supabase.co"
-secret_key = "sb_secret_YOUR_SUPABASE_SECRET_API_KEY"
-```
-
-The app also accepts older service-role style keys as a fallback, but new deployments should prefer Supabase Secret API keys where available.
-
-Never commit `.streamlit/secrets.toml`, Supabase keys, Google OAuth client secrets, Google access tokens, refresh tokens, service account JSON, personal grocery exports, or private Pathmark Sync exports.
+It enables Row Level Security on all three tables and deliberately creates no public RLS policies. The hosted Streamlit app should access these tables from server-side code only, using a Supabase Secret API key stored in Streamlit secrets.
 
 ## Initial developer account
 
 Do not put personal developer rows or private email allowlists in public migrations.
 
-For initial access, either keep `[pathmark_access].developer_emails` in Streamlit secrets as a bootstrap route, or manually insert your developer row in the Supabase SQL editor:
+For initial access, either:
+
+1. keep `[pathmark_access].developer_emails` in Streamlit secrets as a bootstrap route; or
+2. manually insert your developer row in the Supabase SQL editor.
+
+Example manual insert:
 
 ```sql
 insert into public.pathmark_users (email, role, status, notes)
@@ -71,38 +45,65 @@ set
   updated_at = now();
 ```
 
-## Shared ingredient catalogue
+## Required Streamlit secrets
 
-The shared ingredient catalogue is designed to avoid copying large seasonal/nutrition reference tables into every user's Google Sheet.
+```toml
+[supabase]
+url = "https://YOUR_PROJECT_ID.supabase.co"
+secret_key = "sb_secret_YOUR_SUPABASE_SECRET_API_KEY"
+```
 
-Recommended import order for reference data:
-
-1. Insert canonical ingredients into `public.pathmark_ingredients`.
-2. Insert aliases into `public.pathmark_ingredient_aliases`.
-3. Insert produce seasonality into `public.pathmark_produce_seasonality`.
-4. Insert nutrition reference rows into `public.pathmark_nutrition_reference`.
-
-The app resolves ingredient data in this order:
-
-1. User override in Pathmark Sync
-2. User-created ingredient row in Pathmark Sync
-3. Shared Pathmark Supabase catalogue
-4. Not matched / user can add details manually
+Never commit Streamlit secrets, Supabase keys, Google OAuth client secrets, or local `.env` files to GitHub.
 
 ## Optional starter-pack library
 
-The starter-pack tables remain useful for controlled recipe or dataset releases:
+The migration `20260607000000_add_starter_pack_tables.sql` adds optional read-only starter-pack tables:
 
 - `public.pathmark_starter_packs`
 - `public.pathmark_starter_pack_rows`
 
-Starter packs can still copy selected recipe/package rows into a user's Pathmark Sync sheet. Core ingredient reference data does not need to be copied if it exists in the shared catalogue.
+These can hold curated library data such as NZ Seasonal Produce, nutrition reference rows, and recipe starters. They are for controlled starter-library distribution only. User-edited grocery inventory, recipes, shopping lists, planning records, calendar rows, and spending data still belong in the user's own Pathmark Sync Google Sheet, not in Supabase.
 
 Suggested Streamlit secrets for gated imports:
+
+```toml
+[starter_packs]
+nz_seasonal_produce_code_hash = "sha256_hex_of_access_code"
+# or, for local testing only:
+# nz_seasonal_produce_code = "plain-text-code"
+```
+
+Imported starter-pack rows are copied into the user's Pathmark Sync sheet and become editable user data. This is controlled distribution, not copy protection.
+
+## Consolidated Meal Plan starter packs
+
+The current Meal Plan import model expects three separate Supabase starter packs:
+
+- `recipes` — recipe metadata and classification rows only
+- `ingredients` — pantry/grocery/produce inventory rows, including supermarket category, preferred unit, and seasonality where available
+- `nutrition` — nutrition reference rows used for kcal and nutrient lookups
+
+Import the consolidated CSV bundle into Supabase in this order:
+
+1. `pathmark_starter_packs.csv` into `public.pathmark_starter_packs`
+2. `pathmark_starter_pack_rows.csv` into `public.pathmark_starter_pack_rows`
+
+The app intentionally does not bundle the curated dataset in the public GitHub repository. Supabase holds the starter-library rows, and Pathmark copies selected packs into the user's own Pathmark Sync sheet after access-code validation.
+
+Suggested access-code secrets:
 
 ```toml
 [starter_packs]
 recipes_code_hash = "sha256_hex_of_recipes_access_code"
 ingredients_code_hash = "sha256_hex_of_ingredients_access_code"
 nutrition_code_hash = "sha256_hex_of_nutrition_access_code"
+```
+
+For local testing only, plain codes are also recognised:
+
+```toml
+[starter_packs]
+recipes_code = "TEST-RECIPES-CODE"
+ingredients_code = "TEST-INGREDIENTS-CODE"
+nutrition_code = "TEST-NUTRITION-CODE"
 ```

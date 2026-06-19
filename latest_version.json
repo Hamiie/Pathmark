@@ -1,6 +1,6 @@
 {
-  "version": "0.7.25",
-  "name": "Shared ingredient catalogue and user overrides",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_25.zip",
-  "notes": "Adds a Supabase-backed shared ingredient reference catalogue with user overrides, so seasonality and nutrition data can be read centrally without copying the full reference library into each user Google Sheet."
+  "version": "0.7.26",
+  "name": "Navigation shell and Pathmark Home",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_26.zip",
+  "notes": "Adds a signed-in Pathmark Home and focused workspace shell so Planning, Nutrition and Finance open as separate workspaces instead of competing in a double navigation row."
 }
