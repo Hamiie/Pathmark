@@ -1,6 +1,6 @@
 {
-  "version": "0.7.24",
-  "name": "Meal planning and shopping workflow refinement",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_24.zip",
-  "notes": "Refines Nutrition into Meal Plan, Recipe Library and Shopping List workflows; adds selected recipe-to-shopping-list flow, pantry-check statuses, and shopping-list cost estimates."
+  "version": "0.7.25",
+  "name": "Shared ingredient catalogue and user overrides",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_25.zip",
+  "notes": "Adds a Supabase-backed shared ingredient reference catalogue with user overrides, so seasonality and nutrition data can be read centrally without copying the full reference library into each user Google Sheet."
 }
