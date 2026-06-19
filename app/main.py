@@ -11,6 +11,7 @@ import hmac
 import hashlib
 import html
 import base64
+import urllib.error
 import urllib.parse
 import urllib.request
 import traceback
@@ -616,6 +617,21 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .connection-strip {{ display:inline-flex; align-items:center; gap:.42rem; border:1px solid color-mix(in srgb, var(--line) 72%, transparent); background:color-mix(in srgb, var(--surface) 78%, transparent); border-radius:999px; padding:.24rem .62rem; color:var(--muted); font-size:.84rem; margin:.1rem 0 .65rem; }}
 .connection-strip strong {{ color:var(--ink); font-weight:700; }}
 .connection-strip.warn {{ border-color: color-mix(in srgb, #B45309 44%, var(--line)); }}
+.workspace-tile {{ display:flex; flex-direction:column; min-height: 248px; gap:.6rem; padding:1.55rem 1.65rem; border:1px solid var(--line); border-radius:1.55rem; background:var(--surface); color:var(--ink) !important; text-decoration:none !important; box-shadow:0 10px 24px color-mix(in srgb, #000000 8%, transparent); transition: transform .12s ease, border-color .12s ease, background .12s ease; }}
+.workspace-tile:hover {{ transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); background: color-mix(in srgb, var(--surface) 88%, var(--accent-soft)); text-decoration:none !important; }}
+.workspace-tile-kicker {{ color:var(--accent); font-size:.78rem; font-weight:820; text-transform:uppercase; letter-spacing:.075em; }}
+.workspace-tile-title {{ color:var(--ink); font-size:clamp(1.55rem,2.6vw,2.15rem); font-weight:780; letter-spacing:-.045em; line-height:1.05; }}
+.workspace-tile-description {{ color:var(--muted); font-size:1.02rem; line-height:1.5; flex:1; }}
+.workspace-tile-meta {{ color:var(--accent); font-size:.9rem; font-weight:760; margin-top:.2rem; }}
+.home-utility-strip {{ display:flex; flex-wrap:wrap; gap:.55rem; margin:1.45rem 0 .35rem; padding-top:1rem; border-top:1px solid var(--line); }}
+.utility-link {{ display:inline-flex; align-items:center; justify-content:center; padding:.42rem .7rem; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb, var(--surface) 70%, transparent); color:var(--muted) !important; font-weight:650; font-size:.9rem; text-decoration:none !important; }}
+.utility-link:hover {{ color:var(--ink) !important; border-color:color-mix(in srgb, var(--accent) 42%, var(--line)); text-decoration:none !important; }}
+.workspace-shell-nav {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin:.15rem 0 1rem; padding:.2rem 0 .9rem; border-bottom:1px solid var(--line); }}
+.workspace-breadcrumb {{ color:var(--accent); font-size:.82rem; font-weight:840; letter-spacing:.08em; text-transform:uppercase; }}
+.workspace-switcher {{ display:flex; align-items:center; gap:.42rem; flex-wrap:wrap; }}
+.breadcrumb-home, .workspace-switch-link {{ display:inline-flex; align-items:center; padding:.34rem .62rem; border:1px solid var(--line); border-radius:999px; color:var(--muted) !important; background:color-mix(in srgb, var(--surface) 75%, transparent); font-size:.88rem; font-weight:680; text-decoration:none !important; }}
+.breadcrumb-home:hover, .workspace-switch-link:hover, .workspace-switch-link.active {{ color:var(--ink) !important; border-color:color-mix(in srgb, var(--accent) 46%, var(--line)); text-decoration:none !important; }}
+.workspace-switch-link.active {{ background:var(--accent-soft); color:var(--accent) !important; }}
 .safe-rule {{ background: var(--surface-2); border: 1px solid var(--line); border-radius: 1.1rem; padding: 1rem 1.1rem; }}
 .profile-pill {{ display: inline-flex; gap: .45rem; align-items: center; padding: .46rem .72rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 700; }}
 .kicker {{ color: var(--accent); font-size: .82rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }}
@@ -1084,11 +1100,64 @@ def store_google_credentials_from_token_info(token_info: dict[str, Any], client_
     st.session_state["on_the_go_connected_notice"] = ""
 
 
+def _clear_oauth_query_and_rerun(message: str = "", *, level: str = "info") -> None:
+    """Remove OAuth callback parameters and rerun onto a clean Pathmark URL."""
+    if message:
+        st.session_state["pathmark_oauth_notice"] = {"level": level, "message": message}
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+    try:
+        st.rerun()
+    except Exception:
+        return
+
+
+def render_oauth_notice() -> None:
+    notice = st.session_state.pop("pathmark_oauth_notice", None)
+    if not isinstance(notice, dict):
+        return
+    message = str(notice.get("message", "") or "").strip()
+    if not message:
+        return
+    level = str(notice.get("level", "info") or "info").lower()
+    if level == "warning":
+        st.warning(message)
+    elif level == "error":
+        st.error(message)
+    else:
+        st.info(message)
+
+
+
+
+def guard_stale_oauth_callback_params() -> None:
+    """Clear OAuth-looking query params that do not belong to an active Pathmark callback."""
+    params = st.query_params
+    code = params.get("code")
+    state = params.get("state")
+    error = params.get("error")
+    if isinstance(code, list):
+        code = code[0] if code else None
+    if isinstance(state, list):
+        state = state[0] if state else None
+    if isinstance(error, list):
+        error = error[0] if error else None
+    if not (code or error):
+        return
+    state_text = str(state or "")
+    if state_text.startswith("login:") or state_text.startswith("sheets:"):
+        return
+    _clear_oauth_query_and_rerun("Old Google sign-in details were cleared from the address bar.", level="info")
+
 def handle_login_redirect() -> bool:
     """Complete Pathmark login when returning from Google.
 
     Returns True if this callback belonged to the login flow. Google Sheets OAuth
-    uses a different state value and is handled separately.
+    uses a different state value and is handled separately. Stale callback URLs
+    are cleared quietly so opening or refreshing Pathmark does not show a scary
+    red auth error after a code has already been used.
     """
     params = st.query_params
     code = params.get("code")
@@ -1103,25 +1172,26 @@ def handle_login_redirect() -> bool:
     expected_state = st.session_state.get("pathmark_login_state")
     if not (state and str(state).startswith("login:")):
         return False
+    if current_user().get("email"):
+        _clear_oauth_query_and_rerun("You are already signed in. The old Google callback link was cleared.", level="info")
+        return True
     if error:
         st.session_state.pop("pathmark_login_state", None)
-        st.query_params.clear()
-        st.warning(f"Google login was not completed: {error}")
+        _clear_oauth_query_and_rerun(f"Google login was not completed: {error}", level="warning")
         return True
     if not code:
-        return False
+        _clear_oauth_query_and_rerun("The Google login link was incomplete. Please start sign-in again if needed.", level="warning")
+        return True
     session_match = bool(expected_state and secrets.compare_digest(str(expected_state), str(state)))
     signed_match = verify_signed_oauth_state(str(state), "login")
     if not (session_match or signed_match):
         st.session_state.pop("pathmark_login_state", None)
-        st.query_params.clear()
-        st.error("Google login could not be verified. Please try again.")
+        _clear_oauth_query_and_rerun("The Google login link could not be verified, so Pathmark cleared it. Please sign in again.", level="warning")
         return True
     cfg = login_config()
     if not cfg:
         st.session_state.pop("pathmark_login_state", None)
-        st.query_params.clear()
-        st.error("Google login is not configured yet.")
+        _clear_oauth_query_and_rerun("Google login is not configured yet.", level="warning")
         return True
     try:
         data = urllib.parse.urlencode({
@@ -1156,14 +1226,21 @@ def handle_login_redirect() -> bool:
         }
         st.session_state.pop("pathmark_login_state", None)
         st.session_state["post_login_show_dashboard"] = True
+        st.session_state["pathmark_app_view"] = "home"
+        st.session_state["pathmark_oauth_notice"] = {"level": "info", "message": "Signed in with Google."}
         st.query_params.clear()
-        st.success("Signed in with Google.")
         st.rerun()
         return True
-    except Exception as exc:
+    except urllib.error.HTTPError as exc:
         st.session_state.pop("pathmark_login_state", None)
-        st.query_params.clear()
-        st.error(f"Could not complete Google login: {exc}")
+        if getattr(exc, "code", None) == 400:
+            _clear_oauth_query_and_rerun("That Google sign-in link had expired or had already been used. Pathmark cleared it; please sign in again if needed.", level="warning")
+        else:
+            _clear_oauth_query_and_rerun("Google sign-in could not be completed. Please try again.", level="warning")
+        return True
+    except Exception:
+        st.session_state.pop("pathmark_login_state", None)
+        _clear_oauth_query_and_rerun("Google sign-in could not be completed. Please try again.", level="warning")
         return True
 
 def _list_from_secret(section: dict[str, Any], key: str) -> set[str]:
@@ -1880,8 +1957,7 @@ def handle_google_oauth_redirect() -> None:
     if isinstance(error, list):
         error = error[0] if error else None
     if error:
-        st.warning(f"Google authorisation was not completed: {error}")
-        st.query_params.clear()
+        _clear_oauth_query_and_rerun(f"Google authorisation was not completed: {error}", level="warning")
         return
     if not code:
         return
@@ -1892,8 +1968,7 @@ def handle_google_oauth_redirect() -> None:
     signed_match = verify_signed_oauth_state(str(state), "sheets")
     if not (session_match or signed_match):
         st.session_state.pop("google_oauth_state", None)
-        st.query_params.clear()
-        st.error("Google authorisation could not be verified. Please reconnect from the On the go tab.")
+        _clear_oauth_query_and_rerun("Google authorisation could not be verified. Please reconnect from Pathmark.", level="warning")
         return
     context_values = urllib.parse.parse_qs(signed_state_context(str(state), "sheets"))
     restored_email = (context_values.get("email", [""])[0] or "").strip().lower()
@@ -1909,10 +1984,9 @@ def handle_google_oauth_redirect() -> None:
         st.session_state.pop("google_oauth_state", None)
         st.query_params.clear()
         st.rerun()
-    except Exception as exc:
+    except Exception:
         st.session_state.pop("google_oauth_state", None)
-        st.query_params.clear()
-        st.warning("Could not complete Google authorisation. Please try logging in again.")
+        _clear_oauth_query_and_rerun("Could not complete Google authorisation. Please try logging in again.", level="warning")
 
 
 def google_auth_url(extra_scopes: list[str] | None = None, return_hint: str = "on_the_go") -> str | None:
@@ -15752,17 +15826,64 @@ def _set_pathmark_view(view: str) -> None:
         return
 
 
+def _pathmark_route_url(view: str) -> str:
+    return "?" + urllib.parse.urlencode({"pathmark_view": str(view or "home").strip().lower() or "home"})
+
+
+def _apply_pathmark_view_from_query(allowed_views: set[str]) -> None:
+    requested = _query_param_value("pathmark_view") or _query_param_value("workspace")
+    if not requested:
+        return
+    aliases = {"home": "home", "planning": "planning", "planner": "planning", "nutrition": "nutrition", "food": "nutrition", "finance": "finance", "money": "finance", "theme": "theme", "appearance": "theme", "about": "about", "privacy": "about", "download": "download", "public": "download", "developer": "developer", "dev": "developer"}
+    target = aliases.get(requested, requested)
+    if target not in allowed_views:
+        st.query_params.clear()
+        return
+    st.session_state["pathmark_app_view"] = target
+    st.query_params.clear()
+    try:
+        st.rerun()
+    except Exception:
+        return
+
+
 def _workspace_button(label: str, view: str, *, key: str, help_text: str = "") -> None:
     if st.button(label, key=key, use_container_width=True, help=help_text or None):
         _set_pathmark_view(view)
+
+
+def _workspace_tile(title: str, description: str, view: str, *, meta: str = "") -> None:
+    safe_title = html.escape(title)
+    safe_description = html.escape(description)
+    safe_meta = html.escape(meta) if meta else "Open workspace"
+    safe_href = html.escape(_pathmark_route_url(view), quote=True)
+    st.markdown(
+        f'''
+        <a class="workspace-tile" href="{safe_href}" target="_self" rel="noopener noreferrer">
+          <span class="workspace-tile-kicker">Workspace</span>
+          <span class="workspace-tile-title">{safe_title}</span>
+          <span class="workspace-tile-description">{safe_description}</span>
+          <span class="workspace-tile-meta">{safe_meta}</span>
+        </a>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+
+def _utility_link(label: str, view: str) -> str:
+    return f'<a class="utility-link" href="{html.escape(_pathmark_route_url(view), quote=True)}" target="_self" rel="noopener noreferrer">{html.escape(label)}</a>'
+
+
+def _workspace_link(label: str, view: str, current: str) -> str:
+    classes = "workspace-switch-link active" if view == current else "workspace-switch-link"
+    return f'<a class="{classes}" href="{html.escape(_pathmark_route_url(view), quote=True)}" target="_self" rel="noopener noreferrer">{html.escape(label)}</a>'
 
 
 def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any]) -> None:
     """Operational signed-in home.
 
     Public Home remains the signed-out release/download page. Once signed in,
-    Pathmark should feel like one hub with several focused workspaces rather than
-    two competing rows of navigation.
+    Pathmark opens from a calm launchpad into three focused workspaces.
     """
     email = str(user.get("email", "") or "")
     credentials = google_credentials_from_session()
@@ -15787,64 +15908,62 @@ def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any])
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("""
-        <div class="card workspace-home-card">
-          <h3>Planning</h3>
-          <p>Protect routines, move projects forward, build tasklists, and sync Calendar or Tasks.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        _workspace_button("Open Planning", "planning", key="home_open_planning")
+        _workspace_tile(
+            "Planning",
+            "Protect routines, move projects forward, build tasklists and sync Calendar or Tasks.",
+            "planning",
+            meta="Routines · Projects · Tasklists",
+        )
     with c2:
-        st.markdown("""
-        <div class="card workspace-home-card">
-          <h3>Nutrition</h3>
-          <p>Find meals, create shopping lists, check the pantry, manage inventory and ingredient data.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        _workspace_button("Open Nutrition", "nutrition", key="home_open_nutrition")
+        _workspace_tile(
+            "Nutrition",
+            "Find meals, build shopping lists, check the pantry and manage inventory.",
+            "nutrition",
+            meta="Meals · Shopping · Inventory",
+        )
     with c3:
-        st.markdown("""
-        <div class="card workspace-home-card">
-          <h3>Finance</h3>
-          <p>Plan money flow, account roles, projections and expected shopping-list costs.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        _workspace_button("Open Finance", "finance", key="home_open_finance")
+        _workspace_tile(
+            "Finance",
+            "Plan money flow, account roles, projections and expected shopping-list costs.",
+            "finance",
+            meta="Budget · Projections · Costs",
+        )
 
-    st.markdown("---")
-    st.markdown("#### Utilities")
-    u1, u2, u3, u4 = st.columns(4)
-    with u1:
-        _workspace_button("Appearance", "theme", key="home_open_theme")
-    with u2:
-        _workspace_button("About & Privacy", "about", key="home_open_about")
-    with u3:
-        _workspace_button("Public Home / Download", "download", key="home_open_public_home")
-    with u4:
-        if role_can_develop(role, status):
-            _workspace_button("Developer", "developer", key="home_open_developer")
-        else:
-            st.caption(f"Signed in as {html.escape(email)}")
+    utility_links = [
+        _utility_link("Appearance", "theme"),
+        _utility_link("About & Privacy", "about"),
+        _utility_link("Public Home / Download", "download"),
+    ]
+    if role_can_develop(role, status):
+        utility_links.append(_utility_link("Developer", "developer"))
+    st.markdown(
+        "<div class='home-utility-strip'>" + "".join(utility_links) + "</div>",
+        unsafe_allow_html=True,
+    )
+    if not role_can_develop(role, status):
+        st.caption(f"Signed in as {html.escape(email)}")
 
 
 def render_pathmark_workspace_shell(title: str, render_body, *, view_key: str) -> None:
-    """Render one focused workspace with a route back to Pathmark Home."""
-    top = st.columns([1, 4])
-    with top[0]:
-        if st.button("← Pathmark Home", key=f"back_home_{view_key}", use_container_width=True):
-            _set_pathmark_view("home")
-    with top[1]:
-        st.markdown(f"<div class='kicker'>Pathmark / {html.escape(title)}</div>", unsafe_allow_html=True)
+    """Render one focused workspace with a quiet route back to Pathmark Home."""
+    links = [
+        f'<a class="breadcrumb-home" href="{html.escape(_pathmark_route_url("home"), quote=True)}" target="_self" rel="noopener noreferrer">← Home</a>',
+        _workspace_link("Planning", "planning", view_key),
+        _workspace_link("Nutrition", "nutrition", view_key),
+        _workspace_link("Finance", "finance", view_key),
+    ]
+    st.markdown(
+        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div><div class='workspace-switcher'>{''.join(links)}</div></div>",
+        unsafe_allow_html=True,
+    )
     render_body()
 
 
 def render_pathmark_utility_shell(title: str, render_body, *, view_key: str) -> None:
-    top = st.columns([1, 4])
-    with top[0]:
-        if st.button("← Pathmark Home", key=f"back_home_{view_key}", use_container_width=True):
-            _set_pathmark_view("home")
-    with top[1]:
-        st.markdown(f"<div class='kicker'>Pathmark / {html.escape(title)}</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div><div class='workspace-switcher'><a class='breadcrumb-home' href='{html.escape(_pathmark_route_url('home'), quote=True)}' target='_self' rel='noopener noreferrer'>← Home</a></div></div>",
+        unsafe_allow_html=True,
+    )
     render_body()
 
 
@@ -15856,6 +15975,7 @@ def render_app() -> None:
     # before gated tabs are created, so a callback cannot fall back to the public
     # homepage if Streamlit starts a fresh session after Google's redirect.
     handle_login_redirect()
+    guard_stale_oauth_callback_params()
     params = st.query_params
     callback_state = params.get("state")
     if isinstance(callback_state, list):
@@ -15872,6 +15992,7 @@ def render_app() -> None:
         inject_theme_css(normalise_online_theme(st.session_state.get("hosted_theme_preference") or "Seasonal"))
     maybe_record_login(user.get("email", ""), role, status)
     render_account_bar(role, user)
+    render_oauth_notice()
     if status == "disabled":
         st.error("This account has been disabled for the hosted Pathmark page.")
         return
@@ -15881,6 +16002,7 @@ def render_app() -> None:
         allowed_views = {"home", "planning", "finance", "nutrition", "theme", "about", "download"}
         if role_can_develop(role, status):
             allowed_views.add("developer")
+        _apply_pathmark_view_from_query(allowed_views)
         current_view = str(st.session_state.get("pathmark_app_view") or "home").lower()
         # If this is the first signed-in run after the older tabbed shell, land
         # on Pathmark Home rather than inside Planning. The old pathmark_top_nav
@@ -15928,4 +16050,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces from there.")
+st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces from clickable tiles.")

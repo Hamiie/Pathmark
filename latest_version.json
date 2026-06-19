@@ -1,6 +1,6 @@
 {
-  "version": "0.7.26",
-  "name": "Navigation shell and Pathmark Home",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_26.zip",
-  "notes": "Adds a signed-in Pathmark Home and focused workspace shell so Planning, Nutrition and Finance open as separate workspaces instead of competing in a double navigation row."
+  "version": "0.7.27",
+  "name": "OAuth callback guard and workspace UX polish",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_27.zip",
+  "notes": "Clears stale Google OAuth callbacks instead of showing red first-load errors, makes Pathmark Home workspace cards behave as clickable tiles, and lightens the workspace shell navigation."
 }
