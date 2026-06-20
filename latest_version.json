@@ -1,6 +1,6 @@
 {
-  "version": "0.7.28",
-  "name": "Native workspace navigation fix",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_28.zip",
-  "notes": "Fixes Pathmark Home workspace tiles and in-workspace switcher controls by using native Streamlit navigation state instead of HTML query-string links."
+  "version": "0.7.29",
+  "name": "Loading states and interaction guard",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_29.zip",
+  "notes": "Adds quiet loading feedback when moving between Pathmark Home, Planning, Nutrition, Finance and utility pages, while keeping workspace navigation on native Streamlit state and guarding repeated navigation clicks during transitions."
 }

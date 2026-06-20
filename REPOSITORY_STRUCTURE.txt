@@ -15,7 +15,7 @@ app/core/session_state.py
 app/data/__init__.py
 app/data/cache.py
 app/main.py
-downloads/Pathmark_Local_App_Windows_v0_7_28.zip
+downloads/Pathmark_Local_App_Windows_v0_7_29.zip
 latest_version.json
 requirements.txt
 static/favicon.ico

@@ -617,6 +617,9 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .connection-strip {{ display:inline-flex; align-items:center; gap:.42rem; border:1px solid color-mix(in srgb, var(--line) 72%, transparent); background:color-mix(in srgb, var(--surface) 78%, transparent); border-radius:999px; padding:.24rem .62rem; color:var(--muted); font-size:.84rem; margin:.1rem 0 .65rem; }}
 .connection-strip strong {{ color:var(--ink); font-weight:700; }}
 .connection-strip.warn {{ border-color: color-mix(in srgb, #B45309 44%, var(--line)); }}
+.pathmark-loading-strip {{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; border:1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); background:color-mix(in srgb, var(--surface) 84%, var(--accent-soft)); border-radius:999px; padding:.42rem .72rem; color:var(--muted); font-size:.9rem; font-weight:650; margin:.1rem 0 1rem; }}
+.pathmark-loading-strip strong {{ color:var(--ink); font-weight:760; }}
+.pathmark-loading-note {{ color:var(--muted); font-size:.84rem; font-weight:600; }}
 .workspace-tile {{ display:flex; flex-direction:column; min-height: 248px; gap:.6rem; padding:1.55rem 1.65rem; border:1px solid var(--line); border-radius:1.55rem; background:var(--surface); color:var(--ink) !important; text-decoration:none !important; box-shadow:0 10px 24px color-mix(in srgb, #000000 8%, transparent); transition: transform .12s ease, border-color .12s ease, background .12s ease; }}
 .workspace-tile:hover {{ transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); background: color-mix(in srgb, var(--surface) 88%, var(--accent-soft)); text-decoration:none !important; }}
 .static-tile {{ margin-bottom:.55rem; }}
@@ -15819,9 +15822,80 @@ def render_public_oauth_branding_page_if_requested() -> bool:
     return True
 
 
+_PATHMARK_VIEW_ALIASES = {
+    "home": "home",
+    "planning": "planning",
+    "planner": "planning",
+    "nutrition": "nutrition",
+    "food": "nutrition",
+    "finance": "finance",
+    "money": "finance",
+    "theme": "theme",
+    "appearance": "theme",
+    "about": "about",
+    "privacy": "about",
+    "download": "download",
+    "public": "download",
+    "developer": "developer",
+    "dev": "developer",
+}
+
+_PATHMARK_VIEW_LABELS = {
+    "home": "Pathmark Home",
+    "planning": "Planning",
+    "nutrition": "Nutrition",
+    "finance": "Finance",
+    "theme": "Appearance",
+    "about": "About & Privacy",
+    "download": "Public Home / Download",
+    "developer": "Developer",
+}
+
+
+def _normalise_pathmark_view(view: str) -> str:
+    raw = str(view or "home").strip().lower() or "home"
+    return _PATHMARK_VIEW_ALIASES.get(raw, raw)
+
+
+def _pathmark_view_label(view: str) -> str:
+    return _PATHMARK_VIEW_LABELS.get(_normalise_pathmark_view(view), str(view or "Pathmark").strip() or "Pathmark")
+
+
+def _pathmark_navigation_busy() -> bool:
+    return bool(st.session_state.get("pathmark_loading_view") and st.session_state.get("pathmark_loading_message"))
+
+
+def _mark_pathmark_loading(view: str, *, verb: str = "Opening") -> None:
+    target = _normalise_pathmark_view(view)
+    label = _pathmark_view_label(target)
+    st.session_state["pathmark_loading_view"] = target
+    st.session_state["pathmark_loading_message"] = f"{verb} {label}…"
+
+
+def _render_pathmark_loading_status(view: str | None = None) -> bool:
+    target = _normalise_pathmark_view(view or st.session_state.get("pathmark_app_view") or "home")
+    raw_loading_view = st.session_state.get("pathmark_loading_view")
+    if not raw_loading_view:
+        return False
+    loading_view = _normalise_pathmark_view(str(raw_loading_view))
+    if loading_view != target:
+        return False
+    message = str(st.session_state.get("pathmark_loading_message") or f"Opening {_pathmark_view_label(target)}…")
+    st.markdown(
+        f"<div class='pathmark-loading-strip'><strong>{html.escape(message)}</strong><span class='pathmark-loading-note'>Controls pause while this page prepares.</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.session_state.pop("pathmark_loading_view", None)
+    st.session_state.pop("pathmark_loading_message", None)
+    return True
+
+
 def _set_pathmark_view(view: str) -> None:
     """Move between the signed-in Pathmark home, workspaces and utility pages."""
-    st.session_state["pathmark_app_view"] = str(view or "home").strip().lower() or "home"
+    target = _normalise_pathmark_view(view)
+    if target != _normalise_pathmark_view(st.session_state.get("pathmark_app_view") or "home"):
+        _mark_pathmark_loading(target)
+    st.session_state["pathmark_app_view"] = target
     try:
         st.rerun()
     except Exception:
@@ -15829,18 +15903,19 @@ def _set_pathmark_view(view: str) -> None:
 
 
 def _pathmark_route_url(view: str) -> str:
-    return "?" + urllib.parse.urlencode({"pathmark_view": str(view or "home").strip().lower() or "home"})
+    return "?" + urllib.parse.urlencode({"pathmark_view": _normalise_pathmark_view(view)})
 
 
 def _apply_pathmark_view_from_query(allowed_views: set[str]) -> None:
     requested = _query_param_value("pathmark_view") or _query_param_value("workspace")
     if not requested:
         return
-    aliases = {"home": "home", "planning": "planning", "planner": "planning", "nutrition": "nutrition", "food": "nutrition", "finance": "finance", "money": "finance", "theme": "theme", "appearance": "theme", "about": "about", "privacy": "about", "download": "download", "public": "download", "developer": "developer", "dev": "developer"}
-    target = aliases.get(requested, requested)
+    target = _normalise_pathmark_view(requested)
     if target not in allowed_views:
         st.query_params.clear()
         return
+    if target != _normalise_pathmark_view(st.session_state.get("pathmark_app_view") or "home"):
+        _mark_pathmark_loading(target)
     st.session_state["pathmark_app_view"] = target
     st.query_params.clear()
     try:
@@ -15850,7 +15925,7 @@ def _apply_pathmark_view_from_query(allowed_views: set[str]) -> None:
 
 
 def _workspace_button(label: str, view: str, *, key: str, help_text: str = "") -> None:
-    if st.button(label, key=key, use_container_width=True, help=help_text or None):
+    if st.button(label, key=key, use_container_width=True, help=help_text or None, disabled=_pathmark_navigation_busy()):
         _set_pathmark_view(view)
 
 
@@ -15876,17 +15951,12 @@ def _workspace_tile(title: str, description: str, view: str, *, meta: str = "") 
         ''',
         unsafe_allow_html=True,
     )
-    if st.button(f"Open {title}", key=f"pathmark_workspace_tile_{view}", use_container_width=True):
+    if st.button(f"Open {title}", key=f"pathmark_workspace_tile_{view}", use_container_width=True, disabled=_pathmark_navigation_busy()):
         _set_pathmark_view(view)
 
 
 def _utility_link(label: str, view: str) -> str:
     return f'<a class="utility-link" href="{html.escape(_pathmark_route_url(view), quote=True)}" target="_self" rel="noopener noreferrer">{html.escape(label)}</a>'
-
-
-def _workspace_link(label: str, view: str, current: str) -> str:
-    classes = "workspace-switch-link active" if view == current else "workspace-switch-link"
-    return f'<a class="{classes}" href="{html.escape(_pathmark_route_url(view), quote=True)}" target="_self" rel="noopener noreferrer">{html.escape(label)}</a>'
 
 
 def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any]) -> None:
@@ -15904,6 +15974,7 @@ def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any])
         except Exception:
             pass
     render_seasonal_banner(compact=True, force=True)
+    _render_pathmark_loading_status("home")
 
     st.markdown("<div class='kicker'>Pathmark Home</div>", unsafe_allow_html=True)
     st.title("What are you working on?")
@@ -15956,6 +16027,7 @@ def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any])
 
 def render_pathmark_workspace_shell(title: str, render_body, *, view_key: str) -> None:
     """Render one focused workspace with native navigation actions."""
+    loading_now = _render_pathmark_loading_status(view_key)
     st.markdown(
         f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div></div>",
         unsafe_allow_html=True,
@@ -15969,20 +16041,29 @@ def render_pathmark_workspace_shell(title: str, render_body, *, view_key: str) -
     ]
     for col, (label, target) in zip(nav_cols, nav_actions):
         with col:
-            disabled = target == view_key
+            disabled = target == view_key or _pathmark_navigation_busy()
             if st.button(label, key=f"workspace_shell_nav_{view_key}_{target}", use_container_width=True, disabled=disabled):
                 _set_pathmark_view(target)
-    render_body()
+    if loading_now:
+        with st.spinner(f"Preparing {_pathmark_view_label(view_key)}…"):
+            render_body()
+    else:
+        render_body()
 
 
 def render_pathmark_utility_shell(title: str, render_body, *, view_key: str) -> None:
+    loading_now = _render_pathmark_loading_status(view_key)
     st.markdown(
         f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div></div>",
         unsafe_allow_html=True,
     )
-    if st.button("← Home", key=f"utility_shell_home_{view_key}"):
+    if st.button("← Home", key=f"utility_shell_home_{view_key}", disabled=_pathmark_navigation_busy()):
         _set_pathmark_view("home")
-    render_body()
+    if loading_now:
+        with st.spinner(f"Preparing {_pathmark_view_label(view_key)}…"):
+            render_body()
+    else:
+        render_body()
 
 
 def render_app() -> None:
@@ -16068,4 +16149,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces using reliable native navigation actions.")
+st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces with loading feedback and guarded native navigation actions.")

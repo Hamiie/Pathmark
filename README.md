@@ -1,7 +1,7 @@
-# Pathmark v0.7.28 — Native workspace navigation fix
+# Pathmark v0.7.29 — Loading states and interaction guard
 
-Fixes the signed-in workspace tile navigation from v0.7.27. Workspace tiles now use native Streamlit state changes instead of HTML query-string links, so Planning, Nutrition and Finance open their correct focused workspaces rather than falling back to the default Planning dashboard.
+Adds a restrained loading and interaction-guard pattern for the signed-in Pathmark shell. Opening Pathmark Home, Planning, Nutrition, Finance, Appearance, About & Privacy, Public Home / Download or Developer now sets a native Streamlit loading state and shows a quiet status strip while the target page prepares.
 
-Workspace switcher controls inside Planning, Nutrition and Finance now also use native state changes.
+Workspace tiles and in-workspace switcher controls remain native Streamlit navigation actions. The old HTML/query-string workspace routing has not been reintroduced.
 
 No new Supabase migration is needed for this version.
