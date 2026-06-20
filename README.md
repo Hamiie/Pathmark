@@ -1,7 +1,7 @@
-# Pathmark v0.7.27 — OAuth callback guard and workspace UX polish
+# Pathmark v0.7.28 — Native workspace navigation fix
 
-Polishes the signed-in Pathmark shell introduced in v0.7.26. Workspace cards on Pathmark Home now behave as clickable tiles, utilities are visually quieter, and focused workspaces use lighter breadcrumb/switcher navigation instead of a large back button.
+Fixes the signed-in workspace tile navigation from v0.7.27. Workspace tiles now use native Streamlit state changes instead of HTML query-string links, so Planning, Nutrition and Finance open their correct focused workspaces rather than falling back to the default Planning dashboard.
 
-This version also guards Google OAuth callback handling. Stale or already-used Google sign-in URLs are cleared from the address bar and shown as a gentle notice rather than a red first-load error.
+Workspace switcher controls inside Planning, Nutrition and Finance now also use native state changes.
 
 No new Supabase migration is needed for this version.

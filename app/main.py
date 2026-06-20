@@ -619,6 +619,8 @@ p, li {{ font-size: 1.02rem; line-height: 1.62; }}
 .connection-strip.warn {{ border-color: color-mix(in srgb, #B45309 44%, var(--line)); }}
 .workspace-tile {{ display:flex; flex-direction:column; min-height: 248px; gap:.6rem; padding:1.55rem 1.65rem; border:1px solid var(--line); border-radius:1.55rem; background:var(--surface); color:var(--ink) !important; text-decoration:none !important; box-shadow:0 10px 24px color-mix(in srgb, #000000 8%, transparent); transition: transform .12s ease, border-color .12s ease, background .12s ease; }}
 .workspace-tile:hover {{ transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); background: color-mix(in srgb, var(--surface) 88%, var(--accent-soft)); text-decoration:none !important; }}
+.static-tile {{ margin-bottom:.55rem; }}
+.static-tile:hover {{ transform:none; }}
 .workspace-tile-kicker {{ color:var(--accent); font-size:.78rem; font-weight:820; text-transform:uppercase; letter-spacing:.075em; }}
 .workspace-tile-title {{ color:var(--ink); font-size:clamp(1.55rem,2.6vw,2.15rem); font-weight:780; letter-spacing:-.045em; line-height:1.05; }}
 .workspace-tile-description {{ color:var(--muted); font-size:1.02rem; line-height:1.5; flex:1; }}
@@ -15853,21 +15855,29 @@ def _workspace_button(label: str, view: str, *, key: str, help_text: str = "") -
 
 
 def _workspace_tile(title: str, description: str, view: str, *, meta: str = "") -> None:
+    """Render a reliable workspace tile action.
+
+    v0.7.27 used HTML links with query parameters, but Streamlit Cloud
+    could route those back through the default workspace state. Use native
+    Streamlit buttons for the state change and keep the card as visual
+    context.
+    """
     safe_title = html.escape(title)
     safe_description = html.escape(description)
     safe_meta = html.escape(meta) if meta else "Open workspace"
-    safe_href = html.escape(_pathmark_route_url(view), quote=True)
     st.markdown(
         f'''
-        <a class="workspace-tile" href="{safe_href}" target="_self" rel="noopener noreferrer">
+        <div class="workspace-tile static-tile">
           <span class="workspace-tile-kicker">Workspace</span>
           <span class="workspace-tile-title">{safe_title}</span>
           <span class="workspace-tile-description">{safe_description}</span>
           <span class="workspace-tile-meta">{safe_meta}</span>
-        </a>
+        </div>
         ''',
         unsafe_allow_html=True,
     )
+    if st.button(f"Open {title}", key=f"pathmark_workspace_tile_{view}", use_container_width=True):
+        _set_pathmark_view(view)
 
 
 def _utility_link(label: str, view: str) -> str:
@@ -15945,25 +15955,33 @@ def render_signed_in_pathmark_home(role: str, status: str, user: dict[str, Any])
 
 
 def render_pathmark_workspace_shell(title: str, render_body, *, view_key: str) -> None:
-    """Render one focused workspace with a quiet route back to Pathmark Home."""
-    links = [
-        f'<a class="breadcrumb-home" href="{html.escape(_pathmark_route_url("home"), quote=True)}" target="_self" rel="noopener noreferrer">← Home</a>',
-        _workspace_link("Planning", "planning", view_key),
-        _workspace_link("Nutrition", "nutrition", view_key),
-        _workspace_link("Finance", "finance", view_key),
-    ]
+    """Render one focused workspace with native navigation actions."""
     st.markdown(
-        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div><div class='workspace-switcher'>{''.join(links)}</div></div>",
+        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div></div>",
         unsafe_allow_html=True,
     )
+    nav_cols = st.columns([1, 1, 1, 1, 6])
+    nav_actions = [
+        ("← Home", "home"),
+        ("Planning", "planning"),
+        ("Nutrition", "nutrition"),
+        ("Finance", "finance"),
+    ]
+    for col, (label, target) in zip(nav_cols, nav_actions):
+        with col:
+            disabled = target == view_key
+            if st.button(label, key=f"workspace_shell_nav_{view_key}_{target}", use_container_width=True, disabled=disabled):
+                _set_pathmark_view(target)
     render_body()
 
 
 def render_pathmark_utility_shell(title: str, render_body, *, view_key: str) -> None:
     st.markdown(
-        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div><div class='workspace-switcher'><a class='breadcrumb-home' href='{html.escape(_pathmark_route_url('home'), quote=True)}' target='_self' rel='noopener noreferrer'>← Home</a></div></div>",
+        f"<div class='workspace-shell-nav'><div class='workspace-breadcrumb'>Pathmark / {html.escape(title)}</div></div>",
         unsafe_allow_html=True,
     )
+    if st.button("← Home", key=f"utility_shell_home_{view_key}"):
+        _set_pathmark_view("home")
     render_body()
 
 
@@ -16050,4 +16068,4 @@ def render_app() -> None:
 
 render_app()
 
-st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces from clickable tiles.")
+st.caption("Pathmark release hub. Signed-in users start from Pathmark Home and open focused workspaces using reliable native navigation actions.")

@@ -1,6 +1,6 @@
 {
-  "version": "0.7.27",
-  "name": "OAuth callback guard and workspace UX polish",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_27.zip",
-  "notes": "Clears stale Google OAuth callbacks instead of showing red first-load errors, makes Pathmark Home workspace cards behave as clickable tiles, and lightens the workspace shell navigation."
+  "version": "0.7.28",
+  "name": "Native workspace navigation fix",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_28.zip",
+  "notes": "Fixes Pathmark Home workspace tiles and in-workspace switcher controls by using native Streamlit navigation state instead of HTML query-string links."
 }
