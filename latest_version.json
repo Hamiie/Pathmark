@@ -1,6 +1,6 @@
 {
-  "version": "0.7.29",
-  "name": "Loading states and interaction guard",
-  "download": "downloads/Pathmark_Local_App_Windows_v0_7_29.zip",
-  "notes": "Adds quiet loading feedback when moving between Pathmark Home, Planning, Nutrition, Finance and utility pages, while keeping workspace navigation on native Streamlit state and guarding repeated navigation clicks during transitions."
+  "version": "0.7.30",
+  "name": "Ingredient conversions and recipe alternatives",
+  "download": "downloads/Pathmark_Local_App_Windows_v0_7_30.zip",
+  "notes": "Adds ingredient-specific unit conversions, structured recipe ingredient alternatives, shopping-list alternative selection, and Supabase migration/templates for shared conversion and recipe-option data."
 }

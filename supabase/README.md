@@ -107,3 +107,15 @@ recipes_code = "TEST-RECIPES-CODE"
 ingredients_code = "TEST-INGREDIENTS-CODE"
 nutrition_code = "TEST-NUTRITION-CODE"
 ```
+
+## v0.7.30 ingredient conversions and structured alternatives
+
+The migration `20260627000000_add_ingredient_conversions_and_recipe_options.sql` adds shared/reference tables for the improved ingredient model:
+
+- `public.pathmark_ingredient_unit_conversions` stores ingredient-specific conversions, such as `1 cup plain flour = 120 g` or `1 tbsp maple syrup = 20 g`.
+- `public.pathmark_recipe_ingredient_groups` stores the recipe requirement slot, such as `sweetener` or the original ingredient line.
+- `public.pathmark_recipe_ingredient_options` stores the available choices for that slot, such as `maple syrup` or `runny honey`.
+
+Pathmark still stores each user's selected recipe, shopping list, inventory inflows, personal conversions and ingredient overrides in that user's Pathmark Sync Google Sheet. The Supabase tables are for shared reference data and optional starter-pack/library data.
+
+Blank CSV headers for these new shared tables are in `supabase/templates/v0_7_30/`.

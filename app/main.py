@@ -141,15 +141,18 @@ ONLINE_TABLES = {
     "grocery_movements": ["movement_id", "movement_date", "movement_type", "inventory_id", "item", "quantity", "unit", "source_ref", "source_type", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "grocery_nutrition": ["nutrition_id", "item", "category_name", "portion_quantity", "portion_unit", "kcal_per_portion", "total_carbohydrate", "total_fat", "protein", "saturated_fat", "trans_fat", "monounsat_fat", "polyunsat_fat", "cholesterol", "sodium", "potassium", "dietary_fibre", "sugars", "vitamin_a", "vitamin_c", "calcium", "iron", "vitamin_d", "caffeine", "magnesium", "phosphorus", "zinc", "copper", "manganese", "thiamine", "riboflavin", "niacin", "folate", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "ingredient_overrides": ["override_id", "ingredient_key", "ingredient", "pathmark_ingredient_id", "display_name", "preferred_unit", "preferred_aisle", "months", "seasonality_notes", "kcal_per_100g", "protein", "carbohydrate", "fat", "fibre", "sodium", "nutrition_notes", "override_seasonality", "override_nutrition", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "ingredient_unit_conversions": ["conversion_id", "ingredient_key", "ingredient", "pathmark_ingredient_id", "form", "from_quantity", "from_unit", "to_quantity", "to_unit", "preferred_unit", "confidence", "source_note", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipes": ["recipe_id", "recipe_name", "category_name", "course", "meal_categories", "cuisine_tags", "dish_style_tags", "dietary_tags", "servings", "time_mins", "source_url", "source_title", "page", "author", "protein", "vegetarian_vegan", "vegetarian", "vegan", "gluten_free", "allergens", "months", "seasonality_summary", "imported_notes", "frozen_or_canned_notes", "substitute_notes", "homegrown_notes", "unavailable_notes", "notes", "exported_goal_id", "exported_action_id", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "recipe_ingredients": ["recipe_ingredient_id", "recipe_id", "recipe_name", "inventory_id", "ingredient", "quantity", "unit", "category_name", "is_fresh_produce", "lookup_seasonality", "seasonality_status", "substitute_required", "suggested_substitute", "purchased_quantity", "purchased_unit", "purchased_price", "cost_estimate", "missing_price_data", "kcal_estimate", "nutrition_status", "missing_nutrition_data", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "recipe_ingredient_groups": ["recipe_ingredient_group_id", "recipe_id", "recipe_name", "group_label", "selection_mode", "required", "default_option_id", "original_line", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "recipe_ingredient_options": ["recipe_ingredient_option_id", "recipe_ingredient_group_id", "recipe_id", "recipe_name", "ingredient", "quantity", "unit", "category_name", "inventory_id", "preferred_unit", "converted_quantity", "converted_unit", "conversion_status", "is_default", "option_label", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "recipe_ingredients": ["recipe_ingredient_id", "recipe_id", "recipe_name", "inventory_id", "ingredient", "quantity", "unit", "category_name", "recipe_ingredient_group_id", "recipe_ingredient_option_id", "selection_mode", "option_label", "is_default_option", "original_line", "preferred_unit", "converted_quantity", "converted_unit", "conversion_status", "is_fresh_produce", "lookup_seasonality", "seasonality_status", "substitute_required", "suggested_substitute", "purchased_quantity", "purchased_unit", "purchased_price", "cost_estimate", "missing_price_data", "kcal_estimate", "nutrition_status", "missing_nutrition_data", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_courses": ["course_id", "course_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_meal_categories": ["meal_category_id", "meal_category_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_cuisine_tags": ["cuisine_tag_id", "cuisine_tag_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_dish_style_tags": ["dish_style_tag_id", "dish_style_tag_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "recipe_dietary_tags": ["dietary_tag_id", "dietary_tag_name", "description", "sort_order", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
     "shopping_lists": ["shopping_list_id", "list_name", "planned_date", "status", "notes", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
-    "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "checked", "expiry_date", "pantry_task_list_id", "pantry_task_id", "pantry_task_due", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
+    "shopping_items": ["shopping_item_id", "shopping_list_id", "shopping_list_name", "category_name", "quantity", "unit", "ingredient", "inventory_id", "recipe_id", "recipe_name", "recipe_ingredient_group_id", "selected_option_id", "original_ingredient", "alternative_options_json", "conversion_status", "checked", "expiry_date", "pantry_task_list_id", "pantry_task_id", "pantry_task_due", "notes", "status", "created_at", "updated_at", "source", "archived_at", "archived_reason", "restored_at"],
 }
 
 PATHMARK_TERMS_VERSION = "2026-06-08"
@@ -2595,7 +2598,10 @@ ONLINE_ID_COLUMNS = {
     "grocery_movements": "movement_id",
     "grocery_nutrition": "nutrition_id",
     "ingredient_overrides": "override_id",
+    "ingredient_unit_conversions": "conversion_id",
     "recipes": "recipe_id",
+    "recipe_ingredient_groups": "recipe_ingredient_group_id",
+    "recipe_ingredient_options": "recipe_ingredient_option_id",
     "recipe_ingredients": "recipe_ingredient_id",
     "shopping_lists": "shopping_list_id",
     "shopping_items": "shopping_item_id",
@@ -11745,23 +11751,177 @@ def _normalise_food_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
 
 
+def _parse_fraction_number(value: Any) -> float | None:
+    """Parse simple decimal, fraction, or mixed-number quantities."""
+    text = str(value or "").strip().replace("–", "-").replace("—", "-")
+    if not text:
+        return None
+    # Use the first value in a range, e.g. 2-3 tbsp, so estimates stay conservative.
+    text = re.split(r"\s*-\s*", text, maxsplit=1)[0].strip()
+    mixed = re.match(r"^(?P<whole>\d+)\s+(?P<num>\d+)\s*/\s*(?P<den>\d+)$", text)
+    if mixed:
+        den = float(mixed.group("den"))
+        if den:
+            return float(mixed.group("whole")) + float(mixed.group("num")) / den
+    frac = re.match(r"^(?P<num>\d+)\s*/\s*(?P<den>\d+)$", text)
+    if frac:
+        den = float(frac.group("den"))
+        if den:
+            return float(frac.group("num")) / den
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if match:
+        return float(match.group(0))
+    return None
+
+
+def _normalise_unit_label(unit: Any) -> str:
+    text = str(unit or "").strip().lower().replace(".", "")
+    text = re.sub(r"\s+", " ", text)
+    aliases = {
+        "gram": "g", "grams": "g", "gm": "g", "gms": "g",
+        "kilogram": "kg", "kilograms": "kg", "kgs": "kg",
+        "milligram": "mg", "milligrams": "mg", "mgs": "mg",
+        "millilitre": "ml", "millilitres": "ml", "milliliter": "ml", "milliliters": "ml", "mls": "ml",
+        "litre": "l", "litres": "l", "liter": "l", "liters": "l",
+        "tablespoon": "tbsp", "tablespoons": "tbsp", "tbs": "tbsp", "tbspn": "tbsp",
+        "teaspoon": "tsp", "teaspoons": "tsp", "tsps": "tsp",
+        "cups": "cup", "c": "cup",
+        "cloves": "clove", "bunches": "bunch", "handfuls": "handful", "pinches": "pinch",
+        "each": "each", "ea": "each", "unit": "each", "units": "each", "piece": "each", "pieces": "each",
+    }
+    return aliases.get(text, text)
+
+
 def _parse_amount_and_unit(value: Any) -> tuple[float | None, str]:
     text = str(value or "").strip()
     if not text:
         return None, ""
-    match = re.search(r"-?\d+(?:\.\d+)?", text)
-    if not match:
-        return None, text.lower()
-    amount = float(match.group(0))
-    unit = text[match.end():].strip().lower()
-    unit = unit.replace("grams", "g").replace("gram", "g").replace("millilitres", "ml").replace("milliliters", "ml")
-    unit = unit.replace("millilitre", "ml").replace("milliliter", "ml")
+    m = re.match(r"^(?P<qty>\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d+\s*-\s*\d+|\d+(?:\.\d+)?)\s*(?P<unit>.*)$", text)
+    if not m:
+        return None, _normalise_unit_label(text)
+    amount = _parse_fraction_number(m.group("qty"))
+    unit = _normalise_unit_label(m.group("unit"))
     return amount, unit
 
 
 def _amount_from_text(value: Any) -> float:
     amount, _unit = _parse_amount_and_unit(value)
     return float(amount or 0.0)
+
+
+MASS_UNITS = {"g", "kg", "mg"}
+VOLUME_UNITS = {"ml", "l", "tbsp", "tsp", "cup"}
+COUNT_UNITS = {"each", "clove", "bunch", "handful", "pinch", "sprig", "dash"}
+
+
+def _unit_to_base(amount: float, unit: str) -> tuple[float, str]:
+    unit = _normalise_unit_label(unit)
+    conversions = {
+        "kg": (1000.0, "g"),
+        "g": (1.0, "g"),
+        "mg": (0.001, "g"),
+        "l": (1000.0, "ml"),
+        "ml": (1.0, "ml"),
+        "tbsp": (15.0, "ml"),
+        "tsp": (5.0, "ml"),
+        "cup": (250.0, "ml"),
+    }
+    factor, base_unit = conversions.get(unit, (1.0, unit))
+    return amount * factor, base_unit
+
+
+def _convert_generic_amount(amount: float, from_unit: str, to_unit: str) -> tuple[float | None, str]:
+    from_unit = _normalise_unit_label(from_unit)
+    to_unit = _normalise_unit_label(to_unit)
+    if not from_unit or not to_unit:
+        return None, "Missing unit"
+    if from_unit == to_unit:
+        return amount, "Same unit"
+    from_base, from_base_unit = _unit_to_base(amount, from_unit)
+    one_to_base, to_base_unit = _unit_to_base(1.0, to_unit)
+    if from_base_unit and to_base_unit and from_base_unit == to_base_unit and one_to_base:
+        return from_base / one_to_base, "Generic unit conversion"
+    return None, f"Cannot convert {from_unit} to {to_unit} without an ingredient conversion"
+
+
+def read_user_ingredient_conversions(sheet_id: str) -> pd.DataFrame:
+    if not sheet_id or "ingredient_unit_conversions" not in ONLINE_TABLES:
+        return pd.DataFrame(columns=ONLINE_TABLES.get("ingredient_unit_conversions", []))
+    return active_online_df(read_online_table(sheet_id, "ingredient_unit_conversions"))
+
+
+def _ingredient_conversion_candidates(sheet_id: str, ingredient: Any) -> list[dict[str, Any]]:
+    ingredient_text = str(ingredient or "").strip()
+    key = _ingredient_key(ingredient_text)
+    rows: list[dict[str, Any]] = []
+    user_rows = read_user_ingredient_conversions(sheet_id)
+    if not user_rows.empty:
+        for _, row in user_rows.iterrows():
+            row_dict = row.to_dict()
+            if key and key in {_ingredient_key(row_dict.get("ingredient", "")), _ingredient_key(row_dict.get("ingredient_key", ""))}:
+                row_dict.setdefault("conversion_source", "Your data")
+                rows.append(row_dict)
+    catalogue = read_pathmark_ingredient_catalogue()
+    ref = resolve_ingredient_reference(ingredient_text, catalogue, read_user_ingredient_overrides(sheet_id)) if ingredient_text else {}
+    ingredient_id = str(ref.get("ingredient_id", "") or "")
+    conversions_by_id = catalogue.get("conversions_by_id", {}) if isinstance(catalogue, dict) else {}
+    conversions_by_key = catalogue.get("conversions_by_key", {}) if isinstance(catalogue, dict) else {}
+    for row in conversions_by_id.get(ingredient_id, []) if ingredient_id else []:
+        row_dict = dict(row)
+        row_dict.setdefault("conversion_source", "Pathmark data")
+        rows.append(row_dict)
+    if key:
+        for row in conversions_by_key.get(key, []):
+            row_dict = dict(row)
+            row_dict.setdefault("conversion_source", "Pathmark data")
+            rows.append(row_dict)
+    return rows
+
+
+def _apply_conversion_row(amount: float, from_unit: str, target_unit: str, conv: dict[str, Any]) -> tuple[float | None, str]:
+    conv_from_qty = _amount_from_text(conv.get("from_quantity", ""))
+    conv_from_unit = _normalise_unit_label(conv.get("from_unit", ""))
+    conv_to_qty = _amount_from_text(conv.get("to_quantity", ""))
+    conv_to_unit = _normalise_unit_label(conv.get("to_unit", ""))
+    target_unit = _normalise_unit_label(target_unit)
+    if conv_from_qty <= 0 or conv_to_qty <= 0 or not conv_from_unit or not conv_to_unit:
+        return None, "Incomplete conversion row"
+    source_amount, source_base = _unit_to_base(amount, from_unit)
+    conv_source_amount, conv_source_base = _unit_to_base(conv_from_qty, conv_from_unit)
+    if source_base == conv_source_base and conv_source_amount:
+        converted_to_conv_unit = (source_amount / conv_source_amount) * conv_to_qty
+        final, status = _convert_generic_amount(converted_to_conv_unit, conv_to_unit, target_unit)
+        if final is not None:
+            return final, f"Ingredient conversion ({status})"
+    # Try inverse conversion, e.g. a row 1 cup = 120 g can also convert g back to cup.
+    source_amount, source_base = _unit_to_base(amount, from_unit)
+    conv_target_amount, conv_target_base = _unit_to_base(conv_to_qty, conv_to_unit)
+    if source_base == conv_target_base and conv_target_amount:
+        converted_to_from_unit = (source_amount / conv_target_amount) * conv_from_qty
+        final, status = _convert_generic_amount(converted_to_from_unit, conv_from_unit, target_unit)
+        if final is not None:
+            return final, f"Ingredient conversion inverse ({status})"
+    return None, "No matching ingredient conversion"
+
+
+def convert_ingredient_amount(sheet_id: str, ingredient: Any, amount: float, from_unit: str, target_unit: str) -> tuple[float | None, str]:
+    """Convert a quantity to the requested unit, using generic and ingredient-specific rows."""
+    if amount <= 0:
+        return None, "Missing quantity"
+    generic, generic_status = _convert_generic_amount(amount, from_unit, target_unit)
+    if generic is not None:
+        return generic, generic_status
+    for conv in _ingredient_conversion_candidates(sheet_id, ingredient):
+        converted, status = _apply_conversion_row(amount, from_unit, target_unit, conv)
+        if converted is not None:
+            return converted, status
+    return None, generic_status
+
+
+def _conversion_status_text(value: float | None, status: str, target_unit: str) -> str:
+    if value is None:
+        return status
+    return f"{_format_quantity_value(float(value))} {_normalise_unit_label(target_unit)} · {status}"
 
 
 def _grocery_category_for_item(item: str) -> str:
@@ -12143,54 +12303,24 @@ def _find_nutrition_record(sheet_id: str, item_name: str) -> dict[str, Any] | No
     return None
 
 
-def _unit_to_base(amount: float, unit: str) -> tuple[float, str]:
-    unit = str(unit or "").strip().lower()
-    unit = unit.replace("grams", "g").replace("gram", "g").replace("kgs", "kg")
-    unit = unit.replace("millilitres", "ml").replace("milliliters", "ml").replace("litres", "l").replace("liters", "l")
-    conversions = {
-        "kg": (1000.0, "g"),
-        "g": (1.0, "g"),
-        "mg": (0.001, "g"),
-        "l": (1000.0, "ml"),
-        "ml": (1.0, "ml"),
-        "tbsp": (15.0, "ml"),
-        "tablespoon": (15.0, "ml"),
-        "tablespoons": (15.0, "ml"),
-        "tsp": (5.0, "ml"),
-        "teaspoon": (5.0, "ml"),
-        "teaspoons": (5.0, "ml"),
-        "cup": (250.0, "ml"),
-        "cups": (250.0, "ml"),
-    }
-    factor, base_unit = conversions.get(unit, (1.0, unit))
-    return amount * factor, base_unit
-
-
-def _base_quantity_for_cost(amount: float, unit: str) -> tuple[float, str]:
-    qty, base = _unit_to_base(amount, unit)
-    # For simple meal-planning estimates, treat 1 g as equivalent to 1 ml.
-    if base == "ml":
-        return qty, "g"
-    return qty, base
-
-
-def _estimate_ingredient_cost(row: dict[str, Any]) -> tuple[float | None, str]:
+def _estimate_ingredient_cost(row: dict[str, Any], sheet_id: str = "") -> tuple[float | None, str]:
     recipe_qty = _amount_from_text(row.get("quantity", ""))
     recipe_unit = str(row.get("unit", "") or "").strip()
     purchased_qty = _amount_from_text(row.get("purchased_quantity", ""))
     purchased_unit = str(row.get("purchased_unit", "") or "").strip()
     purchased_price = _amount_from_text(row.get("purchased_price", ""))
+    ingredient = str(row.get("ingredient", "") or row.get("item", "") or "").strip()
     if recipe_qty <= 0:
         return None, "Missing recipe quantity"
     if purchased_qty <= 0 or purchased_price <= 0:
         return None, "Missing price data"
-    recipe_amount, recipe_base = _base_quantity_for_cost(recipe_qty, recipe_unit)
-    purchase_amount, purchase_base = _base_quantity_for_cost(purchased_qty, purchased_unit)
-    if recipe_base and purchase_base and recipe_base == purchase_base and purchase_amount > 0:
-        return purchased_price * (recipe_amount / purchase_amount), "Calculated"
-    if recipe_unit and purchased_unit and recipe_unit.lower() == purchased_unit.lower() and purchased_qty > 0:
-        return purchased_price * (recipe_qty / purchased_qty), "Calculated"
-    return None, f"Cannot convert {recipe_unit or 'blank unit'} to {purchased_unit or 'blank purchased unit'}"
+    # Prefer exact/generic conversion first, then ingredient-specific conversion when a volume/count measure needs mass.
+    converted, conversion_status = convert_ingredient_amount(sheet_id, ingredient, recipe_qty, recipe_unit, purchased_unit)
+    if converted is not None and purchased_qty > 0:
+        return purchased_price * (converted / purchased_qty), conversion_status
+    if recipe_unit and purchased_unit and _normalise_unit_label(recipe_unit) == _normalise_unit_label(purchased_unit) and purchased_qty > 0:
+        return purchased_price * (recipe_qty / purchased_qty), "Same unit"
+    return None, conversion_status
 
 
 def _ingredient_seasonality_status(sheet_id: str, ingredient: str) -> tuple[str, str, str]:
@@ -12215,30 +12345,31 @@ def _ingredient_seasonality_status(sheet_id: str, ingredient: str) -> tuple[str,
     return status, months, substitute
 
 
-def _estimate_ingredient_kcal(row: dict[str, Any], nutrition_row: dict[str, Any] | None = None) -> tuple[float | None, str]:
+def _estimate_ingredient_kcal(row: dict[str, Any], nutrition_row: dict[str, Any] | None = None, sheet_id: str = "") -> tuple[float | None, str]:
     if nutrition_row is None:
         return None, "Missing nutrition data"
     qty = _amount_from_text(row.get("quantity", ""))
     if qty <= 0:
         return None, "Missing quantity"
+    ingredient = str(row.get("ingredient", "") or row.get("item", "") or nutrition_row.get("item", "") or "").strip()
     recipe_unit = str(row.get("unit", "") or "").strip().lower()
     portion_qty = _amount_from_text(nutrition_row.get("portion_quantity", ""))
     portion_unit = str(nutrition_row.get("portion_unit", "") or "").strip().lower()
     kcal = _amount_from_text(nutrition_row.get("kcal_per_portion", ""))
     if portion_qty <= 0 or kcal <= 0:
         return None, "Missing kcal or portion data"
-    recipe_amount, recipe_base = _unit_to_base(qty, recipe_unit)
-    portion_amount, portion_base = _unit_to_base(portion_qty, portion_unit)
-    if recipe_base and portion_base and recipe_base == portion_base and portion_amount > 0:
-        return kcal * (recipe_amount / portion_amount), "Calculated"
-    if recipe_unit and portion_unit and recipe_unit == portion_unit and portion_qty > 0:
-        return kcal * (qty / portion_qty), "Calculated"
-    return None, f"Cannot convert {recipe_unit or 'blank unit'} to {portion_unit or 'blank portion unit'}"
+    converted, conversion_status = convert_ingredient_amount(sheet_id, ingredient, qty, recipe_unit, portion_unit)
+    if converted is not None and portion_qty > 0:
+        return kcal * (converted / portion_qty), conversion_status
+    if recipe_unit and portion_unit and _normalise_unit_label(recipe_unit) == _normalise_unit_label(portion_unit) and portion_qty > 0:
+        return kcal * (qty / portion_qty), "Same unit"
+    return None, conversion_status
 
 
 def recipe_nutrition_summary(sheet_id: str, recipe_id: str, servings: Any) -> tuple[pd.DataFrame, float, float, list[str]]:
     ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
     nutrition = active_online_df(read_online_table(sheet_id, "grocery_nutrition"))
+    recipe_options = active_online_df(read_online_table(sheet_id, "recipe_ingredient_options"))
     rows = ingredients[ingredients["recipe_id"].fillna("").eq(recipe_id)].copy() if not ingredients.empty else pd.DataFrame()
     details = []
     total_kcal = 0.0
@@ -12252,8 +12383,8 @@ def recipe_nutrition_summary(sheet_id: str, recipe_id: str, servings: Any) -> tu
             match = nutrition[nutrition["item"].fillna("").apply(_normalise_food_key).eq(_normalise_food_key(item))]
             if not match.empty:
                 nrow = match.iloc[0].to_dict()
-        kcal, kcal_status = _estimate_ingredient_kcal(ing_dict, nrow)
-        cost, cost_status = _estimate_ingredient_cost(ing_dict)
+        kcal, kcal_status = _estimate_ingredient_kcal(ing_dict, nrow, sheet_id)
+        cost, cost_status = _estimate_ingredient_cost(ing_dict, sheet_id)
         season_status, season_months, suggested_sub = _ingredient_seasonality_status(sheet_id, item) if str(ing_dict.get("lookup_seasonality", "") or "").strip().lower() in {"yes", "true", "1"} else ("", "", "")
         if kcal is not None:
             total_kcal += kcal
@@ -12263,14 +12394,23 @@ def recipe_nutrition_summary(sheet_id: str, recipe_id: str, servings: Any) -> tu
             total_cost += cost
         elif str(ing_dict.get("purchased_quantity", "") or "").strip() or str(ing_dict.get("purchased_price", "") or "").strip():
             missing.append(f"{item}: {cost_status}")
+        group_id = str(ing_dict.get("recipe_ingredient_group_id", "") or "").strip()
+        alternative_text = ""
+        if group_id and not recipe_options.empty:
+            opts = recipe_options[recipe_options.get("recipe_ingredient_group_id", pd.Series(dtype=str)).fillna("").astype(str).eq(group_id)]
+            alt_names = [str(o.get("ingredient", "") or "").strip() for _, o in opts.iterrows() if str(o.get("ingredient", "") or "").strip() and _normalise_food_key(o.get("ingredient", "")) != _normalise_food_key(item)]
+            alternative_text = "; ".join(dict.fromkeys(alt_names))
         details.append({
             "Ingredient": item,
             "Quantity": str(ing_dict.get("quantity", "") or ""),
             "Unit": str(ing_dict.get("unit", "") or ""),
+            "Preferred quantity": str(ing_dict.get("converted_quantity", "") or ""),
+            "Preferred unit": str(ing_dict.get("converted_unit", "") or ing_dict.get("preferred_unit", "") or ""),
             "Category": str(ing_dict.get("category_name", "") or ""),
+            "Alternatives": alternative_text or str(ing_dict.get("suggested_substitute", "") or suggested_sub),
             "Fresh produce": str(ing_dict.get("is_fresh_produce", "") or ""),
             "Seasonality": str(ing_dict.get("seasonality_status", "") or season_status),
-            "Suggested substitute": str(ing_dict.get("suggested_substitute", "") or suggested_sub),
+            "Conversion": str(ing_dict.get("conversion_status", "") or ""),
             "kcal estimate": round(kcal, 1) if kcal is not None else "",
             "Nutrition status": kcal_status,
             "Cost estimate": round(cost, 2) if cost is not None else "",
@@ -12522,8 +12662,8 @@ def import_grocery_template(sheet_id: str, mode: str = "merge") -> tuple[bool, s
             inv_id = _add_inventory_item_if_needed(sheet_id, ingredient, row.get("category_name", "Produce"), unit=row.get("unit", ""), notes="Added from recipe import.") if ingredient else ""
             season_status, _season_months, inv_sub = _ingredient_seasonality_status(sheet_id, ingredient) if str(row.get("lookup_seasonality", "") or "").strip().lower() in {"yes", "true", "1"} else ("", "", "")
             nrow = _find_nutrition_record(sheet_id, ingredient)
-            kcal_estimate, nutrition_status = _estimate_ingredient_kcal(row, nrow)
-            cost_estimate, cost_status = _estimate_ingredient_cost(row)
+            kcal_estimate, nutrition_status = _estimate_ingredient_kcal(row, nrow, sheet_id)
+            cost_estimate, cost_status = _estimate_ingredient_cost(row, sheet_id)
             append["recipe_ingredients"].append({
                 "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
                 "recipe_id": rid,
@@ -12570,6 +12710,12 @@ STARTER_PACK_TABLES = {
     "recipe": "recipes",
     "recipe ingredients": "recipe_ingredients",
     "recipe_ingredients": "recipe_ingredients",
+    "recipe ingredient groups": "recipe_ingredient_groups",
+    "recipe_ingredient_groups": "recipe_ingredient_groups",
+    "recipe ingredient options": "recipe_ingredient_options",
+    "recipe_ingredient_options": "recipe_ingredient_options",
+    "ingredient conversions": "ingredient_unit_conversions",
+    "ingredient_unit_conversions": "ingredient_unit_conversions",
 }
 STARTER_PACK_SECTION_LABELS = {
     "nutrition": "Nutrition",
@@ -12577,6 +12723,9 @@ STARTER_PACK_SECTION_LABELS = {
     "ingredients": "Ingredients / pantry",
     "recipes": "Recipes",
     "recipe ingredients": "Recipe ingredients",
+    "recipe ingredient groups": "Recipe ingredient groups",
+    "recipe ingredient options": "Recipe ingredient options",
+    "ingredient conversions": "Ingredient unit conversions",
 }
 
 STARTER_PACK_SECTION_PRESETS = {
@@ -12713,7 +12862,7 @@ def _starter_pack_row_to_record(row: dict[str, Any]) -> tuple[str, dict[str, Any
     target = str(row.get("target_table", "") or "").strip()
     section = str(row.get("section", "") or "").strip().lower().replace("_", " ")
     table = target if target in ONLINE_TABLES else STARTER_PACK_TABLES.get(section, "")
-    if table not in {"grocery_nutrition", "grocery_inventory", "recipes", "recipe_ingredients"}:
+    if table not in {"grocery_nutrition", "grocery_inventory", "recipes", "recipe_ingredients", "recipe_ingredient_groups", "recipe_ingredient_options", "ingredient_unit_conversions"}:
         return None
     data = _coerce_supabase_row_data(row.get("row_data"))
     if not data:
@@ -12727,6 +12876,9 @@ def _starter_pack_row_to_record(row: dict[str, Any]) -> tuple[str, dict[str, Any
             "grocery_inventory": "inventory",
             "recipes": "recipe",
             "recipe_ingredients": "recipe-ingredient",
+            "recipe_ingredient_groups": "recipe-ingredient-group",
+            "recipe_ingredient_options": "recipe-ingredient-option",
+            "ingredient_unit_conversions": "ingredient-conversion",
         }.get(table, "starter")
         record[id_col] = f"{prefix}-{uuid.uuid4().hex[:12]}"
     if not record.get("status"):
@@ -12739,7 +12891,7 @@ def import_starter_pack_to_sync(sheet_id: str, slug: str, sections: list[str], m
     ok_rows, rows, msg = read_starter_pack_rows_from_supabase(slug, sections)
     if not ok_rows:
         return False, msg
-    records_by_table: dict[str, list[dict[str, Any]]] = {"grocery_nutrition": [], "grocery_inventory": [], "recipes": [], "recipe_ingredients": []}
+    records_by_table: dict[str, list[dict[str, Any]]] = {"grocery_nutrition": [], "grocery_inventory": [], "recipes": [], "recipe_ingredients": [], "recipe_ingredient_groups": [], "recipe_ingredient_options": [], "ingredient_unit_conversions": []}
     for row in rows:
         converted = _starter_pack_row_to_record(row)
         if not converted:
@@ -12994,6 +13146,177 @@ def _normalise_ingredient_name(value: Any) -> str:
     return text[:1].upper() + text[1:] if text else ""
 
 
+def _split_ingredient_alternatives(ingredient_text: Any) -> list[str]:
+    """Return explicit alternatives from ingredient text, without splitting normal combined ingredients."""
+    text = str(ingredient_text or "").strip()
+    if not text:
+        return []
+    # Preserve plain "salt and pepper" as one unquantified line, but split explicit alternatives.
+    parts = re.split(r"\s+(?:and/or|or)\s+", text, flags=re.IGNORECASE)
+    cleaned: list[str] = []
+    for part in parts:
+        part = re.sub(r"^[,;:/\s]+|[,;:/\s]+$", "", part.strip())
+        if part and part not in cleaned:
+            cleaned.append(_normalise_ingredient_name(part))
+    return cleaned if len(cleaned) > 1 else []
+
+
+def _make_recipe_ingredient_group_and_options(
+    sheet_id: str,
+    *,
+    recipe_id: str,
+    recipe_name: str,
+    ingredient_names: list[str],
+    quantity: str,
+    unit: str,
+    category: str,
+    original_line: str = "",
+    selection_mode: str = "one_of",
+    notes: str = "",
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    clean_options = [_normalise_ingredient_name(x) for x in ingredient_names if str(x or "").strip()]
+    if not clean_options:
+        clean_options = [_normalise_ingredient_name(original_line)] if original_line else []
+    group_id = f"recipe-ingredient-group-{uuid.uuid4().hex[:12]}"
+    default_option_id = f"recipe-ingredient-option-{uuid.uuid4().hex[:12]}"
+    group = {
+        "recipe_ingredient_group_id": group_id,
+        "recipe_id": recipe_id,
+        "recipe_name": recipe_name,
+        "group_label": clean_options[0] if clean_options else "Ingredient option",
+        "selection_mode": selection_mode,
+        "required": "Yes",
+        "default_option_id": default_option_id,
+        "original_line": original_line,
+        "notes": notes,
+        "status": "active",
+        "source": "Meal Plan recipe ingredient options",
+    }
+    options: list[dict[str, Any]] = []
+    default_record: dict[str, Any] = {}
+    for idx, ingredient_name in enumerate(clean_options):
+        option_id = default_option_id if idx == 0 else f"recipe-ingredient-option-{uuid.uuid4().hex[:12]}"
+        inv_id = _add_inventory_item_if_needed(sheet_id, ingredient_name, category, unit=unit, notes="Added from recipe ingredient option.")
+        ref = resolve_ingredient_reference(ingredient_name, read_pathmark_ingredient_catalogue(), read_user_ingredient_overrides(sheet_id))
+        preferred_unit = str(ref.get("preferred_unit", "") or unit or "").strip()
+        converted_qty = ""
+        converted_unit = ""
+        conversion_status = ""
+        qty_num = _amount_from_text(quantity)
+        if qty_num > 0 and preferred_unit:
+            converted, status = convert_ingredient_amount(sheet_id, ingredient_name, qty_num, unit, preferred_unit)
+            converted_qty = _format_quantity_value(float(converted)) if converted is not None else ""
+            converted_unit = _normalise_unit_label(preferred_unit) if converted is not None else ""
+            conversion_status = _conversion_status_text(converted, status, preferred_unit)
+        option = {
+            "recipe_ingredient_option_id": option_id,
+            "recipe_ingredient_group_id": group_id,
+            "recipe_id": recipe_id,
+            "recipe_name": recipe_name,
+            "ingredient": ingredient_name,
+            "quantity": str(quantity or "").strip(),
+            "unit": str(unit or "").strip(),
+            "category_name": category,
+            "inventory_id": inv_id,
+            "preferred_unit": preferred_unit,
+            "converted_quantity": converted_qty,
+            "converted_unit": converted_unit,
+            "conversion_status": conversion_status,
+            "is_default": "Yes" if idx == 0 else "",
+            "option_label": ingredient_name,
+            "notes": original_line if original_line else notes,
+            "status": "active",
+            "source": "Meal Plan recipe ingredient options",
+        }
+        options.append(option)
+        if idx == 0:
+            default_record = option
+    return group, options, default_record
+
+
+def _recipe_options_for_group(sheet_id: str, group_id: str) -> list[dict[str, Any]]:
+    if not group_id:
+        return []
+    options = active_online_df(read_online_table(sheet_id, "recipe_ingredient_options"))
+    if options.empty:
+        return []
+    rows = options[options.get("recipe_ingredient_group_id", pd.Series(dtype=str)).fillna("").astype(str).eq(str(group_id))]
+    return [row.to_dict() for _, row in rows.iterrows()]
+
+
+def _recipe_option_payload(options: list[dict[str, Any]]) -> str:
+    payload = []
+    for row in options:
+        ingredient = str(row.get("ingredient", "") or "").strip()
+        if not ingredient:
+            continue
+        payload.append({
+            "option_id": str(row.get("recipe_ingredient_option_id", "") or ""),
+            "ingredient": ingredient,
+            "quantity": str(row.get("quantity", "") or ""),
+            "unit": str(row.get("unit", "") or ""),
+            "category_name": str(row.get("category_name", "") or ""),
+            "inventory_id": str(row.get("inventory_id", "") or ""),
+            "is_default": str(row.get("is_default", "") or ""),
+            "conversion_status": str(row.get("conversion_status", "") or ""),
+        })
+    return json.dumps(payload, ensure_ascii=False) if payload else ""
+
+
+def _shopping_option_rows_from_json(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        raw = value
+    else:
+        try:
+            raw = json.loads(str(value or "[]"))
+        except Exception:
+            raw = []
+    rows = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, dict) and str(item.get("ingredient", "") or "").strip():
+            rows.append(item)
+    return rows
+
+
+def _shopping_alternative_options(row: pd.Series | dict[str, Any]) -> list[dict[str, Any]]:
+    options = _shopping_option_rows_from_json(row.get("alternative_options_json", "") if hasattr(row, "get") else "")
+    current = str(row.get("ingredient", "") or "").strip() if hasattr(row, "get") else ""
+    if current and not any(_normalise_food_key(o.get("ingredient", "")) == _normalise_food_key(current) for o in options):
+        options.insert(0, {
+            "option_id": str(row.get("selected_option_id", "") or "") if hasattr(row, "get") else "",
+            "ingredient": current,
+            "quantity": str(row.get("quantity", "") or "") if hasattr(row, "get") else "",
+            "unit": str(row.get("unit", "") or "") if hasattr(row, "get") else "",
+            "category_name": str(row.get("category_name", "") or "") if hasattr(row, "get") else "",
+            "inventory_id": str(row.get("inventory_id", "") or "") if hasattr(row, "get") else "",
+            "is_default": "Yes",
+        })
+    return options
+
+
+def _apply_shopping_option_to_row(row: pd.Series | dict[str, Any], option: dict[str, Any] | None) -> dict[str, Any]:
+    data = row.to_dict() if hasattr(row, "to_dict") else dict(row or {})
+    if not option:
+        return data
+    ingredient = str(option.get("ingredient", "") or "").strip()
+    if not ingredient:
+        return data
+    if not str(data.get("original_ingredient", "") or "").strip():
+        data["original_ingredient"] = str(data.get("ingredient", "") or "")
+    data["ingredient"] = ingredient
+    data["selected_option_id"] = str(option.get("option_id", "") or data.get("selected_option_id", "") or "")
+    for field in ["quantity", "unit", "category_name", "inventory_id", "conversion_status"]:
+        value = str(option.get(field, "") or "").strip()
+        if value:
+            data[field] = value
+    return data
+
+
+def _shopping_option_label(option: dict[str, Any]) -> str:
+    bits = [str(option.get("quantity", "") or "").strip(), str(option.get("unit", "") or "").strip(), str(option.get("ingredient", "") or "").strip()]
+    return " ".join([b for b in bits if b]).strip() or str(option.get("ingredient", "") or "")
+
+
 def _category_order_map(sheet_id: str) -> dict[str, int]:
     cats = active_online_df(read_online_table(sheet_id, "grocery_categories"))
     order = {name: i for i, name in enumerate(GROCERY_CATEGORIES)}
@@ -13035,7 +13358,7 @@ def ensure_grocery_categories_from_names(sheet_id: str, names: list[str]) -> Non
 
 
 def build_ourgroceries_import_records(payload: dict[str, Any], *, import_limit: int | None = None) -> dict[str, list[dict[str, Any]]]:
-    records: dict[str, list[dict[str, Any]]] = {"recipes": [], "recipe_ingredients": [], "grocery_inventory": [], "grocery_categories": []}
+    records: dict[str, list[dict[str, Any]]] = {"recipes": [], "recipe_ingredients": [], "recipe_ingredient_groups": [], "recipe_ingredient_options": [], "grocery_inventory": [], "grocery_categories": []}
     category_names = []
     for c in (payload.get("categories", {}) or {}).get("items", []) or []:
         name = str((c or {}).get("name", "") or "").strip()
@@ -13076,35 +13399,87 @@ def build_ourgroceries_import_records(payload: dict[str, Any], *, import_limit: 
                 continue
             parsed = parse_ingredient_line(raw_name)
             ingredient = _normalise_ingredient_name(parsed.get("ingredient", ""))
-            category = str((item or {}).get("category", "") or "").strip() or _grocery_category_for_item(ingredient)
+            if not ingredient:
+                continue
+            alternatives = _split_ingredient_alternatives(ingredient)
+            option_names = alternatives or [ingredient]
+            category = str((item or {}).get("category", "") or "").strip() or _grocery_category_for_item(option_names[0])
+            group_id = f"recipe-ingredient-group-{uuid.uuid4().hex[:12]}"
+            default_option_id = f"recipe-ingredient-option-{uuid.uuid4().hex[:12]}"
+            records["recipe_ingredient_groups"].append({
+                "recipe_ingredient_group_id": group_id,
+                "recipe_id": recipe_id,
+                "recipe_name": recipe_name,
+                "group_label": option_names[0],
+                "selection_mode": "one_of" if alternatives else "single",
+                "required": "Yes",
+                "default_option_id": default_option_id,
+                "original_line": parsed.get("original", raw_name),
+                "notes": "Imported from OurGroceries.",
+                "status": "active",
+                "source": "OurGroceries import",
+            })
+            option_records: list[dict[str, Any]] = []
             inventory_id = ""
-            inv_key = _normalise_food_key(ingredient)
-            if inv_key and inv_key not in seen_inventory:
-                inventory_id = f"inventory-{uuid.uuid4().hex[:12]}"
-                seen_inventory.add(inv_key)
-                records["grocery_inventory"].append({
-                    "inventory_id": inventory_id,
-                    "category_name": category,
-                    "item": ingredient,
-                    "quantity": "",
+            for opt_idx, option_ingredient in enumerate(option_names):
+                option_inventory_id = ""
+                inv_key = _normalise_food_key(option_ingredient)
+                if inv_key and inv_key not in seen_inventory:
+                    option_inventory_id = f"inventory-{uuid.uuid4().hex[:12]}"
+                    seen_inventory.add(inv_key)
+                    records["grocery_inventory"].append({
+                        "inventory_id": option_inventory_id,
+                        "category_name": category,
+                        "item": option_ingredient,
+                        "quantity": "",
+                        "unit": parsed.get("unit", ""),
+                        "expiry_date": "",
+                        "storage": "",
+                        "notes": f"Imported from recipe ingredient: {parsed.get('original', raw_name)}",
+                        "status": "active",
+                        "source": "OurGroceries import",
+                    })
+                if opt_idx == 0:
+                    inventory_id = option_inventory_id
+                option_id = default_option_id if opt_idx == 0 else f"recipe-ingredient-option-{uuid.uuid4().hex[:12]}"
+                option_record = {
+                    "recipe_ingredient_option_id": option_id,
+                    "recipe_ingredient_group_id": group_id,
+                    "recipe_id": recipe_id,
+                    "recipe_name": recipe_name,
+                    "ingredient": option_ingredient,
+                    "quantity": parsed.get("quantity", ""),
                     "unit": parsed.get("unit", ""),
-                    "expiry_date": "",
-                    "storage": "",
-                    "notes": f"Imported from recipe ingredient: {parsed.get('original', raw_name)}",
+                    "category_name": category,
+                    "inventory_id": option_inventory_id,
+                    "is_default": "Yes" if opt_idx == 0 else "",
+                    "option_label": option_ingredient,
+                    "notes": parsed.get("original", raw_name),
                     "status": "active",
                     "source": "OurGroceries import",
-                })
+                }
+                records["recipe_ingredient_options"].append(option_record)
+                option_records.append(option_record)
+            suggested = "; ".join([o.get("ingredient", "") for o in option_records[1:] if o.get("ingredient")])
             records["recipe_ingredients"].append({
                 "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
                 "recipe_id": recipe_id,
                 "recipe_name": recipe_name,
                 "inventory_id": inventory_id,
-                "ingredient": ingredient,
+                "ingredient": option_names[0],
                 "quantity": parsed.get("quantity", ""),
                 "unit": parsed.get("unit", ""),
                 "category_name": category,
+                "recipe_ingredient_group_id": group_id,
+                "recipe_ingredient_option_id": default_option_id,
+                "selection_mode": "one_of" if alternatives else "single",
+                "option_label": option_names[0],
+                "is_default_option": "Yes",
+                "original_line": parsed.get("original", raw_name),
                 "is_fresh_produce": _grocery_bool_text(category in {"Produce", "Fruits & Vegetables"}),
                 "lookup_seasonality": "Yes",
+                "substitute_required": _grocery_bool_text(bool(suggested)),
+                "suggested_substitute": suggested,
                 "notes": parsed.get("original", raw_name),
                 "status": "active",
                 "source": "OurGroceries import",
@@ -13123,7 +13498,7 @@ def import_ourgroceries_json_to_pathmark(sheet_id: str, payload: dict[str, Any],
         # Kept simple so this import tool can be removed before public release.
         service = sheets_service()
         if service is not None:
-            for table in ["recipes", "recipe_ingredients", "grocery_inventory", "grocery_categories"]:
+            for table in ["recipes", "recipe_ingredients", "recipe_ingredient_groups", "recipe_ingredient_options", "grocery_inventory", "grocery_categories"]:
                 header = online_sheet_header(service, sheet_id, table) or ONLINE_TABLES.get(table, [])
                 service.spreadsheets().values().clear(spreadsheetId=sheet_id, range=f"{table}!A2:{sheet_col_letter(len(header))}").execute()
     ok, msg = append_many_online_records(sheet_id, {k: v for k, v in records.items() if v})
@@ -13435,12 +13810,12 @@ def _recipe_cost_key(row: pd.Series | dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
-def _build_recipe_ingredient_cost_lookup(recipe_ingredients: pd.DataFrame) -> dict[tuple[str, str, str], tuple[float | None, str]]:
+def _build_recipe_ingredient_cost_lookup(recipe_ingredients: pd.DataFrame, sheet_id: str = "") -> dict[tuple[str, str, str], tuple[float | None, str]]:
     lookup: dict[tuple[str, str, str], tuple[float | None, str]] = {}
     if recipe_ingredients is None or recipe_ingredients.empty:
         return lookup
     for _, row in recipe_ingredients.iterrows():
-        cost, status = _estimate_ingredient_cost(row.to_dict())
+        cost, status = _estimate_ingredient_cost(row.to_dict(), sheet_id)
         lookup[_recipe_cost_key(row)] = (cost, status)
         # A looser ingredient-only fallback is useful for merged/unquantified shopping rows.
         loose_key = ("", _normalise_food_key(row.get("ingredient", "")), str(row.get("unit", "") or "").strip().lower())
@@ -13464,7 +13839,7 @@ def shopping_list_cost_summary(sheet_id: str, list_id: str = "") -> dict[str, An
     if list_id and not items.empty:
         items = items[items.get("shopping_list_id", pd.Series(dtype=str)).fillna("").astype(str).eq(list_id)]
     recipe_ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
-    lookup = _build_recipe_ingredient_cost_lookup(recipe_ingredients)
+    lookup = _build_recipe_ingredient_cost_lookup(recipe_ingredients, sheet_id)
     total = 0.0
     priced = 0
     missing = 0
@@ -13685,7 +14060,7 @@ def read_pathmark_ingredient_catalogue(force: bool = False) -> dict[str, Any]:
     read in batches and cached in session state so seasonality/nutrition can be
     shown without copying the whole dataset into each user's Google Sheet.
     """
-    cache_key = "pathmark_ingredient_catalogue_v1"
+    cache_key = "pathmark_ingredient_catalogue_v2"
     if not force and cache_key in st.session_state:
         record_perf_event("cache_hit", "ingredient catalogue", detail="session cache")
         cached = st.session_state.get(cache_key)
@@ -13717,6 +14092,11 @@ def read_pathmark_ingredient_catalogue(force: bool = False) -> dict[str, Any]:
         "ingredient_id,per_quantity,per_unit,kcal,protein,carbohydrate,fat,fibre,sodium,notes,status",
         extra="status=eq.active",
     )
+    conversions = _supabase_select_table(
+        "pathmark_ingredient_unit_conversions",
+        "conversion_id,ingredient_id,ingredient_key,ingredient,form,from_quantity,from_unit,to_quantity,to_unit,preferred_unit,confidence,source_note,notes,status",
+        extra="status=eq.active",
+    )
 
     season_by_id: dict[str, dict[str, Any]] = {}
     for row in seasonality:
@@ -13728,6 +14108,16 @@ def read_pathmark_ingredient_catalogue(force: bool = False) -> dict[str, Any]:
         iid = str(row.get("ingredient_id", "") or "").strip()
         if iid and iid not in nutrition_by_id:
             nutrition_by_id[iid] = row
+    conversions_by_id: dict[str, list[dict[str, Any]]] = {}
+    conversions_by_key: dict[str, list[dict[str, Any]]] = {}
+    for row in conversions:
+        iid = str(row.get("ingredient_id", "") or "").strip()
+        if iid:
+            conversions_by_id.setdefault(iid, []).append(row)
+        for candidate in [row.get("ingredient_key", ""), row.get("ingredient", "")]:
+            key = _ingredient_key(candidate)
+            if key:
+                conversions_by_key.setdefault(key, []).append(row)
 
     records: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
@@ -13769,7 +14159,7 @@ def read_pathmark_ingredient_catalogue(force: bool = False) -> dict[str, Any]:
         alias_key = _ingredient_key(row.get("alias", ""))
         if iid in by_id and alias_key:
             by_key.setdefault(alias_key, by_id[iid])
-    result = {"by_key": by_key, "by_id": by_id, "records": records, "available": True, "message": ""}
+    result = {"by_key": by_key, "by_id": by_id, "records": records, "conversions_by_id": conversions_by_id, "conversions_by_key": conversions_by_key, "available": True, "message": ""}
     st.session_state[cache_key] = result
     return result
 
@@ -13878,14 +14268,17 @@ def _ingredient_reference_rows(sheet_id: str, grouped: pd.DataFrame) -> pd.DataF
         ref = resolve_ingredient_reference(ingredient, catalogue, overrides)
         nutrition_known = any(str(ref.get(field, "") or "").strip() for field in ["kcal_per_100g", "protein", "carbohydrate", "fat", "fibre", "sodium"])
         season_known = bool(str(ref.get("months", "") or "").strip())
+        conversion_count = len(_ingredient_conversion_candidates(sheet_id, ingredient))
         rows.append({
             "Ingredient": ingredient,
             "Units used": str(row.get("unit", "") or ""),
+            "Preferred unit": str(ref.get("preferred_unit", "") or ""),
             "Shopping aisle": str(row.get("category_name", "") or ref.get("preferred_aisle", "") or ""),
             "Data source": ref.get("source", "Not matched"),
             "Matched name": ref.get("display_name", ingredient),
             "Seasonality": ref.get("months", "") if season_known else "",
             "Nutrition": "Available" if nutrition_known else "Not set",
+            "Conversions": str(conversion_count) if conversion_count else "",
             "Used by": str(row.get("source", "") or ""),
             "ingredient_key": ref.get("ingredient_key", _ingredient_key(ingredient)),
             "pathmark_ingredient_id": ref.get("ingredient_id", ""),
@@ -13966,7 +14359,7 @@ def render_ingredients_validation_tab(sheet_id: str) -> None:
     if source_filter != "All sources" and not view.empty:
         view = view[view["Data source"].fillna("").eq(source_filter)]
 
-    display_cols = ["Ingredient", "Units used", "Shopping aisle", "Data source", "Matched name", "Seasonality", "Nutrition", "Used by"]
+    display_cols = ["Ingredient", "Units used", "Preferred unit", "Shopping aisle", "Data source", "Matched name", "Seasonality", "Nutrition", "Conversions", "Used by"]
     st.dataframe(view[display_cols].sort_values(["Data source", "Shopping aisle", "Ingredient"]) if not view.empty else pd.DataFrame(columns=display_cols), use_container_width=True, hide_index=True, height=420)
 
     if not reference_view.empty:
@@ -14034,6 +14427,67 @@ def render_ingredients_validation_tab(sheet_id: str) -> None:
             else:
                 st.warning(safe_user_message(msg))
 
+    with st.expander("Volume, weight and preferred-unit conversions", expanded=False):
+        st.caption("Use this when a recipe uses a household or volume measure, but Pathmark needs a preferred unit for nutrition, cost, inventory and shopping calculations. These rows are saved to your Pathmark Sync sheet as your own conversion data.")
+        conversion_options = [str(x).strip() for x in reference_view.get("Ingredient", pd.Series(dtype=str)).tolist() if str(x).strip()]
+        selected_conversion = st.selectbox("Ingredient for conversion", conversion_options if conversion_options else [""], key="ingredient_conversion_select")
+        existing_conversions = read_user_ingredient_conversions(sheet_id)
+        if selected_conversion and not existing_conversions.empty:
+            key = _ingredient_key(selected_conversion)
+            view_conversions = existing_conversions[existing_conversions.apply(lambda r: key in {_ingredient_key(r.get("ingredient", "")), _ingredient_key(r.get("ingredient_key", ""))}, axis=1)]
+        else:
+            view_conversions = pd.DataFrame(columns=ONLINE_TABLES.get("ingredient_unit_conversions", []))
+        display_conversion_cols = [c for c in ["ingredient", "form", "from_quantity", "from_unit", "to_quantity", "to_unit", "preferred_unit", "confidence", "source_note", "notes"] if c in view_conversions.columns]
+        if not view_conversions.empty:
+            st.dataframe(view_conversions[display_conversion_cols], use_container_width=True, hide_index=True, height=180)
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+        with c1:
+            from_quantity = st.text_input("From quantity", placeholder="1", key="conversion_from_qty")
+            from_unit = st.text_input("From unit", placeholder="cup", key="conversion_from_unit")
+        with c2:
+            to_quantity = st.text_input("Equals quantity", placeholder="120", key="conversion_to_qty")
+            to_unit = st.text_input("Equals unit", placeholder="g", key="conversion_to_unit")
+        with c3:
+            form = st.text_input("Form", placeholder="chopped, cooked, packed", key="conversion_form")
+            preferred_unit_for_conversion = st.text_input("Preferred unit", placeholder="g", key="conversion_preferred_unit")
+        with c4:
+            confidence = st.selectbox("Confidence", ["User supplied", "Estimated", "Reviewed", "Pathmark default"], key="conversion_confidence")
+            source_note = st.text_input("Source note", placeholder="packet, weighed at home", key="conversion_source_note")
+        conversion_notes = st.text_input("Conversion notes", key="conversion_notes")
+        test_qty = _amount_from_text(from_quantity)
+        if selected_conversion and test_qty > 0 and from_unit and to_unit:
+            preview_row = {"from_quantity": from_quantity, "from_unit": from_unit, "to_quantity": to_quantity, "to_unit": to_unit}
+            converted, status = _apply_conversion_row(test_qty, from_unit, to_unit, preview_row)
+            st.caption("Preview for this row: " + _conversion_status_text(converted, status, to_unit))
+        if st.button("Save conversion", use_container_width=True, disabled=not bool(selected_conversion), key="save_ingredient_conversion"):
+            if _amount_from_text(from_quantity) <= 0 or _amount_from_text(to_quantity) <= 0 or not from_unit.strip() or not to_unit.strip():
+                st.warning("Enter a quantity and unit on both sides of the conversion.")
+            else:
+                ref_row = reference_view[reference_view.get("Ingredient", pd.Series(dtype=str)).fillna("").astype(str).eq(selected_conversion)].iloc[0].to_dict() if selected_conversion and not reference_view.empty and selected_conversion in set(reference_view.get("Ingredient", [])) else {}
+                record = {
+                    "conversion_id": f"ingredient-conversion-{uuid.uuid4().hex[:12]}",
+                    "ingredient_key": _ingredient_key(selected_conversion),
+                    "ingredient": selected_conversion,
+                    "pathmark_ingredient_id": str(ref_row.get("pathmark_ingredient_id", "") or ""),
+                    "form": form.strip(),
+                    "from_quantity": str(from_quantity).strip(),
+                    "from_unit": _normalise_unit_label(from_unit),
+                    "to_quantity": str(to_quantity).strip(),
+                    "to_unit": _normalise_unit_label(to_unit),
+                    "preferred_unit": _normalise_unit_label(preferred_unit_for_conversion or to_unit),
+                    "confidence": confidence,
+                    "source_note": source_note.strip(),
+                    "notes": conversion_notes.strip(),
+                    "status": "active",
+                    "source": "User ingredient conversion",
+                }
+                ok, msg = append_online_record(sheet_id, "ingredient_unit_conversions", record)
+                if ok:
+                    st.success("Conversion saved to your Pathmark Sync sheet.")
+                    st.rerun()
+                else:
+                    st.warning(safe_user_message(msg))
+
 
 @_pm_fragment
 def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list: str, items: pd.DataFrame) -> None:
@@ -14046,8 +14500,13 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     if not isinstance(pending_status, dict):
         pending_status = {}
         st.session_state[pending_key] = pending_status
+    pending_option_key = f"shopping_option_pending_{list_id}"
+    pending_options = st.session_state.setdefault(pending_option_key, {})
+    if not isinstance(pending_options, dict):
+        pending_options = {}
+        st.session_state[pending_option_key] = pending_options
 
-    st.caption("Shopping mode: pantry checks and trolley taps stay on this device first. Press Save changes when you are finished.")
+    st.caption("Shopping mode: pantry checks, trolley taps and alternative choices stay on this device first. Press Save changes when you are finished.")
 
     css = """
     <style>
@@ -14067,6 +14526,7 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     view = items.copy().reset_index(drop=True)
     base_status = view.get("checked", pd.Series([""] * len(view))).fillna("").map(_shopping_status_from_value)
     effective_status = []
+    effective_rows: list[dict[str, Any]] = []
     for idx, row in view.iterrows():
         item_id = str(row.get("shopping_item_id", "") or "").strip()
         original = str(base_status.iloc[idx] if idx < len(base_status) else SHOP_STATUS_NEED)
@@ -14080,6 +14540,37 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
             effective = original
             st.session_state.setdefault(status_key, _shopping_status_label(original))
         effective_status.append(effective)
+
+        option_rows = _shopping_alternative_options(row)
+        option_key = f"shop_option_{list_id}_{item_id}"
+        labels = [_shopping_option_label(o) for o in option_rows]
+        selected_option_id = str(row.get("selected_option_id", "") or "").strip()
+        current_ingredient_key = _normalise_food_key(row.get("ingredient", ""))
+        default_label = labels[0] if labels else ""
+        if option_rows and selected_option_id:
+            for opt, label in zip(option_rows, labels):
+                if str(opt.get("option_id", "") or opt.get("recipe_ingredient_option_id", "") or "") == selected_option_id:
+                    default_label = label
+                    break
+        elif option_rows and current_ingredient_key:
+            for opt, label in zip(option_rows, labels):
+                if _normalise_food_key(opt.get("ingredient", "")) == current_ingredient_key:
+                    default_label = label
+                    break
+        stored_label = str(st.session_state.get(option_key) or pending_options.get(item_id, {}).get("_label", "") or default_label)
+        if stored_label not in labels:
+            stored_label = default_label
+        if labels:
+            st.session_state.setdefault(option_key, stored_label)
+        selected_option = option_rows[labels.index(stored_label)] if stored_label in labels else None
+        effective_row = _apply_shopping_option_to_row(row, selected_option)
+        effective_row["_selected_option_label"] = stored_label
+        effective_row["_has_alternative_options"] = len(option_rows) > 1
+        effective_rows.append(effective_row)
+
+    if effective_rows:
+        for col in sorted({k for row in effective_rows for k in row.keys()}):
+            view[col] = [row.get(col, "") for row in effective_rows]
     view["_shop_status"] = effective_status
     view["_base_shop_status"] = list(base_status)
     view["_category_order"] = view.get("category_name", pd.Series([""] * len(view))).map(lambda x: order.get(str(x), 9999))
@@ -14095,9 +14586,29 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
             pending_status[item_id] = current
         else:
             pending_status.pop(item_id, None)
-    st.session_state[pending_key] = pending_status
 
-    pending_count = len(pending_status)
+        original_ingredient = str(row.get("original_ingredient", "") or "").strip() or str(items.loc[items.get("shopping_item_id", pd.Series(dtype=str)).fillna("").astype(str).eq(item_id)].iloc[0].get("ingredient", "") if not items.empty and item_id in set(items.get("shopping_item_id", pd.Series(dtype=str)).fillna("").astype(str)) else "")
+        selected_ingredient = str(row.get("ingredient", "") or "").strip()
+        selected_option_id = str(row.get("selected_option_id", "") or "").strip()
+        has_alternatives = bool(row.get("_has_alternative_options", False))
+        if has_alternatives and selected_ingredient and _normalise_food_key(selected_ingredient) != _normalise_food_key(original_ingredient):
+            pending_options[item_id] = {
+                "_label": str(row.get("_selected_option_label", "") or selected_ingredient),
+                "ingredient": selected_ingredient,
+                "selected_option_id": selected_option_id,
+                "quantity": str(row.get("quantity", "") or ""),
+                "unit": str(row.get("unit", "") or ""),
+                "category_name": str(row.get("category_name", "") or ""),
+                "inventory_id": str(row.get("inventory_id", "") or ""),
+                "original_ingredient": original_ingredient,
+                "conversion_status": str(row.get("conversion_status", "") or ""),
+            }
+        else:
+            pending_options.pop(item_id, None)
+    st.session_state[pending_key] = pending_status
+    st.session_state[pending_option_key] = pending_options
+
+    pending_count = len(pending_status) + len(pending_options)
     if pending_count:
         mark_dirty("shopping", list_id, pending_count, label=selected_list)
     else:
@@ -14113,16 +14624,25 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     c_save, c_inventory, c_discard = st.columns([1.0, 1.2, 0.8])
     with c_save:
         if st.button("Save changes", key=f"save_shop_pending_{list_id}", use_container_width=True, disabled=not bool(pending_count)):
-            updates = {item_id: {"checked": _shopping_checked_value_from_status(status)} for item_id, status in list(pending_status.items())}
-            ok, msg = update_many_online_records(sheet_id, "shopping_items", updates)
+            updates: dict[str, dict[str, Any]] = {}
+            for item_id, status in list(pending_status.items()):
+                updates.setdefault(item_id, {})["checked"] = _shopping_checked_value_from_status(status)
+            for item_id, option_update in list(pending_options.items()):
+                clean_update = {k: str(v or "") for k, v in option_update.items() if not str(k).startswith("_")}
+                if clean_update:
+                    updates.setdefault(item_id, {}).update(clean_update)
+            ok, msg = update_many_online_records(sheet_id, "shopping_items", updates) if updates else (True, "No changes to save.")
             if ok:
                 st.success("Shopping changes saved.")
                 pending_status.clear()
+                pending_options.clear()
                 st.session_state[pending_key] = pending_status
+                st.session_state[pending_option_key] = pending_options
                 clear_dirty("shopping", list_id)
                 for _, row in view.iterrows():
                     item_id = str(row.get("shopping_item_id", "") or "").strip()
                     st.session_state.pop(f"shop_status_{list_id}_{item_id}", None)
+                    st.session_state.pop(f"shop_option_{list_id}_{item_id}", None)
                 st.rerun()
             else:
                 st.warning(msg)
@@ -14137,18 +14657,21 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
     with c_discard:
         if st.button("Discard", key=f"discard_shop_pending_{list_id}", use_container_width=True, disabled=not bool(pending_count)):
             pending_status.clear()
+            pending_options.clear()
             st.session_state[pending_key] = pending_status
+            st.session_state[pending_option_key] = pending_options
             clear_dirty("shopping", list_id)
             for _, row in view.iterrows():
                 item_id = str(row.get("shopping_item_id", "") or "").strip()
                 st.session_state.pop(f"shop_status_{list_id}_{item_id}", None)
+                st.session_state.pop(f"shop_option_{list_id}_{item_id}", None)
             st.rerun()
 
     if pending_count:
         st.caption(f"{pending_count} unsaved shopping change{'s' if pending_count != 1 else ''}.")
 
     recipe_ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
-    cost_lookup = _build_recipe_ingredient_cost_lookup(recipe_ingredients)
+    cost_lookup = _build_recipe_ingredient_cost_lookup(recipe_ingredients, sheet_id)
     section_specs = [
         (SHOP_STATUS_NEED, "Need to buy"),
         (SHOP_STATUS_HAVE, "Already have"),
@@ -14188,6 +14711,14 @@ def render_shopping_items_as_planner(sheet_id: str, list_id: str, selected_list:
                 elif status in {SHOP_STATUS_HAVE, SHOP_STATUS_SKIP}:
                     item_class += " pm-shop-muted"
                 with c2:
+                    option_rows = _shopping_alternative_options(row)
+                    if len(option_rows) > 1:
+                        option_labels = [_shopping_option_label(o) for o in option_rows]
+                        option_key = f"shop_option_{list_id}_{item_id}"
+                        current_option = str(st.session_state.get(option_key) or row.get("_selected_option_label", "") or option_labels[0])
+                        option_index = option_labels.index(current_option) if current_option in option_labels else 0
+                        st.selectbox("Use ingredient", option_labels, index=option_index, key=option_key, label_visibility="collapsed")
+                        meta_bits.append("Alternative available")
                     meta_html = f"<div class='pm-shop-meta'>{html.escape(' · '.join(meta_bits))}</div>" if meta_bits else ""
                     st.markdown(f"<div class='{item_class}'><div class='pm-shop-title'>{html.escape(title)}</div>{meta_html}</div>", unsafe_allow_html=True)
 
@@ -14656,6 +15187,7 @@ def _add_recipes_to_shopping_list(sheet_id: str, list_id: str, list_name: str, r
     if recipe_rows is None or recipe_rows.empty:
         return False, "Select at least one recipe."
     recipe_ingredients = active_online_df(read_online_table(sheet_id, "recipe_ingredients"))
+    recipe_options = active_online_df(read_online_table(sheet_id, "recipe_ingredient_options"))
     current_items = _shopping_items_for_list(sheet_id, list_id)
     existing_by_key: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     if not current_items.empty:
@@ -14682,6 +15214,36 @@ def _add_recipes_to_shopping_list(sheet_id: str, list_id: str, list_name: str, r
             ingredient = str(row.get("ingredient", "") or "").strip()
             if not ingredient:
                 continue
+            group_id = str(row.get("recipe_ingredient_group_id", "") or "").strip()
+            option_rows: list[dict[str, Any]] = []
+            if group_id and not recipe_options.empty:
+                matched_options = recipe_options[recipe_options.get("recipe_ingredient_group_id", pd.Series(dtype=str)).fillna("").astype(str).eq(group_id)]
+                option_rows = [opt.to_dict() for _, opt in matched_options.iterrows()]
+            if not option_rows:
+                option_rows = [{
+                    "recipe_ingredient_option_id": str(row.get("recipe_ingredient_option_id", "") or ""),
+                    "ingredient": ingredient,
+                    "quantity": str(row.get("quantity", "") or ""),
+                    "unit": str(row.get("unit", "") or ""),
+                    "category_name": str(row.get("category_name", "") or _grocery_category_for_item(ingredient) or "Produce"),
+                    "inventory_id": str(row.get("inventory_id", "") or ""),
+                    "is_default": "Yes",
+                    "conversion_status": str(row.get("conversion_status", "") or ""),
+                }]
+                suggested = str(row.get("suggested_substitute", "") or "").strip()
+                if suggested and _normalise_food_key(suggested) != _normalise_food_key(ingredient):
+                    for part in [p.strip() for p in re.split(r"[;|]", suggested) if p.strip()]:
+                        option_rows.append({
+                            "recipe_ingredient_option_id": f"ad-hoc-option-{uuid.uuid4().hex[:8]}",
+                            "ingredient": _normalise_ingredient_name(part),
+                            "quantity": str(row.get("quantity", "") or ""),
+                            "unit": str(row.get("unit", "") or ""),
+                            "category_name": _grocery_category_for_item(part) or str(row.get("category_name", "") or "Produce"),
+                            "inventory_id": "",
+                            "is_default": "",
+                            "conversion_status": "",
+                        })
+            alternative_payload = _recipe_option_payload(option_rows)
             candidate = {
                 "category_name": str(row.get("category_name", "") or _grocery_category_for_item(ingredient) or "Produce"),
                 "quantity": str(row.get("quantity", "") or ""),
@@ -14691,12 +15253,17 @@ def _add_recipes_to_shopping_list(sheet_id: str, list_id: str, list_name: str, r
             key = _shopping_merge_key(candidate)
             existing = existing_by_key.get(key)
             original_notes = str(row.get("notes", "") or "")
+            if len(option_rows) > 1:
+                alt_names = "; ".join([str(o.get("ingredient", "") or "") for o in option_rows[1:] if str(o.get("ingredient", "") or "").strip()])
+                if alt_names:
+                    original_notes = (original_notes + "\n" if original_notes else "") + f"Alternative: {alt_names}"
             if existing:
                 existing_id = str(existing.get("shopping_item_id", "") or "")
                 if existing_id:
                     updates[existing_id] = {
                         "recipe_name": _combine_source_values(str(existing.get("recipe_name", "") or ""), recipe_name),
                         "notes": original_notes or str(existing.get("notes", "") or ""),
+                        "alternative_options_json": alternative_payload or str(existing.get("alternative_options_json", "") or ""),
                     }
                 continue
             new_record = {
@@ -14710,6 +15277,11 @@ def _add_recipes_to_shopping_list(sheet_id: str, list_id: str, list_name: str, r
                 "inventory_id": str(row.get("inventory_id", "") or ""),
                 "recipe_id": recipe_id,
                 "recipe_name": recipe_name,
+                "recipe_ingredient_group_id": group_id,
+                "selected_option_id": str(row.get("recipe_ingredient_option_id", "") or (option_rows[0].get("recipe_ingredient_option_id", "") if option_rows else "")),
+                "original_ingredient": ingredient,
+                "alternative_options_json": alternative_payload,
+                "conversion_status": str(row.get("conversion_status", "") or ""),
                 "checked": "",
                 "expiry_date": "",
                 "notes": original_notes,
@@ -15092,35 +15664,64 @@ def render_recipe_library_tab(sheet_id: str) -> None:
         bulk_text = st.text_area("Ingredient lines", placeholder="1 bunch Cavolo Nero\n250 g buffalo mozzarella\n2 tbsp olive oil", key=f"bulk_recipe_ingredients_{recipe_id}")
         default_category = st.selectbox("Fallback category", categories, key=f"bulk_recipe_category_{recipe_id}")
         if st.button("Add ingredient lines to recipe", use_container_width=True, key=f"bulk_add_recipe_ingredients_{recipe_id}"):
-            records = []
+            records_by_table: dict[str, list[dict[str, Any]]] = {"recipe_ingredients": [], "recipe_ingredient_groups": [], "recipe_ingredient_options": []}
             for line in bulk_text.splitlines():
                 parsed = parse_ingredient_line(line)
                 ingredient_name = _normalise_ingredient_name(parsed.get("ingredient", ""))
                 if not ingredient_name:
                     continue
-                category_guess = _grocery_category_for_item(ingredient_name) or default_category
-                inv_id = _add_inventory_item_if_needed(sheet_id, ingredient_name, category_guess, unit=parsed.get("unit", ""), notes="Added from recipe quick entry.")
-                records.append({
+                alternatives = _split_ingredient_alternatives(ingredient_name)
+                option_names = alternatives or [ingredient_name]
+                category_guess = _grocery_category_for_item(option_names[0]) or default_category
+                group, options, default_option = _make_recipe_ingredient_group_and_options(
+                    sheet_id,
+                    recipe_id=recipe_id,
+                    recipe_name=selected_recipe,
+                    ingredient_names=option_names,
+                    quantity=parsed.get("quantity", ""),
+                    unit=parsed.get("unit", ""),
+                    category=category_guess,
+                    original_line=parsed.get("original", line),
+                    selection_mode="one_of" if alternatives else "single",
+                    notes="Added from recipe quick entry.",
+                )
+                records_by_table["recipe_ingredient_groups"].append(group)
+                records_by_table["recipe_ingredient_options"].extend(options)
+                suggested = "; ".join([o.get("ingredient", "") for o in options[1:] if o.get("ingredient")])
+                records_by_table["recipe_ingredients"].append({
                     "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
                     "recipe_id": recipe_id,
                     "recipe_name": selected_recipe,
-                    "inventory_id": inv_id,
-                    "ingredient": ingredient_name,
+                    "inventory_id": str(default_option.get("inventory_id", "") or ""),
+                    "ingredient": str(default_option.get("ingredient", "") or ingredient_name),
                     "quantity": parsed.get("quantity", ""),
                     "unit": parsed.get("unit", ""),
                     "category_name": category_guess,
+                    "recipe_ingredient_group_id": group.get("recipe_ingredient_group_id", ""),
+                    "recipe_ingredient_option_id": default_option.get("recipe_ingredient_option_id", ""),
+                    "selection_mode": group.get("selection_mode", ""),
+                    "option_label": default_option.get("option_label", ""),
+                    "is_default_option": "Yes",
+                    "original_line": parsed.get("original", line),
+                    "preferred_unit": default_option.get("preferred_unit", ""),
+                    "converted_quantity": default_option.get("converted_quantity", ""),
+                    "converted_unit": default_option.get("converted_unit", ""),
+                    "conversion_status": default_option.get("conversion_status", ""),
                     "is_fresh_produce": _grocery_bool_text(category_guess in {"Produce", "Fruits & Vegetables"}),
                     "lookup_seasonality": "Yes",
+                    "substitute_required": _grocery_bool_text(bool(suggested)),
+                    "suggested_substitute": suggested,
                     "notes": parsed.get("original", line),
                     "status": "active",
                     "source": "Meal Plan quick ingredient entry",
                 })
-            if not records:
+            records_by_table = {k: v for k, v in records_by_table.items() if v}
+            if not records_by_table.get("recipe_ingredients"):
                 st.warning("Enter at least one ingredient line.")
             else:
-                ok, msg = append_many_online_records(sheet_id, {"recipe_ingredients": records})
+                ok, msg = append_many_online_records(sheet_id, records_by_table)
                 if ok:
-                    st.success(f"Added {len(records)} ingredient line(s).")
+                    st.success(f"Added {len(records_by_table.get('recipe_ingredients', []))} ingredient line(s).")
                     st.rerun()
                 else:
                     st.warning(safe_user_message(msg))
@@ -15155,6 +15756,18 @@ def render_recipe_library_tab(sheet_id: str) -> None:
             if selected_ingredient == "+ Add new ingredient":
                 new_ingredient = st.text_input("New ingredient")
         ing_category = st.selectbox("Ingredient category", categories, key="recipe_ingredient_category")
+        has_alternative = st.checkbox("This ingredient can use an alternative", value=False, key="recipe_ingredient_has_alt")
+        alt_ingredient = ""
+        if has_alternative:
+            a1, a2 = st.columns([2, 1])
+            with a1:
+                alt_choice = st.selectbox("Alternative ingredient", ["+ Add new ingredient"] + inv_options, key="recipe_ingredient_alt_choice")
+                if alt_choice == "+ Add new ingredient":
+                    alt_ingredient = st.text_input("New alternative ingredient", key="recipe_ingredient_alt_new")
+                else:
+                    alt_ingredient = alt_choice
+            with a2:
+                st.caption("The alternative is saved as a structured option. Shopping lists can switch to it before adding items to inventory.")
         c4, c5, c6 = st.columns(3)
         with c4:
             is_fresh = st.checkbox("Fresh produce", value=ing_category in {"Produce", "Fruits & Vegetables"})
@@ -15170,28 +15783,55 @@ def render_recipe_library_tab(sheet_id: str) -> None:
         save_ing = st.form_submit_button("Add ingredient to recipe", use_container_width=True)
     if save_ing:
         ingredient_name = new_ingredient.strip() if selected_ingredient == "+ Add new ingredient" else selected_ingredient
+        ingredient_name = _normalise_ingredient_name(ingredient_name)
+        alt_ingredient = _normalise_ingredient_name(alt_ingredient)
         if not ingredient_name:
             st.warning("Choose or enter an ingredient.")
+        elif has_alternative and not alt_ingredient:
+            st.warning("Choose or enter the alternative ingredient, or untick the alternative option.")
         else:
-            inv_id = _add_inventory_item_if_needed(sheet_id, ingredient_name, ing_category, unit=unit, notes="Added from recipe.")
+            option_names = [ingredient_name] + ([alt_ingredient] if has_alternative and alt_ingredient and _normalise_food_key(alt_ingredient) != _normalise_food_key(ingredient_name) else [])
+            group, options, default_option = _make_recipe_ingredient_group_and_options(
+                sheet_id,
+                recipe_id=recipe_id,
+                recipe_name=selected_recipe,
+                ingredient_names=option_names,
+                quantity=quantity.strip(),
+                unit=unit.strip(),
+                category=ing_category,
+                original_line=" ".join([x for x in [quantity.strip(), unit.strip(), ingredient_name] if x]),
+                selection_mode="one_of" if len(option_names) > 1 else "single",
+                notes=ing_notes.strip(),
+            )
             nrow = _find_nutrition_record(sheet_id, ingredient_name)
-            kcal_estimate, nutrition_status = _estimate_ingredient_kcal({"quantity": quantity, "unit": unit}, nrow)
+            kcal_estimate, nutrition_status = _estimate_ingredient_kcal({"ingredient": ingredient_name, "quantity": quantity, "unit": unit}, nrow, sheet_id)
             season_status, season_months, inv_sub = _ingredient_seasonality_status(sheet_id, ingredient_name) if lookup_season else ("", "", "")
-            cost_estimate, cost_status = _estimate_ingredient_cost({"quantity": quantity, "unit": unit, "purchased_quantity": purchased_quantity, "purchased_unit": purchased_unit, "purchased_price": purchased_price})
+            cost_estimate, cost_status = _estimate_ingredient_cost({"ingredient": ingredient_name, "quantity": quantity, "unit": unit, "purchased_quantity": purchased_quantity, "purchased_unit": purchased_unit, "purchased_price": purchased_price}, sheet_id)
+            alternatives_text = "; ".join([o.get("ingredient", "") for o in options[1:] if o.get("ingredient")])
             record = {
                 "recipe_ingredient_id": f"recipe-ingredient-{uuid.uuid4().hex[:12]}",
                 "recipe_id": recipe_id,
                 "recipe_name": selected_recipe,
-                "inventory_id": inv_id,
+                "inventory_id": str(default_option.get("inventory_id", "") or ""),
                 "ingredient": ingredient_name,
                 "quantity": quantity.strip(),
                 "unit": unit.strip(),
                 "category_name": ing_category,
+                "recipe_ingredient_group_id": group.get("recipe_ingredient_group_id", ""),
+                "recipe_ingredient_option_id": default_option.get("recipe_ingredient_option_id", ""),
+                "selection_mode": group.get("selection_mode", ""),
+                "option_label": default_option.get("option_label", ""),
+                "is_default_option": "Yes",
+                "original_line": group.get("original_line", ""),
+                "preferred_unit": default_option.get("preferred_unit", ""),
+                "converted_quantity": default_option.get("converted_quantity", ""),
+                "converted_unit": default_option.get("converted_unit", ""),
+                "conversion_status": default_option.get("conversion_status", ""),
                 "is_fresh_produce": _grocery_bool_text(is_fresh),
                 "lookup_seasonality": _grocery_bool_text(lookup_season),
                 "seasonality_status": season_status,
-                "substitute_required": _grocery_bool_text(substitute_required or "Requires substitute" in season_status),
-                "suggested_substitute": suggested_substitute.strip() or inv_sub,
+                "substitute_required": _grocery_bool_text(substitute_required or bool(alternatives_text) or "Requires substitute" in season_status),
+                "suggested_substitute": suggested_substitute.strip() or alternatives_text or inv_sub,
                 "purchased_quantity": purchased_quantity.strip(),
                 "purchased_unit": purchased_unit.strip(),
                 "purchased_price": purchased_price.strip(),
@@ -15204,9 +15844,14 @@ def render_recipe_library_tab(sheet_id: str) -> None:
                 "status": "active",
                 "source": "Meal Plan",
             }
-            ok, msg = append_online_record(sheet_id, "recipe_ingredients", record)
+            records_by_table = {
+                "recipe_ingredient_groups": [group],
+                "recipe_ingredient_options": options,
+                "recipe_ingredients": [record],
+            }
+            ok, msg = append_many_online_records(sheet_id, records_by_table)
             if ok:
-                st.success("Ingredient added.")
+                st.success("Ingredient option saved." if len(option_names) > 1 else "Ingredient added.")
                 st.rerun()
             else:
                 st.warning(msg)
